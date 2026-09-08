@@ -1,0 +1,45 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Blueprints (JPA/IDE generated)
+/*.iml
+.project
+.classpath
+.settings/
+bin/
+
+# Eclipse
+.sts4-cache/
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Visual Studio Code
+.vscode/
+
+# Build directories
+target/
+build/
+out/
+
+# PKI files
+*.pem
+
+# Sensitive properties or local configurations
+**/application-local.properties
+**/application-local.yml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
