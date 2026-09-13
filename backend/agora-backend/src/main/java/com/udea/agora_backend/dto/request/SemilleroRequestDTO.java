@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Pattern;
 import lombok.Data;
+import java.util.List;
+import jakarta.validation.constraints.NotEmpty;
 
 @Data
 public class SemilleroRequestDTO {
@@ -25,4 +27,7 @@ public class SemilleroRequestDTO {
 
     @NotNull(message = "El programa académico es obligatorio")
     private Integer idPrograma;
+
+    @NotEmpty(message = "Debe seleccionar al menos una línea de investigación")
+    private List<Integer> idLineasInvestigacion;
 }

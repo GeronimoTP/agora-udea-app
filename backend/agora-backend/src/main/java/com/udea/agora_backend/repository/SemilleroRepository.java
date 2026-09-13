@@ -12,6 +12,6 @@ public interface SemilleroRepository extends JpaRepository<Semillero, Integer>{
     Optional<Semillero> findByCodigoIdentificador(String codigoIdentificador);
 
     List<Semillero> findByProgramaId(Integer programaId);
-    List<Semillero> findyByEstado(Integer estadoId);
+    List<Semillero> findByEstadoId(Integer estadoId);
     
 }

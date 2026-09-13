@@ -2,18 +2,17 @@ package com.udea.agora_backend.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import java.time.ZonedDateTime;
 import java.util.List;
-
 
 @Data
 @Builder
-public class SemilleroResponseDTO {
+public class EstudianteResponseDTO {
     private Integer id;
-    private String codigoIdentificador;
-    private String nombre;
-    private String descripcion;
-    private String nombreEstudianteLider;
+    private String nombreCompleto;
+    private String email;
     private String nombrePrograma;
-    private String estadoActual;
+    private Integer semestre;
+    private ZonedDateTime createdAt;
     private List<String> lineasInvestigacion;
 }
