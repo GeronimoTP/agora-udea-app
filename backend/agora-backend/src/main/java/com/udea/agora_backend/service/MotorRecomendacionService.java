@@ -1,0 +1,245 @@
+package com.udea.agora_backend.service;
+
+import com.udea.agora_backend.model.*;
+import com.udea.agora_backend.repository.*;
+import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * SERVICIO CRÍTICO: Motor de Recomendación de Semilleros
+ * 
+ * Implementa algoritmo de puntuación ponderada con 4 factores:
+ * - Factor 1: Habilidades Coincidentes (40%)
+ * - Factor 2: Afinidad Áreas de Especialidad (25%)
+ * - Factor 3: Disponibilidad Convocatorias (20%)
+ * - Factor 4: Proximidad Temática y Programa (15%)
+ * 
+ * Retorna ranking ordenado por porcentaje de afinidad (0-100%)
+ */
+@Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
+@Slf4j
+public class MotorRecomendacionService {
+
+    private final EstudianteRepository estudianteRepository;
+    private final SemilleroRepository semilleroRepository;
+    private final ConvocatoriaRepository convocatoriaRepository;
+    private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
+    private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
+    private final PostulacionHabilidadRepository postulacionHabilidadRepository;
+    private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
+
+    /**
+     * Calcula recomendaciones de semilleros para un estudiante específico
+     * @param idEstudiante ID del estudiante
+     * @return Lista de semilleros recomendados ordenados por afinidad (desc)
+     */
+    public List<SemilleroRecomendadoDTO> calcularAfinidad(Integer idEstudiante) {
+        log.info("Iniciando cálculo de afinidad para estudiante ID: {}", idEstudiante);
+        
+        // Verificar que el estudiante existe
+        Estudiante estudiante = estudianteRepository.findById(idEstudiante)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", idEstudiante));
+
+        // Obtener todos los semilleros disponibles
+        List<Semillero> semillerosDisponibles = semilleroRepository.findAll();
+        
+        if (semillerosDisponibles.isEmpty()) {
+            log.warn("No hay semilleros disponibles para recomendar");
+            return new ArrayList<>();
+        }
+
+        // Calcular afinidad para cada semillero
+        List<SemilleroRecomendadoDTO> recomendaciones = semillerosDisponibles.stream()
+                .map(semillero -> calcularAfinidadConSemillero(estudiante, semillero))
+                .sorted(Comparator.comparingDouble(SemilleroRecomendadoDTO::getPorcentajeMatch).reversed())
+                .collect(Collectors.toList());
+
+        log.info("Cálculo completado. {} semilleros recomendados", recomendaciones.size());
+        return recomendaciones;
+    }
+
+    /**
+     * Calcula la afinidad entre un estudiante y un semillero específico
+     */
+    private SemilleroRecomendadoDTO calcularAfinidadConSemillero(Estudiante estudiante, Semillero semillero) {
+        log.debug("Calculando afinidad: Estudiante {} - Semillero {}", estudiante.getId(), semillero.getId());
+
+        // Calcular los 4 factores
+        double factor1 = calcularFactorHabilidades(estudiante, semillero);
+        double factor2 = calcularFactorAreaEspecialidad(estudiante, semillero);
+        double factor3 = calcularFactorDisponibilidadConvocatorias(semillero);
+        double factor4 = calcularFactorProximidadTematica(estudiante, semillero);
+
+        // Aplicar pesos
+        double porcentajeMatch = (factor1 * 0.40) + (factor2 * 0.25) + (factor3 * 0.20) + (factor4 * 0.15);
+        porcentajeMatch = Math.min(100.0, Math.max(0.0, porcentajeMatch)); // Limitar 0-100%
+
+        log.debug("Factores calculados - Habilidades: {}, AreaEsp: {}, Cupos: {}, Temática: {}, Total: {}%",
+                factor1, factor2, factor3, factor4, porcentajeMatch);
+
+        return SemilleroRecomendadoDTO.builder()
+                .idSemillero(semillero.getId())
+                .nombreSemillero(semillero.getNombre())
+                .codigoIdentificador(semillero.getCodigoIdentificador())
+                .descripcion(semillero.getDescripcion())
+                .nombreEstudianteLider(semillero.getEstudianteLider().getUsuario().getNombreCompleto())
+                .nombrePrograma(semillero.getPrograma().getNombre())
+                .porcentajeMatch(Math.round(porcentajeMatch * 100.0) / 100.0) // Redondear a 2 decimales
+                .factor1Habilidades(Math.round(factor1 * 100.0) / 100.0)
+                .factor2AreaEspecialidad(Math.round(factor2 * 100.0) / 100.0)
+                .factor3DisponibilidadConvocatorias(Math.round(factor3 * 100.0) / 100.0)
+                .factor4ProximidadTematica(Math.round(factor4 * 100.0) / 100.0)
+                .build();
+    }
+
+/**
+     * FACTOR 1 (40%): Calcula coincidencia de habilidades
+     * Compara habilidades del estudiante con requisitos del semillero
+     */
+    private double calcularFactorHabilidades(Estudiante estudiante, Semillero semillero) {
+        try {
+            // 1. CORREGIDO: Usar instancia en minúscula (convocatoriaRepository y postulacionHabilidadRepository)
+            Set<Integer> idsSemillero = convocatoriaRepository.findBySemilleroId(semillero.getId())
+                    .stream()
+                    .flatMap(conv -> postulacionHabilidadRepository.findByConvocatoriaId(conv.getId()).stream())
+                    .map(ph -> ph.getHabilidad().getId())
+                    .collect(Collectors.toSet());
+
+            if (idsSemillero.isEmpty()) {
+                return 0.0; // Sin requisitos especificados
+            }
+
+            // 2. OPTIMIZADO: Ya no usamos findAll(). Llamamos a una consulta personalizada 
+            // que trae directamente los IDs desde la base de datos.
+            Set<Integer> idsEstudiante = new HashSet<>(
+                    postulacionHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId())
+            );
+
+            if (idsEstudiante.isEmpty()) {
+                return 0.0; // Estudiante sin habilidades registradas
+            }
+
+            // Calcular intersección
+            Set<Integer> interseccion = new HashSet<>(idsEstudiante);
+            interseccion.retainAll(idsSemillero);
+
+            double coincidencia = (double) interseccion.size() / idsSemillero.size();
+            return Math.min(100.0, coincidencia * 100.0);
+        } catch (Exception e) {
+            log.error("Error calculando Factor 1 (Habilidades)", e);
+            return 0.0;
+        }
+    }
+    /**
+     * FACTOR 2 (25%): Calcula afinidad en áreas de especialidad
+     * Compara áreas de interés del estudiante con áreas del profesor líder
+     */
+    private double calcularFactorAreaEspecialidad(Estudiante estudiante, Semillero semillero) {
+        try {
+            // En la estructura actual, no hay relación directa estudiante-área
+            // Usamos como proxy la coincidencia de programas y líneas
+            
+            boolean mismoProgramaEstudianteLider = 
+                    estudiante.getPrograma().getId().equals(semillero.getEstudianteLider().getPrograma().getId());
+            
+            // Si están en el mismo programa, mayor afinidad (75%)
+            if (mismoProgramaEstudianteLider) {
+                return 75.0;
+            }
+
+            // Programas diferentes pero afines (50%)
+            return 50.0;
+        } catch (Exception e) {
+            log.error("Error calculando Factor 2 (Área Especialidad)", e);
+            return 0.0;
+        }
+    }
+
+    /**
+     * FACTOR 3 (20%): Calcula disponibilidad de convocatorias
+     * Verifica si el semillero tiene convocatorias activas con cupos
+     */
+    private double calcularFactorDisponibilidadConvocatorias(Semillero semillero) {
+        try {
+            LocalDate hoy = LocalDate.now();
+            
+            long convocatoriasActivas = convocatoriaRepository.findBySemilleroId(semillero.getId())
+                    .stream()
+                    .filter(conv -> !conv.getFechaCierre().isBefore(hoy)) // No expirada
+                    .filter(conv -> conv.getCuposDisponibles() > 0) // Con cupos
+                    .count();
+
+            // Si hay convocatorias activas: 100%, si no: 0%
+            return convocatoriasActivas > 0 ? 100.0 : 0.0;
+        } catch (Exception e) {
+            log.error("Error calculando Factor 3 (Disponibilidad Convocatorias)", e);
+            return 0.0;
+        }
+    }
+
+    /**
+     * FACTOR 4 (15%): Calcula proximidad temática
+     * Mide coincidencia en líneas de investigación entre estudiante y semillero
+     */
+    private double calcularFactorProximidadTematica(Estudiante estudiante, Semillero semillero) {
+        try {
+            // Obtener líneas de interés del estudiante
+            Set<Integer> lineasEstudiante = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
+                    .stream()
+                    .map(eli -> eli.getLineaInvestigacion().getId())
+                    .collect(Collectors.toSet());
+
+            if (lineasEstudiante.isEmpty()) {
+                return 0.0; // Estudiante sin líneas de interés
+            }
+
+            // Obtener líneas del semillero
+            Set<Integer> lineasSemillero = semilleroLineaRepository.findBySemilleroId(semillero.getId())
+                    .stream()
+                    .map(sli -> sli.getLineaInvestigacion().getId())
+                    .collect(Collectors.toSet());
+
+            if (lineasSemillero.isEmpty()) {
+                return 0.0; // Semillero sin líneas definidas
+            }
+
+            // Calcular coincidencia
+            Set<Integer> interseccion = new HashSet<>(lineasEstudiante);
+            interseccion.retainAll(lineasSemillero);
+
+            double coincidencia = (double) interseccion.size() / lineasSemillero.size();
+            return Math.min(100.0, coincidencia * 100.0);
+        } catch (Exception e) {
+            log.error("Error calculando Factor 4 (Proximidad Temática)", e);
+            return 0.0;
+        }
+    }
+
+    /**
+     * DTO para respuesta del motor de recomendación
+     */
+    @lombok.Data
+    @lombok.Builder
+    public static class SemilleroRecomendadoDTO {
+        private Integer idSemillero;
+        private String nombreSemillero;
+        private String codigoIdentificador;
+        private String descripcion;
+        private String nombreEstudianteLider;
+        private String nombrePrograma;
+        private Double porcentajeMatch;
+        private Double factor1Habilidades;
+        private Double factor2AreaEspecialidad;
+        private Double factor3DisponibilidadConvocatorias;
+        private Double factor4ProximidadTematica;
+    }
+}

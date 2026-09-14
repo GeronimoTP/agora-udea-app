@@ -12,7 +12,7 @@ import java.util.List;
 public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Integer> {
     List<Convocatoria> findBySemilleroId(Integer semilleroId);
     List<Convocatoria> findByEstadoId(Integer estadoId);
-    
+
     // Consultas para Servicio 2: Gestor de Convocatorias
     // Convocatorias activas con cupos disponibles
     List<Convocatoria> findByCuposDisponiblesGreaterThan(Integer cupos);

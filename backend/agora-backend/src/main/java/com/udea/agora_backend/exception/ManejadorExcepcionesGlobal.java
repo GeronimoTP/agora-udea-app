@@ -97,7 +97,7 @@ public class ManejadorExcepcionesGlobal extends ResponseEntityExceptionHandler {
                 .timestamp(ZonedDateTime.now())
                 .build();
 
-        return new ResponseEntity<>(errorResponse, HttpStatus.UNPROCESSABLE_ENTITY);
+        return new ResponseEntity<>(errorResponse, HttpStatus.valueOf(422));
     }
 
     /**
