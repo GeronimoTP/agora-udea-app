@@ -5,9 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface EstudianteSemilleroRepository extends JpaRepository<EstudianteSemillero, Integer> {
     List<EstudianteSemillero> findBySemilleroId(Integer semilleroId);
     List<EstudianteSemillero> findByEstudianteId(Integer estudianteId);
+    Optional<EstudianteSemillero> findBySemilleroIdAndEstudianteId(Integer semilleroId, Integer estudianteId);
 }

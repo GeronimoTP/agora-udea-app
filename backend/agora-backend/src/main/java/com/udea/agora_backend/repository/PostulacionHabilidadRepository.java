@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PostulacionHabilidadRepository extends JpaRepository<PostulacionHabilidad, Integer> {
@@ -32,4 +33,8 @@ public interface PostulacionHabilidadRepository extends JpaRepository<Postulacio
     @Query("SELECT ph.habilidad.id FROM PostulacionHabilidad ph WHERE ph.postulacion.estudiante.id = :estudianteId")
     List<Integer> findHabilidadIdsByEstudianteId(@Param("estudianteId") Integer estudianteId);
     
+    // Habilidades declaradas en una postulación específica
+    List<PostulacionHabilidad> findByPostulacionId(Integer postulacionId);
+    
+    Optional<PostulacionHabilidad> findByPostulacionIdAndHabilidadId(Integer postulacionId, Integer habilidadId);
 }

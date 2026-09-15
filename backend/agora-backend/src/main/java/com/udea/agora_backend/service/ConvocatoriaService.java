@@ -7,6 +7,8 @@ import com.udea.agora_backend.model.Convocatoria;
 import com.udea.agora_backend.model.Estado;
 import com.udea.agora_backend.repository.ConvocatoriaRepository;
 import com.udea.agora_backend.repository.EstadoRepository;
+import com.udea.agora_backend.model.Semillero;
+import com.udea.agora_backend.repository.SemilleroRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ public class ConvocatoriaService {
 
     private final ConvocatoriaRepository convocatoriaRepository;
     private final EstadoRepository estadoRepository;
+    private final SemilleroRepository semilleroRepository;
 
     /**
      * Obtiene todas las convocatorias
@@ -46,6 +49,16 @@ public class ConvocatoriaService {
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", id));
         return mapeoAResponseDTO(convocatoria);
+    }
+
+    /**
+     * Obtiene convocatorias por semillero
+     */
+    public List<ConvocatoriaResponseDTO> obtenerPorSemillero(Integer idSemillero) {
+        return convocatoriaRepository.findBySemilleroId(idSemillero)
+                .stream()
+                .map(this::mapeoAResponseDTO)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -98,6 +111,10 @@ public class ConvocatoriaService {
      * Crea una nueva convocatoria
      */
     public ConvocatoriaResponseDTO crear(ConvocatoriaRequestDTO request) {
+        // Obtener semillero
+        Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
+
         // Obtener estado inicial (Activa)
         Estado estado = estadoRepository.findAll().stream()
                 .filter(e -> e.getNombre().equalsIgnoreCase("Activa"))
@@ -112,6 +129,7 @@ public class ConvocatoriaService {
                 .fechaCierre(request.getFechaCierre())
                 .cuposDisponibles(request.getCuposTotales())
                 .cuposTotales(request.getCuposTotales())
+                .semillero(semillero)
                 .estado(estado)
                 .createdAt(ZonedDateTime.now())
                 .build();
@@ -126,6 +144,13 @@ public class ConvocatoriaService {
     public ConvocatoriaResponseDTO actualizar(Integer id, ConvocatoriaRequestDTO request) {
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", id));
+
+        // Obtener semillero si cambió
+        if (!convocatoria.getSemillero().getId().equals(request.getIdSemillero())) {
+            Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
+            convocatoria.setSemillero(semillero);
+        }
 
         // Actualizar campos
         convocatoria.setTitulo(request.getTitulo());
@@ -159,8 +184,8 @@ public class ConvocatoriaService {
                 .fechaCierre(convocatoria.getFechaCierre())
                 .cuposTotales(convocatoria.getCuposTotales())
                 .cuposDisponibles(convocatoria.getCuposDisponibles())
-                .nombreSemillero(convocatoria.getSemillero().getNombre())
-                .estadoActual(convocatoria.getEstado().getNombre())
+                .nombreSemillero(convocatoria.getSemillero() != null ? convocatoria.getSemillero().getNombre() : null)
+                .estadoActual(convocatoria.getEstado() != null ? convocatoria.getEstado().getNombre() : null)
                 .build();
     }
 }
