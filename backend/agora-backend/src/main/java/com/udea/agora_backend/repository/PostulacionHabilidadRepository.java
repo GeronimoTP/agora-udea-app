@@ -10,7 +10,8 @@ import java.util.List;
 public interface PostulacionHabilidadRepository extends JpaRepository<PostulacionHabilidad, Integer> {
     
     // Método básico para buscar habilidades por el ID de la convocatoria
-    List<PostulacionHabilidad> findByConvocatoriaId(Integer convocatoriaId);
+    @Query("SELECT ph FROM PostulacionHabilidad ph WHERE ph.postulacion.convocatoria.id = :convocatoriaId")
+    List<PostulacionHabilidad> findByConvocatoriaId(@Param("convocatoriaId") Integer convocatoriaId);
 
     // Consulta OPTIMIZADA: Navega por las entidades (Postulacion -> Estudiante) 
     // y extrae solo los IDs de las habilidades para un estudiante específico.

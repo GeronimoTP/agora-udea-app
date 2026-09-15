@@ -1,6 +1,8 @@
 package com.udea.agora_backend.exception;
 
 import com.udea.agora_backend.dto.response.ApiErrorResponseDTO;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -102,13 +104,13 @@ public class ManejadorExcepcionesGlobal extends ResponseEntityExceptionHandler {
 
     /**
      * Maneja errores de validación de Jakarta Validation (@NotNull, @Email, etc.)
-     * Se lanza automáticamente cuando falla la validación en el request body
+     * Se sobreescribe correctamente usando HttpStatusCode para evitar ambigüedades en Spring Boot moderno.
      */
-    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex,
-            org.springframework.http.HttpHeaders headers,
-            HttpStatus status,
+            HttpHeaders headers,
+            HttpStatusCode status,
             WebRequest request) {
 
         List<ApiErrorResponseDTO.FieldErrorDTO> fieldErrors = new ArrayList<>();
@@ -151,7 +153,7 @@ public class ManejadorExcepcionesGlobal extends ResponseEntityExceptionHandler {
                 .timestamp(ZonedDateTime.now())
                 .build();
 
-        ex.printStackTrace();  // Log en consola (en producción usar Logger)
+        ex.printStackTrace();  // Log en consola
 
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }
