@@ -66,10 +66,11 @@ public class PostulacionService {
     }
 
     /**
-     * Obtiene postulaciones activas de un estudiante
+     * Obtiene postulaciones activas de un estudiante (aún sin resolver: en
+     * revisión del líder o esperando confirmación del estudiante)
      */
     public List<PostulacionResponseDTO> obtenerPostulacionesActivasByEstudiante(Integer idEstudiante) {
-        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante)
+        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, "Pendiente", "Pre-aprobada")
                 .stream()
                 .map(this::mapeoAResponseDTO)
                 .collect(Collectors.toList());

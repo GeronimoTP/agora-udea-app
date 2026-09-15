@@ -9,4 +9,6 @@ public class LineaInvestigacionResponseDTO {
     private Integer id;
     private String nombre;
     private String descripcion;
+    private Integer idAreaEspecialidad;
+    private String nombreAreaEspecialidad;
 }

@@ -60,6 +60,7 @@ public class LineaInvestigacionService {
         
         linea.setNombre(lineaActualizada.getNombre());
         linea.setDescripcion(lineaActualizada.getDescripcion());
+        linea.setAreaEspecialidad(lineaActualizada.getAreaEspecialidad());
 
         return lineaRepository.save(linea);
     }

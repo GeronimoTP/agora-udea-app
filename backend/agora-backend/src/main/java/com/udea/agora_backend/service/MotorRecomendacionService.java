@@ -36,6 +36,15 @@ public class MotorRecomendacionService {
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
+    private final ProfesorSemilleroRepository profesorSemilleroRepository;
+
+    // Nombre del estado de postulación que indica selección confirmada. Debe coincidir
+    // exactamente con el valor sembrado en tbl_estados (categoría "Estado Postulación").
+    private static final String ESTADO_POSTULACION_ACEPTADA = "Aceptada";
+
+    // Valor neutral (ni penaliza ni favorece) para el Factor 1 cuando un semillero no
+    // tiene ningún historial de postulaciones con el que evaluar el fit técnico.
+    private static final double FACTOR_NEUTRAL_SIN_HISTORIAL = 50.0;
 
     /**
      * Calcula recomendaciones de semilleros para un estudiante específico
@@ -103,61 +112,88 @@ public class MotorRecomendacionService {
 
 /**
      * FACTOR 1 (40%): Calcula coincidencia de habilidades
-     * Compara habilidades del estudiante con requisitos del semillero
+     * Compara habilidades del estudiante con las que históricamente ha requerido el semillero.
+     *
+     * Estrategia de tres niveles (ajuste de código, sin cambios de esquema):
+     *   1. Señal fuerte: habilidades de postulaciones ya ACEPTADAS al semillero (lo que
+     *      realmente funcionó y fue seleccionado).
+     *   2. Fallback: si aún no hay postulaciones aceptadas (semillero nuevo o convocatoria
+     *      recién abierta), se usan las habilidades de TODAS las postulaciones recibidas.
+     *   3. Neutral: si el semillero nunca ha recibido ninguna postulación, no hay forma de
+     *      evaluar el fit técnico, así que se devuelve un valor neutral (no 0, que penalizaría
+     *      injustamente a semilleros nuevos sin culpa del estudiante).
      */
     private double calcularFactorHabilidades(Estudiante estudiante, Semillero semillero) {
         try {
-            // 1. CORREGIDO: Usar instancia en minúscula (convocatoriaRepository y postulacionHabilidadRepository)
-            Set<Integer> idsSemillero = convocatoriaRepository.findBySemilleroId(semillero.getId())
+            Set<Integer> idsRequeridos = postulacionHabilidadRepository
+                    .findBySemilleroIdAndEstadoNombre(semillero.getId(), ESTADO_POSTULACION_ACEPTADA)
                     .stream()
-                    .flatMap(conv -> postulacionHabilidadRepository.findByConvocatoriaId(conv.getId()).stream())
                     .map(ph -> ph.getHabilidad().getId())
                     .collect(Collectors.toSet());
 
-            if (idsSemillero.isEmpty()) {
-                return 0.0; // Sin requisitos especificados
+            if (idsRequeridos.isEmpty()) {
+                idsRequeridos = postulacionHabilidadRepository.findBySemilleroId(semillero.getId())
+                        .stream()
+                        .map(ph -> ph.getHabilidad().getId())
+                        .collect(Collectors.toSet());
             }
 
-            // 2. OPTIMIZADO: Ya no usamos findAll(). Llamamos a una consulta personalizada 
-            // que trae directamente los IDs desde la base de datos.
+            if (idsRequeridos.isEmpty()) {
+                return FACTOR_NEUTRAL_SIN_HISTORIAL; // Semillero sin ninguna postulación aún: sin señal
+            }
+
             Set<Integer> idsEstudiante = new HashSet<>(
                     postulacionHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId())
             );
 
             if (idsEstudiante.isEmpty()) {
-                return 0.0; // Estudiante sin habilidades registradas
+                return 0.0; // Sí hay señal del semillero, pero el estudiante no declaró habilidades
             }
 
-            // Calcular intersección
             Set<Integer> interseccion = new HashSet<>(idsEstudiante);
-            interseccion.retainAll(idsSemillero);
+            interseccion.retainAll(idsRequeridos);
 
-            double coincidencia = (double) interseccion.size() / idsSemillero.size();
+            double coincidencia = (double) interseccion.size() / idsRequeridos.size();
             return Math.min(100.0, coincidencia * 100.0);
         } catch (Exception e) {
             log.error("Error calculando Factor 1 (Habilidades)", e);
             return 0.0;
         }
     }
+
     /**
      * FACTOR 2 (25%): Calcula afinidad en áreas de especialidad
-     * Compara áreas de interés del estudiante con áreas del profesor líder
+     * Compara las áreas de especialidad del estudiante (derivadas de sus líneas de
+     * investigación de interés, vía la nueva FK tbl_linea_investigacion.id_area_especialidad)
+     * contra las áreas de especialidad declaradas por TODOS los profesores tutores del
+     * semillero (co-tutoría N:M vía tbl_profesor_x_semillero + tbl_profesor_x_area_especialidad).
      */
     private double calcularFactorAreaEspecialidad(Estudiante estudiante, Semillero semillero) {
         try {
-            // En la estructura actual, no hay relación directa estudiante-área
-            // Usamos como proxy la coincidencia de programas y líneas
-            
-            boolean mismoProgramaEstudianteLider = 
-                    estudiante.getPrograma().getId().equals(semillero.getEstudianteLider().getPrograma().getId());
-            
-            // Si están en el mismo programa, mayor afinidad (75%)
-            if (mismoProgramaEstudianteLider) {
-                return 75.0;
+            Set<Integer> areasEstudiante = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
+                    .stream()
+                    .map(eli -> eli.getLineaInvestigacion().getAreaEspecialidad().getId())
+                    .collect(Collectors.toSet());
+
+            if (areasEstudiante.isEmpty()) {
+                return 0.0; // Estudiante sin líneas de interés registradas
             }
 
-            // Programas diferentes pero afines (50%)
-            return 50.0;
+            Set<Integer> areasProfesores = profesorSemilleroRepository.findBySemilleroId(semillero.getId())
+                    .stream()
+                    .flatMap(ps -> profesorAreaRepository.findByProfesorId(ps.getProfesor().getId()).stream())
+                    .map(pae -> pae.getAreaEspecialidad().getId())
+                    .collect(Collectors.toSet());
+
+            if (areasProfesores.isEmpty()) {
+                return 0.0; // El semillero aún no tiene profesores tutores con áreas registradas
+            }
+
+            Set<Integer> interseccion = new HashSet<>(areasEstudiante);
+            interseccion.retainAll(areasProfesores);
+
+            double coincidencia = (double) interseccion.size() / areasProfesores.size();
+            return Math.min(100.0, coincidencia * 100.0);
         } catch (Exception e) {
             log.error("Error calculando Factor 2 (Área Especialidad)", e);
             return 0.0;

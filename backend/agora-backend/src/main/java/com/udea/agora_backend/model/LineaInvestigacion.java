@@ -21,4 +21,12 @@ public class LineaInvestigacion {
 
     @Column(nullable = false)
     private String descripcion;
+
+    // Cada línea de investigación pertenece a un área de especialidad más amplia.
+    // Permite elevar el interés temático del estudiante (líneas) a nivel de área
+    // para compararlo contra las especialidades de los profesores en el Factor 2
+    // del motor de recomendación.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_area_especialidad", nullable = false)
+    private AreaEspecialidad areaEspecialidad;
 }

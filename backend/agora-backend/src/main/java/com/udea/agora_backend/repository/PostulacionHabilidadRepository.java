@@ -13,6 +13,20 @@ public interface PostulacionHabilidadRepository extends JpaRepository<Postulacio
     @Query("SELECT ph FROM PostulacionHabilidad ph WHERE ph.postulacion.convocatoria.id = :convocatoriaId")
     List<PostulacionHabilidad> findByConvocatoriaId(@Param("convocatoriaId") Integer convocatoriaId);
 
+    // Todas las habilidades declaradas en CUALQUIER postulación recibida por un semillero
+    // (une por semillero directamente, evitando el loop N+1 por convocatoria)
+    @Query("SELECT ph FROM PostulacionHabilidad ph WHERE ph.postulacion.convocatoria.semillero.id = :semilleroId")
+    List<PostulacionHabilidad> findBySemilleroId(@Param("semilleroId") Integer semilleroId);
+
+    // Habilidades declaradas SOLO en postulaciones de un semillero cuyo estado tiene un nombre dado
+    // (ej. "Aceptada"): la señal más confiable de qué habilidades realmente valora el semillero
+    @Query("SELECT ph FROM PostulacionHabilidad ph " +
+           "WHERE ph.postulacion.convocatoria.semillero.id = :semilleroId " +
+           "AND ph.postulacion.estado.nombre = :estadoNombre")
+    List<PostulacionHabilidad> findBySemilleroIdAndEstadoNombre(
+            @Param("semilleroId") Integer semilleroId,
+            @Param("estadoNombre") String estadoNombre);
+
     // Consulta OPTIMIZADA: Navega por las entidades (Postulacion -> Estudiante) 
     // y extrae solo los IDs de las habilidades para un estudiante específico.
     @Query("SELECT ph.habilidad.id FROM PostulacionHabilidad ph WHERE ph.postulacion.estudiante.id = :estudianteId")
