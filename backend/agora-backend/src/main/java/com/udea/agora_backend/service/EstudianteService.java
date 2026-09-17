@@ -18,204 +18,283 @@ import java.util.stream.Collectors;
 
 /**
  * Servicio de gestión de estudiantes.
- * Maneja operaciones CRUD, búsquedas y asignación de líneas de interés/investigación.
+ * Maneja operaciones CRUD, búsquedas y asignación de líneas de
+ * interés/investigación.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class EstudianteService {
 
-    private final EstudianteRepository estudianteRepository;
-    private final UsuarioRepository usuarioRepository;
-    private final ProgramaAcademicoRepository programaRepository;
-    private final LineaInvestigacionRepository lineaInvestigacionRepository;
-    private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
+        private final EstudianteRepository estudianteRepository;
+        private final UsuarioRepository usuarioRepository;
+        private final ProgramaAcademicoRepository programaRepository;
+        private final LineaInvestigacionRepository lineaInvestigacionRepository;
+        private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
+        private final RolRepository rolRepository;
 
-    /**
-     * Obtiene todos los estudiantes
-     */
-    public List<EstudianteResponseDTO> obtenerTodos() {
-        return estudianteRepository.findAll()
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Obtiene un estudiante por su ID
-     */
-    public EstudianteResponseDTO obtenerPorId(Integer id) {
-        Estudiante estudiante = estudianteRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
-        return mapeoAResponseDTO(estudiante);
-    }
-
-    /**
-     * Obtiene un estudiante por ID de usuario
-     */
-    public EstudianteResponseDTO obtenerPorIdUsuario(Integer idUsuario) {
-        Estudiante estudiante = estudianteRepository.findByUsuarioId(idUsuario)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", "usuarioId", idUsuario));
-        return mapeoAResponseDTO(estudiante);
-    }
-
-    /**
-     * Crea un nuevo estudiante
-     */
-    public EstudianteResponseDTO crear(EstudianteRequestDTO request) {
-        // Verificar usuario no duplicado
-        if (estudianteRepository.findByUsuarioId(request.getIdUsuario()).isPresent()) {
-            throw new ConflictoException("Estudiante", "usuarioId", request.getIdUsuario().toString());
+        /**
+         * Obtiene todos los estudiantes
+         */
+        public List<EstudianteResponseDTO> obtenerTodos() {
+                return estudianteRepository.findAll()
+                                .stream()
+                                .map(this::mapeoAResponseDTO)
+                                .collect(Collectors.toList());
         }
 
-        // Obtener usuario
-        Usuario usuario = usuarioRepository.findById(request.getIdUsuario())
-                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", request.getIdUsuario()));
-
-        // Obtener programa
-        ProgramaAcademico programa = programaRepository.findById(request.getIdPrograma())
-                .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", request.getIdPrograma()));
-
-        // Crear estudiante
-        Estudiante estudiante = Estudiante.builder()
-                .usuario(usuario)
-                .programa(programa)
-                .semestre(request.getSemestre())
-                .createdAt(ZonedDateTime.now())
-                .build();
-
-        Estudiante estudianteGuardado = estudianteRepository.save(estudiante);
-
-        // Guardar líneas de investigación iniciales
-        if (request.getIdLineasInvestigacion() != null && !request.getIdLineasInvestigacion().isEmpty()) {
-            for (Integer idLinea : request.getIdLineasInvestigacion()) {
-                LineaInvestigacion linea = lineaInvestigacionRepository.findById(idLinea)
-                        .orElseThrow(() -> new RecursoNoEncontradoException("LineaInvestigacion", idLinea));
-                
-                EstudianteLineaInvestigacion eli = EstudianteLineaInvestigacion.builder()
-                        .estudiante(estudianteGuardado)
-                        .lineaInvestigacion(linea)
-                        .build();
-                estudianteLineaRepository.save(eli);
-            }
+        /**
+         * Obtiene un estudiante por su ID
+         */
+        public EstudianteResponseDTO obtenerPorId(Integer id) {
+                Estudiante estudiante = estudianteRepository.findById(id)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
+                return mapeoAResponseDTO(estudiante);
         }
 
-        return mapeoAResponseDTO(estudianteGuardado);
-    }
-
-    /**
-     * Actualiza un estudiante existente
-     */
-    public EstudianteResponseDTO actualizar(Integer id, EstudianteRequestDTO request) {
-        Estudiante estudiante = estudianteRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
-
-        // Obtener programa si cambió
-        if (!estudiante.getPrograma().getId().equals(request.getIdPrograma())) {
-            ProgramaAcademico programa = programaRepository.findById(request.getIdPrograma())
-                    .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", request.getIdPrograma()));
-            estudiante.setPrograma(programa);
+        /**
+         * Obtiene un estudiante por ID de usuario
+         */
+        public EstudianteResponseDTO obtenerPorIdUsuario(Integer idUsuario) {
+                Estudiante estudiante = estudianteRepository.findByUsuarioId(idUsuario)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", "usuarioId",
+                                                idUsuario));
+                return mapeoAResponseDTO(estudiante);
         }
 
-        // Actualizar semestre
-        estudiante.setSemestre(request.getSemestre());
+        /**
+         * Crea un nuevo estudiante
+         */
+        public EstudianteResponseDTO crear(EstudianteRequestDTO request) {
+                // Verificar usuario no duplicado
+                if (estudianteRepository.findByUsuarioId(request.getIdUsuario()).isPresent()) {
+                        throw new ConflictoException("Estudiante", "usuarioId", request.getIdUsuario().toString());
+                }
 
-        Estudiante estudianteActualizado = estudianteRepository.save(estudiante);
+                // Obtener usuario
+                Usuario usuario = usuarioRepository.findById(request.getIdUsuario())
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", request.getIdUsuario()));
 
-        // Sincronizar líneas de investigación si vienen en el request
-        if (request.getIdLineasInvestigacion() != null) {
-            // Eliminar anteriores
-            List<EstudianteLineaInvestigacion> anteriores = estudianteLineaRepository.findByEstudianteId(id);
-            estudianteLineaRepository.deleteAll(anteriores);
+                // Obtener programa
+                ProgramaAcademico programa = programaRepository.findById(request.getIdPrograma())
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico",
+                                                request.getIdPrograma()));
 
-            // Guardar nuevas
-            for (Integer idLinea : request.getIdLineasInvestigacion()) {
-                LineaInvestigacion linea = lineaInvestigacionRepository.findById(idLinea)
-                        .orElseThrow(() -> new RecursoNoEncontradoException("LineaInvestigacion", idLinea));
-                
-                EstudianteLineaInvestigacion eli = EstudianteLineaInvestigacion.builder()
-                        .estudiante(estudianteActualizado)
-                        .lineaInvestigacion(linea)
-                        .build();
-                estudianteLineaRepository.save(eli);
-            }
+                // Crear estudiante
+                Estudiante estudiante = Estudiante.builder()
+                                .usuario(usuario)
+                                .programa(programa)
+                                .semestre(request.getSemestre())
+                                .createdAt(ZonedDateTime.now())
+                                .build();
+
+                Estudiante estudianteGuardado = estudianteRepository.save(estudiante);
+
+                // Guardar líneas de investigación iniciales
+                if (request.getIdLineasInvestigacion() != null && !request.getIdLineasInvestigacion().isEmpty()) {
+                        for (Integer idLinea : request.getIdLineasInvestigacion()) {
+                                LineaInvestigacion linea = lineaInvestigacionRepository.findById(idLinea)
+                                                .orElseThrow(() -> new RecursoNoEncontradoException(
+                                                                "LineaInvestigacion", idLinea));
+
+                                EstudianteLineaInvestigacion eli = EstudianteLineaInvestigacion.builder()
+                                                .estudiante(estudianteGuardado)
+                                                .lineaInvestigacion(linea)
+                                                .build();
+                                estudianteLineaRepository.save(eli);
+                        }
+                }
+
+                return mapeoAResponseDTO(estudianteGuardado);
         }
 
-        return mapeoAResponseDTO(estudianteActualizado);
-    }
+        /**
+         * Crea un nuevo estudiante junto con su usuario (para registro desde frontend)
+         * Este método NO necesita que el usuario ya exista
+         * 
+         * @param email                 Email del usuario
+         * @param nombreCompleto        Nombre completo
+         * @param idPrograma            ID del programa académico
+         * @param semestre              Semestre del estudiante
+         * @param idLineasInvestigacion IDs de líneas de investigación de interés
+         * @return El estudiante creado
+         */
+        public EstudianteResponseDTO registrarEstudiante(
+                        String email,
+                        String nombreCompleto,
+                        Integer idPrograma,
+                        Integer semestre,
+                        List<Integer> idLineasInvestigacion) {
 
-    /**
-     * Elimina un estudiante por su ID
-     */
-    public void eliminar(Integer id) {
-        Estudiante estudiante = estudianteRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
-        estudianteRepository.delete(estudiante);
-    }
+                // Obtener programa
+                ProgramaAcademico programa = programaRepository.findById(idPrograma)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
 
-    // ==========================================
-    // LÍNEAS DE INVESTIGACIÓN / INTERÉS
-    // ==========================================
+                // Obtener rol de estudiante
+                Rol rolEstudiante = rolRepository.findByNombre("Estudiante")
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "Estudiante"));
 
-    public EstudianteLineaInvestigacionResponseDTO agregarLineaInvestigacion(EstudianteLineaInvestigacionRequestDTO request) {
-        Estudiante estudiante = estudianteRepository.findById(request.getIdEstudiante())
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", request.getIdEstudiante()));
+                // Crear usuario
+                Usuario usuario = new Usuario();
+                usuario.setNombreCompleto(nombreCompleto);
+                usuario.setEmail(email);
+                usuario.setRol(rolEstudiante);
+                usuario = usuarioRepository.save(usuario);
 
-        LineaInvestigacion linea = lineaInvestigacionRepository.findById(request.getIdLineaInvestigacion())
-                .orElseThrow(() -> new RecursoNoEncontradoException("LineaInvestigacion", request.getIdLineaInvestigacion()));
+                // Crear estudiante
+                Estudiante estudiante = Estudiante.builder()
+                                .usuario(usuario)
+                                .programa(programa)
+                                .semestre(semestre)
+                                .createdAt(ZonedDateTime.now())
+                                .build();
 
-        if (estudianteLineaRepository.findByEstudianteIdAndLineaInvestigacionId(request.getIdEstudiante(), request.getIdLineaInvestigacion()).isPresent()) {
-            throw new ConflictoException("EstudianteLineaInvestigacion", "idLineaInvestigacion", request.getIdLineaInvestigacion().toString());
+                Estudiante estudianteGuardado = estudianteRepository.save(estudiante);
+
+                // Guardar líneas de investigación
+                if (idLineasInvestigacion != null && !idLineasInvestigacion.isEmpty()) {
+                        for (Integer idLinea : idLineasInvestigacion) {
+                                LineaInvestigacion linea = lineaInvestigacionRepository.findById(idLinea)
+                                                .orElseThrow(() -> new RecursoNoEncontradoException(
+                                                                "Línea de Investigación", idLinea));
+
+                                EstudianteLineaInvestigacion eli = EstudianteLineaInvestigacion.builder()
+                                                .estudiante(estudianteGuardado)
+                                                .lineaInvestigacion(linea)
+                                                .build();
+                                estudianteLineaRepository.save(eli);
+                        }
+                }
+
+                return mapeoAResponseDTO(estudianteGuardado);
         }
 
-        EstudianteLineaInvestigacion asociacion = EstudianteLineaInvestigacion.builder()
-                .estudiante(estudiante)
-                .lineaInvestigacion(linea)
-                .build();
+        /**
+         * Actualiza un estudiante existente
+         */
+        public EstudianteResponseDTO actualizar(Integer id, EstudianteRequestDTO request) {
+                Estudiante estudiante = estudianteRepository.findById(id)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
 
-        EstudianteLineaInvestigacion guardada = estudianteLineaRepository.save(asociacion);
+                // Obtener programa si cambió
+                if (!estudiante.getPrograma().getId().equals(request.getIdPrograma())) {
+                        ProgramaAcademico programa = programaRepository.findById(request.getIdPrograma())
+                                        .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico",
+                                                        request.getIdPrograma()));
+                        estudiante.setPrograma(programa);
+                }
 
-        return EstudianteLineaInvestigacionResponseDTO.builder()
-                .id(guardada.getId())
-                .nombreEstudiante(estudiante.getUsuario().getNombreCompleto())
-                .nombreLineaInvestigacion(linea.getNombre())
-                .build();
-    }
+                // Actualizar semestre
+                estudiante.setSemestre(request.getSemestre());
 
-    public List<EstudianteLineaInvestigacionResponseDTO> obtenerLineasInvestigacion(Integer idEstudiante) {
-        return estudianteLineaRepository.findByEstudianteId(idEstudiante)
-                .stream()
-                .map(eli -> EstudianteLineaInvestigacionResponseDTO.builder()
-                        .id(eli.getId())
-                        .nombreEstudiante(eli.getEstudiante().getUsuario().getNombreCompleto())
-                        .nombreLineaInvestigacion(eli.getLineaInvestigacion().getNombre())
-                        .build())
-                .collect(Collectors.toList());
-    }
+                Estudiante estudianteActualizado = estudianteRepository.save(estudiante);
 
-    public void eliminarLineaInvestigacion(Integer idEstudiante, Integer idLinea) {
-        EstudianteLineaInvestigacion asociacion = estudianteLineaRepository.findByEstudianteIdAndLineaInvestigacionId(idEstudiante, idLinea)
-                .orElseThrow(() -> new RecursoNoEncontradoException("EstudianteLineaInvestigacion", "idLinea", idLinea));
-        estudianteLineaRepository.delete(asociacion);
-    }
+                // Sincronizar líneas de investigación si vienen en el request
+                if (request.getIdLineasInvestigacion() != null) {
+                        // Eliminar anteriores
+                        List<EstudianteLineaInvestigacion> anteriores = estudianteLineaRepository
+                                        .findByEstudianteId(id);
+                        estudianteLineaRepository.deleteAll(anteriores);
 
-    /**
-     * Mapea entidad Estudiante a ResponseDTO
-     */
-    private EstudianteResponseDTO mapeoAResponseDTO(Estudiante estudiante) {
-        List<String> lineas = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
-                .stream()
-                .map(eli -> eli.getLineaInvestigacion().getNombre())
-                .collect(Collectors.toList());
+                        // Guardar nuevas
+                        for (Integer idLinea : request.getIdLineasInvestigacion()) {
+                                LineaInvestigacion linea = lineaInvestigacionRepository.findById(idLinea)
+                                                .orElseThrow(() -> new RecursoNoEncontradoException(
+                                                                "LineaInvestigacion", idLinea));
 
-        return EstudianteResponseDTO.builder()
-                .id(estudiante.getId())
-                .nombreCompleto(estudiante.getUsuario() != null ? estudiante.getUsuario().getNombreCompleto() : null)
-                .email(estudiante.getUsuario() != null ? estudiante.getUsuario().getEmail() : null)
-                .nombrePrograma(estudiante.getPrograma() != null ? estudiante.getPrograma().getNombre() : null)
-                .semestre(estudiante.getSemestre())
-                .lineasInvestigacion(lineas)
-                .createdAt(estudiante.getCreatedAt())
-                .build();
-    }
+                                EstudianteLineaInvestigacion eli = EstudianteLineaInvestigacion.builder()
+                                                .estudiante(estudianteActualizado)
+                                                .lineaInvestigacion(linea)
+                                                .build();
+                                estudianteLineaRepository.save(eli);
+                        }
+                }
+
+                return mapeoAResponseDTO(estudianteActualizado);
+        }
+
+        /**
+         * Elimina un estudiante por su ID
+         */
+        public void eliminar(Integer id) {
+                Estudiante estudiante = estudianteRepository.findById(id)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
+                estudianteRepository.delete(estudiante);
+        }
+
+        // ==========================================
+        // LÍNEAS DE INVESTIGACIÓN / INTERÉS
+        // ==========================================
+
+        public EstudianteLineaInvestigacionResponseDTO agregarLineaInvestigacion(
+                        EstudianteLineaInvestigacionRequestDTO request) {
+                Estudiante estudiante = estudianteRepository.findById(request.getIdEstudiante())
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante",
+                                                request.getIdEstudiante()));
+
+                LineaInvestigacion linea = lineaInvestigacionRepository.findById(request.getIdLineaInvestigacion())
+                                .orElseThrow(() -> new RecursoNoEncontradoException("LineaInvestigacion",
+                                                request.getIdLineaInvestigacion()));
+
+                if (estudianteLineaRepository.findByEstudianteIdAndLineaInvestigacionId(request.getIdEstudiante(),
+                                request.getIdLineaInvestigacion()).isPresent()) {
+                        throw new ConflictoException("EstudianteLineaInvestigacion", "idLineaInvestigacion",
+                                        request.getIdLineaInvestigacion().toString());
+                }
+
+                EstudianteLineaInvestigacion asociacion = EstudianteLineaInvestigacion.builder()
+                                .estudiante(estudiante)
+                                .lineaInvestigacion(linea)
+                                .build();
+
+                EstudianteLineaInvestigacion guardada = estudianteLineaRepository.save(asociacion);
+
+                return EstudianteLineaInvestigacionResponseDTO.builder()
+                                .id(guardada.getId())
+                                .nombreEstudiante(estudiante.getUsuario().getNombreCompleto())
+                                .nombreLineaInvestigacion(linea.getNombre())
+                                .build();
+        }
+
+        public List<EstudianteLineaInvestigacionResponseDTO> obtenerLineasInvestigacion(Integer idEstudiante) {
+                return estudianteLineaRepository.findByEstudianteId(idEstudiante)
+                                .stream()
+                                .map(eli -> EstudianteLineaInvestigacionResponseDTO.builder()
+                                                .id(eli.getId())
+                                                .nombreEstudiante(eli.getEstudiante().getUsuario().getNombreCompleto())
+                                                .nombreLineaInvestigacion(eli.getLineaInvestigacion().getNombre())
+                                                .build())
+                                .collect(Collectors.toList());
+        }
+
+        public void eliminarLineaInvestigacion(Integer idEstudiante, Integer idLinea) {
+                EstudianteLineaInvestigacion asociacion = estudianteLineaRepository
+                                .findByEstudianteIdAndLineaInvestigacionId(idEstudiante, idLinea)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("EstudianteLineaInvestigacion",
+                                                "idLinea", idLinea));
+                estudianteLineaRepository.delete(asociacion);
+        }
+
+        /**
+         * Mapea entidad Estudiante a ResponseDTO
+         */
+        private EstudianteResponseDTO mapeoAResponseDTO(Estudiante estudiante) {
+                List<String> lineas = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
+                                .stream()
+                                .map(eli -> eli.getLineaInvestigacion().getNombre())
+                                .collect(Collectors.toList());
+
+                return EstudianteResponseDTO.builder()
+                                .id(estudiante.getId())
+                                .nombreCompleto(estudiante.getUsuario() != null
+                                                ? estudiante.getUsuario().getNombreCompleto()
+                                                : null)
+                                .email(estudiante.getUsuario() != null ? estudiante.getUsuario().getEmail() : null)
+                                .nombrePrograma(estudiante.getPrograma() != null ? estudiante.getPrograma().getNombre()
+                                                : null)
+                                .semestre(estudiante.getSemestre())
+                                .lineasInvestigacion(lineas)
+                                .createdAt(estudiante.getCreatedAt())
+                                .build();
+        }
 }
