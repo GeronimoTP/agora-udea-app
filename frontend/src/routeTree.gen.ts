@@ -13,6 +13,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnaliticaRouteImport } from './routes/analitica'
 import { Route as CompatibilidadRouteImport } from './routes/compatibilidad'
 import { Route as PostulacionesRouteImport } from './routes/postulaciones'
+import { Route as AuthCompleteProfileRouteImport } from './routes/auth.complete-profile'
+import { Route as AuthLoginRouteImport } from './routes/auth.login'
+import { Route as AuthSelectRoleRouteImport } from './routes/auth.select-role'
 import { Route as SemillerosIndexRouteImport } from './routes/semilleros.index'
 import { Route as SemillerosIdSemilleroRouteImport } from './routes/semilleros.$idSemillero'
 
@@ -36,6 +39,21 @@ const PostulacionesRoute = PostulacionesRouteImport.update({
   path: '/postulaciones',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
+  id: '/auth/complete-profile',
+  path: '/auth/complete-profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/auth/login',
+  path: '/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthSelectRoleRoute = AuthSelectRoleRouteImport.update({
+  id: '/auth/select-role',
+  path: '/auth/select-role',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SemillerosIndexRoute = SemillerosIndexRouteImport.update({
   id: '/semilleros/',
   path: '/semilleros/',
@@ -52,6 +70,9 @@ export interface FileRoutesByFullPath {
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
   '/postulaciones': typeof PostulacionesRoute
+  '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/select-role': typeof AuthSelectRoleRoute
   '/semilleros/$idSemillero': typeof SemillerosIdSemilleroRoute
   '/semilleros/': typeof SemillerosIndexRoute
 }
@@ -60,6 +81,9 @@ export interface FileRoutesByTo {
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
   '/postulaciones': typeof PostulacionesRoute
+  '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/select-role': typeof AuthSelectRoleRoute
   '/semilleros/$idSemillero': typeof SemillerosIdSemilleroRoute
   '/semilleros': typeof SemillerosIndexRoute
 }
@@ -69,6 +93,9 @@ export interface FileRoutesById {
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
   '/postulaciones': typeof PostulacionesRoute
+  '/auth/complete-profile': typeof AuthCompleteProfileRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/select-role': typeof AuthSelectRoleRoute
   '/semilleros/$idSemillero': typeof SemillerosIdSemilleroRoute
   '/semilleros/': typeof SemillerosIndexRoute
 }
@@ -79,6 +106,9 @@ export interface FileRouteTypes {
     | '/analitica'
     | '/compatibilidad'
     | '/postulaciones'
+    | '/auth/complete-profile'
+    | '/auth/login'
+    | '/auth/select-role'
     | '/semilleros/$idSemillero'
     | '/semilleros/'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +117,9 @@ export interface FileRouteTypes {
     | '/analitica'
     | '/compatibilidad'
     | '/postulaciones'
+    | '/auth/complete-profile'
+    | '/auth/login'
+    | '/auth/select-role'
     | '/semilleros/$idSemillero'
     | '/semilleros'
   id:
@@ -95,6 +128,9 @@ export interface FileRouteTypes {
     | '/analitica'
     | '/compatibilidad'
     | '/postulaciones'
+    | '/auth/complete-profile'
+    | '/auth/login'
+    | '/auth/select-role'
     | '/semilleros/$idSemillero'
     | '/semilleros/'
   fileRoutesById: FileRoutesById
@@ -104,6 +140,9 @@ export interface RootRouteChildren {
   AnaliticaRoute: typeof AnaliticaRoute
   CompatibilidadRoute: typeof CompatibilidadRoute
   PostulacionesRoute: typeof PostulacionesRoute
+  AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
+  AuthLoginRoute: typeof AuthLoginRoute
+  AuthSelectRoleRoute: typeof AuthSelectRoleRoute
   SemillerosIdSemilleroRoute: typeof SemillerosIdSemilleroRoute
   SemillerosIndexRoute: typeof SemillerosIndexRoute
 }
@@ -138,6 +177,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostulacionesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth/complete-profile': {
+      id: '/auth/complete-profile'
+      path: '/auth/complete-profile'
+      fullPath: '/auth/complete-profile'
+      preLoaderRoute: typeof AuthCompleteProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/select-role': {
+      id: '/auth/select-role'
+      path: '/auth/select-role'
+      fullPath: '/auth/select-role'
+      preLoaderRoute: typeof AuthSelectRoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/semilleros/': {
       id: '/semilleros/'
       path: '/semilleros'
@@ -160,6 +220,9 @@ const rootRouteChildren: RootRouteChildren = {
   AnaliticaRoute: AnaliticaRoute,
   CompatibilidadRoute: CompatibilidadRoute,
   PostulacionesRoute: PostulacionesRoute,
+  AuthCompleteProfileRoute: AuthCompleteProfileRoute,
+  AuthLoginRoute: AuthLoginRoute,
+  AuthSelectRoleRoute: AuthSelectRoleRoute,
   SemillerosIdSemilleroRoute: SemillerosIdSemilleroRoute,
   SemillerosIndexRoute: SemillerosIndexRoute,
 }

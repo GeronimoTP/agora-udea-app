@@ -132,7 +132,7 @@ public class EstudianteService {
 
                 // Obtener rol de estudiante
                 Rol rolEstudiante = rolRepository.findByNombre("Estudiante")
-                                .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "Estudiante"));
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "nombre", "Estudiante"));
 
                 // Crear usuario
                 Usuario usuario = new Usuario();
@@ -167,6 +167,58 @@ public class EstudianteService {
                 }
 
                 return mapeoAResponseDTO(estudianteGuardado);
+        }
+
+        /**
+         * Sobrecarga de crear para registrar estudiante junto a su usuario desde AuthController
+         */
+        public Estudiante crear(
+                        String email,
+                        String nombreCompleto,
+                        Integer idPrograma,
+                        Integer semestre,
+                        List<Integer> idLineasInvestigacion) {
+                // Obtener programa
+                ProgramaAcademico programa = programaRepository.findById(idPrograma)
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
+
+                // Obtener rol de estudiante
+                Rol rolEstudiante = rolRepository.findByNombre("Estudiante")
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "nombre", "Estudiante"));
+
+                // Crear usuario
+                Usuario usuario = new Usuario();
+                usuario.setNombreCompleto(nombreCompleto);
+                usuario.setEmail(email);
+                usuario.setRol(rolEstudiante);
+                usuario = usuarioRepository.save(usuario);
+
+                // Crear estudiante
+                Estudiante estudiante = Estudiante.builder()
+                                .usuario(usuario)
+                                .programa(programa)
+                                .semestre(semestre)
+                                .createdAt(ZonedDateTime.now())
+                                .build();
+
+                Estudiante estudianteGuardado = estudianteRepository.save(estudiante);
+
+                // Guardar líneas de investigación
+                if (idLineasInvestigacion != null && !idLineasInvestigacion.isEmpty()) {
+                        for (Integer idLinea : idLineasInvestigacion) {
+                                LineaInvestigacion linea = lineaInvestigacionRepository.findById(idLinea)
+                                                .orElseThrow(() -> new RecursoNoEncontradoException(
+                                                                "Línea de Investigación", idLinea));
+
+                                EstudianteLineaInvestigacion eli = EstudianteLineaInvestigacion.builder()
+                                                .estudiante(estudianteGuardado)
+                                                .lineaInvestigacion(linea)
+                                                .build();
+                                estudianteLineaRepository.save(eli);
+                        }
+                }
+
+                return estudianteGuardado;
         }
 
         /**

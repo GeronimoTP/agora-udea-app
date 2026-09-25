@@ -30,6 +30,7 @@ public class ProfesorService {
     private final ProgramaAcademicoRepository programaRepository;
     private final AreaEspecialidadRepository areaEspecialidadRepository;
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
+    private final RolRepository rolRepository;
 
     /**
      * Obtiene todos los profesores
@@ -100,6 +101,55 @@ public class ProfesorService {
         }
 
         return mapeoAResponseDTO(profesorGuardado);
+    }
+
+    /**
+     * Sobrecarga de crear para registrar profesor junto a su usuario desde AuthController
+     */
+    public Profesor crear(
+            String email,
+            String nombreCompleto,
+            Integer idPrograma,
+            List<Integer> idAreasEspecialidad) {
+        // Obtener programa
+        ProgramaAcademico programa = programaRepository.findById(idPrograma)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
+
+        // Obtener rol de profesor
+        Rol rolProfesor = rolRepository.findByNombre("Profesor")
+                .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "nombre", "Profesor"));
+
+        // Crear usuario
+        Usuario usuario = new Usuario();
+        usuario.setNombreCompleto(nombreCompleto);
+        usuario.setEmail(email);
+        usuario.setRol(rolProfesor);
+        usuario = usuarioRepository.save(usuario);
+
+        // Crear profesor
+        Profesor profesor = Profesor.builder()
+                .usuario(usuario)
+                .programa(programa)
+                .createdAt(ZonedDateTime.now())
+                .build();
+
+        Profesor profesorGuardado = profesorRepository.save(profesor);
+
+        // Guardar áreas de especialidad iniciales
+        if (idAreasEspecialidad != null && !idAreasEspecialidad.isEmpty()) {
+            for (Integer idArea : idAreasEspecialidad) {
+                AreaEspecialidad area = areaEspecialidadRepository.findById(idArea)
+                        .orElseThrow(() -> new RecursoNoEncontradoException("AreaEspecialidad", idArea));
+
+                ProfesorAreaEspecialidad pae = ProfesorAreaEspecialidad.builder()
+                        .profesor(profesorGuardado)
+                        .areaEspecialidad(area)
+                        .build();
+                profesorAreaRepository.save(pae);
+            }
+        }
+
+        return profesorGuardado;
     }
 
     /**
