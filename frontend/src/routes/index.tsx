@@ -42,6 +42,8 @@ export const Route = createFileRoute("/")({
     ],
   }),
   loader: async ({ context }) => {
+    const isAuthenticated = localStorage.getItem("email");
+    if (!isAuthenticated) return null;
     await Promise.all([
       context.queryClient.ensureQueryData(analiticaQuery()),
       context.queryClient.ensureQueryData(convocatoriasAbiertasQuery()),
