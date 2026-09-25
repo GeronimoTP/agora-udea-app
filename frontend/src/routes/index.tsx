@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { ArrowRight, BarChart3, CalendarClock, FileText, Library, Target, Users } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -15,6 +15,16 @@ import {
 } from "@/lib/api/queries";
 
 export const Route = createFileRoute("/")({
+  beforeLoad: () => {
+    // Verificamos si existe el email en localStorage como indicador de sesión activa
+    const isAuthenticated = localStorage.getItem("email");
+    
+    if (!isAuthenticated) {
+      throw redirect({
+        to: "/auth/login",
+      });
+    }
+  },
   head: () => ({
     meta: [
       { title: "Tablero institucional | Agora UdeA" },

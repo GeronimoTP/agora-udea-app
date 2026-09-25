@@ -9,7 +9,7 @@
  */
 
 export const API_BASE_URL: string =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:8080";
+  (import.meta.env["VITE_API_URL"] as string | undefined) ?? "https://agora-udea-app.onrender.com";
 
 export const API_TIMEOUT: number = parseInt(
   (import.meta.env["VITE_API_TIMEOUT"] as string | undefined) ?? "10000"
@@ -64,9 +64,6 @@ function getHeaders(additionalHeaders?: Record<string, string>): Record<string, 
  * @param path - Ruta del endpoint (ej. "/api/estudiantes", "/api/semilleros/123")
  * @param options - Opciones de la petición (método, body, query params)
  * @returns Promesa con la respuesta parseada
- * 
- * @example
- * const estudiantes = await apiRequest<EstudianteDTO[]>("/api/estudiantes");
  */
 export async function apiRequest<T>(
   path: string,
@@ -159,31 +156,4 @@ export async function apiRequest<T>(
   }
 }
 
-/**
- * Ejecuta una petición con fallback a datos de demostración.
- * Útil para desarrollo cuando el backend no está disponible.
- * 
- * @param path - Ruta del endpoint
- * @param fallback - Datos por defecto si la petición falla
- * @param options - Opciones de la petición
- * @returns Promesa con la respuesta o los datos de fallback
- */
-export async function apiRequestWithFallback<T>(
-  path: string,
-  fallback: T,
-  options?: {
-    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-    body?: unknown;
-    query?: Record<string, unknown>;
-    headers?: Record<string, string>;
-  },
-): Promise<T> {
-  try {
-    return await apiRequest<T>(path, options);
-  } catch (error) {
-    console.warn(`[API FALLBACK] Usando datos de demostración para ${path}`, error);
-    return fallback;
-  }
-}
-
-export default { apiRequest, apiRequestWithFallback, API_BASE_URL, API_TIMEOUT };
+export default { apiRequest, API_BASE_URL, API_TIMEOUT };
