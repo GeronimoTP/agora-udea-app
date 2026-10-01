@@ -20,7 +20,7 @@ import {
   misPostulacionesQuery,
   recomendacionesQuery,
 } from "@/lib/api/queries";
-import { apiRequest } from "@/lib/api/client";
+import { ApiError, apiRequest } from "@/lib/api/client";
 import type { UsuarioSesion } from "@/types/api";
 
 export const Route = createFileRoute("/")({
@@ -56,7 +56,15 @@ export const Route = createFileRoute("/")({
       throw redirect({ to: "/auth/login" });
     }
 
-    const sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
+    let sesion: UsuarioSesion;
+    try {
+      sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
+    } catch (error) {
+      if (error instanceof ApiError && [403, 404].includes(error.status)) {
+        throw redirect({ to: "/auth/select-role" });
+      }
+      throw error;
+    }
     const consultas: Promise<unknown>[] = [
       context.queryClient.ensureQueryData(analiticaQuery()),
       context.queryClient.ensureQueryData(convocatoriasAbiertasQuery()),
