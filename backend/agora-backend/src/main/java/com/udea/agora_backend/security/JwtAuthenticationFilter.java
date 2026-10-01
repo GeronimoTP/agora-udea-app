@@ -7,13 +7,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import  org.jspecify.annotations.NonNull ;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-import com.udea.agora_backend.repository.UsuarioRepository;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,7 +20,6 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
-    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(
@@ -34,7 +30,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
-        final String correoUsuario;
 
         // Si no hay token o no empieza con "Bearer ", ignorar y seguir
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -46,7 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         jwt = authHeader.substring(7);
         
         try {
-            correoUsuario = jwtService.extraerCorreo(jwt);
+            String correoUsuario = jwtService.extraerCorreo(jwt);
             
             // Si el correo existe en el token y no hay autenticación actual en el contexto
             if (correoUsuario != null && SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -66,38 +61,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 }
             }
+
+            if (jwtService.esTokenOnboarding(jwt) && !permiteCompletarPerfil(request)) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                        "Este token solo permite completar el registro");
+                return;
+            }
         } catch (Exception e) {
             logger.error("Error validando el token JWT: " + e.getMessage());
         }
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String email = obtenerEmail(authentication);
-        boolean perfilPendiente = email != null && usuarioRepository.findWithRolByEmail(email)
-                .map(usuario -> "Pendiente".equalsIgnoreCase(usuario.getRol().getNombre()))
-                .orElse(false);
-
-        if (perfilPendiente && !permiteCompletarPerfil(request)) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN,
-                    "Debes completar tu perfil antes de usar esta funcionalidad");
-            return;
-        }
-
         filterChain.doFilter(request, response);
-    }
-
-    private String obtenerEmail(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return null;
-        }
-
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof OAuth2User oauth2User) {
-            return oauth2User.getAttribute("email");
-        }
-        if (principal instanceof String email && email.contains("@")) {
-            return email;
-        }
-        return null;
     }
 
     private boolean permiteCompletarPerfil(HttpServletRequest request) {

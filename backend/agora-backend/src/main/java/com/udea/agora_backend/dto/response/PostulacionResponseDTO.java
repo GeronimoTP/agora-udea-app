@@ -10,7 +10,10 @@ import java.util.List;
 @Builder
 public class PostulacionResponseDTO {
     private Integer id;
+    private Integer idConvocatoria;
+    private Integer idEstudiante;
     private String tituloConvocatoria;
+    private String nombreSemillero;
     private String nombreEstudiante;
     private String respuestaMotivacion;
     private Integer disponibilidadHorasSemana;

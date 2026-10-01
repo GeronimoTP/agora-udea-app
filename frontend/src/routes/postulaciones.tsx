@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
@@ -7,7 +7,11 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { EstadoBadge } from "@/components/common/EstadoBadge";
 import { DataTable, type Columna } from "@/components/common/DataTable";
 import { MatchScore } from "@/components/common/MatchScore";
-import { misPostulacionesQuery, postulacionesRecibidasQuery, SESION_DEMO } from "@/lib/api/queries";
+import {
+  misPostulacionesQuery,
+  postulacionesRecibidasQuery,
+  usuarioSesionQuery,
+} from "@/lib/api/queries";
 import { postulacionesService } from "@/lib/api/services";
 import type { Postulacion } from "@/types/api";
 
@@ -20,7 +24,10 @@ export const Route = createFileRoute("/postulaciones")({
         content:
           "Seguimiento de postulaciones a semilleros: pre-aprobación del líder, decisión final del estudiante y resolución en cascada de ofertas.",
       },
-      { property: "og:title", content: "Postulaciones y selección de doble vía | Agora UdeA" },
+      {
+        property: "og:title",
+        content: "Postulaciones y selección de doble vía | Agora UdeA",
+      },
       {
         property: "og:description",
         content:
@@ -29,12 +36,25 @@ export const Route = createFileRoute("/postulaciones")({
     ],
   }),
   loader: async ({ context }) => {
-    await Promise.all([
-      context.queryClient.ensureQueryData(misPostulacionesQuery(SESION_DEMO.idEstudiante)),
-      context.queryClient.ensureQueryData(
-        postulacionesRecibidasQuery(SESION_DEMO.idSemilleroLiderado),
-      ),
-    ]);
+    const sesion =
+      await context.queryClient.ensureQueryData(usuarioSesionQuery());
+    const consultas: Promise<unknown>[] = [];
+    if (sesion.idEstudiante !== null) {
+      consultas.push(
+        context.queryClient.ensureQueryData(
+          misPostulacionesQuery(sesion.idEstudiante),
+        ),
+      );
+    }
+    if (sesion.idSemillerosLiderados.length > 0) {
+      consultas.push(
+        context.queryClient.ensureQueryData(
+          postulacionesRecibidasQuery(sesion.idSemillerosLiderados),
+        ),
+      );
+    }
+    await Promise.all(consultas);
+    return sesion;
   },
   component: PostulacionesPage,
 });
@@ -42,12 +62,19 @@ export const Route = createFileRoute("/postulaciones")({
 type Vista = "ESTUDIANTE" | "LIDER";
 
 function PostulacionesPage() {
-  const [vista, setVista] = useState<Vista>("ESTUDIANTE");
-  const queryClient = useQueryClient();
-  const { data: propias } = useSuspenseQuery(misPostulacionesQuery(SESION_DEMO.idEstudiante));
-  const { data: recibidas } = useSuspenseQuery(
-    postulacionesRecibidasQuery(SESION_DEMO.idSemilleroLiderado),
+  const sesion = Route.useLoaderData();
+  const [vista, setVista] = useState<Vista>(
+    sesion.idEstudiante !== null ? "ESTUDIANTE" : "LIDER",
   );
+  const queryClient = useQueryClient();
+  const { data: propias = [] } = useQuery({
+    ...misPostulacionesQuery(sesion.idEstudiante ?? 0),
+    enabled: sesion.idEstudiante !== null,
+  });
+  const { data: recibidas = [] } = useQuery({
+    ...postulacionesRecibidasQuery(sesion.idSemillerosLiderados),
+    enabled: sesion.idSemillerosLiderados.length > 0,
+  });
 
   async function ejecutar(accion: () => Promise<unknown>, mensaje: string) {
     try {
@@ -55,7 +82,9 @@ function PostulacionesPage() {
       toast.success(mensaje);
       await queryClient.invalidateQueries({ queryKey: ["postulaciones"] });
     } catch {
-      toast.error("La operación no pudo completarse. Verifica la conexión con el servidor.");
+      toast.error(
+        "La operación no pudo completarse. Verifica la conexión con el servidor.",
+      );
     }
   }
 
@@ -65,13 +94,21 @@ function PostulacionesPage() {
       cell: (row) => (
         <div>
           <p className="font-medium">{row.nombreSemillero}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{row.tituloConvocatoria}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {row.tituloConvocatoria}
+          </p>
         </div>
       ),
     },
     { header: "Estado", cell: (row) => <EstadoBadge estado={row.estado} /> },
-    { header: "Postulación", cell: (row) => formatearFecha(row.fechaPostulacion) },
-    { header: "Pre-aprobación", cell: (row) => formatearFecha(row.fechaPreAprobacion) },
+    {
+      header: "Postulación",
+      cell: (row) => formatearFecha(row.fechaPostulacion),
+    },
+    {
+      header: "Pre-aprobación",
+      cell: (row) => formatearFecha(row.fechaPreAprobacion),
+    },
     {
       header: "Afinidad",
       width: "9rem",
@@ -114,7 +151,9 @@ function PostulacionesPage() {
             </button>
           </div>
         ) : (
-          <span className="text-xs text-muted-foreground">Sin acciones pendientes</span>
+          <span className="text-xs text-muted-foreground">
+            Sin acciones pendientes
+          </span>
         ),
     },
   ];
@@ -125,7 +164,9 @@ function PostulacionesPage() {
       cell: (row) => (
         <div>
           <p className="font-medium">{row.nombreEstudiante}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{row.programaEstudiante}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {row.programaEstudiante}
+          </p>
         </div>
       ),
     },
@@ -188,7 +229,9 @@ function PostulacionesPage() {
             </button>
           </div>
         ) : (
-          <span className="text-xs text-muted-foreground">Proceso resuelto</span>
+          <span className="text-xs text-muted-foreground">
+            Proceso resuelto
+          </span>
         ),
     },
   ];
@@ -211,22 +254,28 @@ function PostulacionesPage() {
             { valor: "ESTUDIANTE", etiqueta: "Mis postulaciones" },
             { valor: "LIDER", etiqueta: "Postulaciones recibidas" },
           ] as const
-        ).map((opcion) => (
-          <button
-            key={opcion.valor}
-            type="button"
-            role="tab"
-            aria-selected={vista === opcion.valor}
-            onClick={() => setVista(opcion.valor)}
-            className={
-              vista === opcion.valor
-                ? "rounded-sm bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground"
-                : "rounded-sm px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-            }
-          >
-            {opcion.etiqueta}
-          </button>
-        ))}
+        )
+          .filter((opcion) =>
+            opcion.valor === "ESTUDIANTE"
+              ? sesion.idEstudiante !== null
+              : sesion.idProfesor !== null,
+          )
+          .map((opcion) => (
+            <button
+              key={opcion.valor}
+              type="button"
+              role="tab"
+              aria-selected={vista === opcion.valor}
+              onClick={() => setVista(opcion.valor)}
+              className={
+                vista === opcion.valor
+                  ? "rounded-sm bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground"
+                  : "rounded-sm px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              }
+            >
+              {opcion.etiqueta}
+            </button>
+          ))}
       </div>
 
       {vista === "ESTUDIANTE" ? (

@@ -63,6 +63,13 @@ public class PostulacionService {
                 .collect(Collectors.toList());
     }
 
+        public List<PostulacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
+                return postulacionRepository.findByConvocatoriaSemilleroId(idSemillero)
+                                .stream()
+                                .map(this::mapeoAResponseDTO)
+                                .collect(Collectors.toList());
+        }
+
     /**
      * Obtiene postulaciones de una convocatoria
      */
@@ -269,8 +276,11 @@ public class PostulacionService {
 
         return PostulacionResponseDTO.builder()
                 .id(postulacion.getId())
+                .idConvocatoria(postulacion.getConvocatoria() != null ? postulacion.getConvocatoria().getId() : null)
+                .idEstudiante(postulacion.getEstudiante() != null ? postulacion.getEstudiante().getId() : null)
                 .nombreEstudiante(postulacion.getEstudiante() != null && postulacion.getEstudiante().getUsuario() != null ? postulacion.getEstudiante().getUsuario().getNombreCompleto() : null)
                 .tituloConvocatoria(postulacion.getConvocatoria() != null ? postulacion.getConvocatoria().getTitulo() : null)
+                .nombreSemillero(postulacion.getConvocatoria() != null && postulacion.getConvocatoria().getSemillero() != null ? postulacion.getConvocatoria().getSemillero().getNombre() : null)
                 .respuestaMotivacion(postulacion.getRespuestaMotivacion())
                 .disponibilidadHorasSemana(postulacion.getDisponibilidadHorasSemana())
                 .experienciaPrevia(postulacion.getExperienciaPrevia())

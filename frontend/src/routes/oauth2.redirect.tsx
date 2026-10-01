@@ -4,8 +4,8 @@ import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/oauth2/redirect")({
   validateSearch: (search: Record<string, unknown>) => ({
-    token: typeof search.token === "string" ? search.token : "",
-    onboarding: search.onboarding === "true",
+    token: typeof search["token"] === "string" ? search["token"] : "",
+    onboarding: search["onboarding"] === "true",
   }),
   component: OAuthRedirectPage,
 });

@@ -178,6 +178,7 @@ public class ConvocatoriaService {
     private ConvocatoriaResponseDTO mapeoAResponseDTO(Convocatoria convocatoria) {
         return ConvocatoriaResponseDTO.builder()
                 .id(convocatoria.getId())
+                .idSemillero(convocatoria.getSemillero() != null ? convocatoria.getSemillero().getId() : null)
                 .titulo(convocatoria.getTitulo())
                 .descripcion(convocatoria.getDescripcion())
                 .fechaInicio(convocatoria.getFechaInicio())

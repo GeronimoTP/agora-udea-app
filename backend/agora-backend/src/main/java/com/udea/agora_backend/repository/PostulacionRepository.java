@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface PostulacionRepository extends JpaRepository<Postulacion, Integer> {
     List<Postulacion> findByConvocatoriaId(Integer convocatoriaId);
     List<Postulacion> findByEstudianteId(Integer estudianteId);
+    List<Postulacion> findByConvocatoriaSemilleroId(Integer semilleroId);
     
     // Consultas para Servicio 2: Gestor de Convocatorias y Resoluciones en Cascada
     // Postulaciones activas de un estudiante (para cascada)

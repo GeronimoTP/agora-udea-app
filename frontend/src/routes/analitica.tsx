@@ -1,12 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Award, Clock, FileText, GitCompare, PercentCircle, Users } from "lucide-react";
+import {
+  Award,
+  Clock,
+  FileText,
+  GitCompare,
+  PercentCircle,
+  Users,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { DataTable, type Columna } from "@/components/common/DataTable";
 import { analiticaQuery } from "@/lib/api/queries";
-import type { DemandaSemillero, DistribucionReconocimientos, HabilidadEmergente } from "@/types/api";
+import type {
+  DemandaSemillero,
+  DistribucionReconocimientos,
+  HabilidadEmergente,
+} from "@/types/api";
 
 export const Route = createFileRoute("/analitica")({
   head: () => ({
@@ -33,8 +44,12 @@ export const Route = createFileRoute("/analitica")({
 
 function AnaliticaPage() {
   const { data } = useSuspenseQuery(analiticaQuery());
-  const { kpis, demandaPorSemillero, reconocimientos, habilidadesEmergentes } = data;
-  const totalReconocimientos = reconocimientos.reduce((suma, item) => suma + item.total, 0);
+  const { kpis, demandaPorSemillero, reconocimientos, habilidadesEmergentes } =
+    data;
+  const totalReconocimientos = reconocimientos.reduce(
+    (suma, item) => suma + item.total,
+    0,
+  );
 
   return (
     <AppShell>
@@ -45,7 +60,10 @@ function AnaliticaPage() {
       />
 
       <section aria-labelledby="eficiencia" className="mb-10">
-        <h2 id="eficiencia" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="eficiencia"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Atracción y eficiencia de vinculación
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -73,7 +91,10 @@ function AnaliticaPage() {
       </section>
 
       <section aria-labelledby="productividad" className="mb-10">
-        <h2 id="productividad" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="productividad"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Productividad científica y demografía
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -101,11 +122,16 @@ function AnaliticaPage() {
       </section>
 
       <section aria-labelledby="demanda" className="mb-10">
-        <h2 id="demanda" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="demanda"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Presión sobre cupos por semillero
         </h2>
         <DataTable<DemandaSemillero>
-          rows={[...demandaPorSemillero].sort((a, b) => b.tasaDemanda - a.tasaDemanda)}
+          rows={[...demandaPorSemillero].sort(
+            (a, b) => b.tasaDemanda - a.tasaDemanda,
+          )}
           getRowKey={(row) => row.idSemillero}
           columns={columnasDemanda}
         />
@@ -123,7 +149,7 @@ function AnaliticaPage() {
             <ul className="space-y-4">
               {reconocimientos.map((item) => (
                 <BarraReconocimiento
-                  key={item.ambito}
+                  key={item.nombre}
                   item={item}
                   total={totalReconocimientos || 1}
                 />
@@ -136,14 +162,22 @@ function AnaliticaPage() {
         </section>
 
         <section aria-labelledby="habilidades">
-          <h2 id="habilidades" className="mb-3 font-display text-sm font-semibold text-foreground">
+          <h2
+            id="habilidades"
+            className="mb-3 font-display text-sm font-semibold text-foreground"
+          >
             Mapa de habilidades emergentes
           </h2>
           <DataTable<HabilidadEmergente>
             rows={habilidadesEmergentes}
             getRowKey={(row) => row.nombre}
             columns={[
-              { header: "Habilidad", cell: (row) => <span className="font-medium">{row.nombre}</span> },
+              {
+                header: "Habilidad",
+                cell: (row) => (
+                  <span className="font-medium">{row.nombre}</span>
+                ),
+              },
               {
                 header: "Postulaciones aceptadas",
                 align: "right",
@@ -157,12 +191,6 @@ function AnaliticaPage() {
   );
 }
 
-const etiquetasAmbito: Record<DistribucionReconocimientos["ambito"], string> = {
-  LOCAL: "Local / interno",
-  NACIONAL: "Nacional",
-  INTERNACIONAL: "Internacional",
-};
-
 function BarraReconocimiento({
   item,
   total,
@@ -174,22 +202,36 @@ function BarraReconocimiento({
   return (
     <li>
       <div className="flex items-baseline justify-between text-sm">
-        <span className="font-medium text-foreground">{etiquetasAmbito[item.ambito]}</span>
+        <span className="font-medium text-foreground">{item.nombre}</span>
         <span className="tabular-nums text-muted-foreground">
           {item.total} · {porcentaje.toFixed(1)}%
         </span>
       </div>
       <div className="mt-1.5 h-2 w-full overflow-hidden rounded-sm bg-secondary">
-        <div className="h-full bg-primary" style={{ width: `${porcentaje}%` }} />
+        <div
+          className="h-full bg-primary"
+          style={{ width: `${porcentaje}%` }}
+        />
       </div>
     </li>
   );
 }
 
 const columnasDemanda: Columna<DemandaSemillero>[] = [
-  { header: "Semillero", cell: (row) => <span className="font-medium">{row.nombre}</span> },
-  { header: "Cupos ofertados", align: "right", cell: (row) => row.cuposOfertados },
-  { header: "Postulaciones", align: "right", cell: (row) => row.postulacionesRecibidas },
+  {
+    header: "Semillero",
+    cell: (row) => <span className="font-medium">{row.nombre}</span>,
+  },
+  {
+    header: "Cupos ofertados",
+    align: "right",
+    cell: (row) => row.cuposOfertados,
+  },
+  {
+    header: "Postulaciones",
+    align: "right",
+    cell: (row) => row.postulacionesRecibidas,
+  },
   {
     header: "Tasa de demanda",
     align: "right",

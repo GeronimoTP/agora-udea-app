@@ -16,7 +16,11 @@ export const semillerosDemo: Semillero[] = [
     nombre: "Semillero de Inteligencia Artificial Aplicada",
     descripcion:
       "Investigación en aprendizaje automático aplicado a problemas de salud pública y analítica urbana en el Valle de Aburrá.",
-    lineasInvestigacion: ["Machine Learning", "Visión por Computador", "Analítica de Datos"],
+    lineasInvestigacion: [
+      "Machine Learning",
+      "Visión por Computador",
+      "Analítica de Datos",
+    ],
     estado: "ACTIVO",
     facultad: "Facultad de Ingeniería",
     lideres: [],
@@ -30,7 +34,11 @@ export const semillerosDemo: Semillero[] = [
     nombre: "Semillero de Salud Pública y Epidemiología",
     descripcion:
       "Estudios poblacionales sobre determinantes sociales de la salud y vigilancia epidemiológica territorial.",
-    lineasInvestigacion: ["Epidemiología", "Bioestadística", "Políticas Públicas"],
+    lineasInvestigacion: [
+      "Epidemiología",
+      "Bioestadística",
+      "Políticas Públicas",
+    ],
     estado: "ACTIVO",
     facultad: "Facultad de Medicina",
     lideres: [],
@@ -96,7 +104,11 @@ export const convocatoriasDemo: Convocatoria[] = [
     cuposTotales: 6,
     cuposDisponibles: 2,
     estado: "ABIERTA",
-    habilidadesRequeridas: ["Python", "Machine Learning", "Redacción Académica"],
+    habilidadesRequeridas: [
+      "Python",
+      "Machine Learning",
+      "Redacción Académica",
+    ],
   },
   {
     idConvocatoria: 34,
@@ -141,12 +153,14 @@ export const postulacionesDemo: Postulacion[] = [
     fechaDecisionEstudiante: null,
     porcentajeMatch: 92.5,
     habilidades: ["Python", "Machine Learning"],
-    cartaMotivacion: "Interés en aplicar modelos predictivos a problemas de salud pública.",
+    cartaMotivacion:
+      "Interés en aplicar modelos predictivos a problemas de salud pública.",
   },
   {
     idPostulacion: 502,
     idConvocatoria: 34,
-    tituloConvocatoria: "Auxiliares de investigación en vigilancia epidemiológica",
+    tituloConvocatoria:
+      "Auxiliares de investigación en vigilancia epidemiológica",
     nombreSemillero: "Semillero de Salud Pública y Epidemiología",
     idEstudiante: 88,
     nombreEstudiante: "Laura Restrepo Gómez",
@@ -280,8 +294,16 @@ export const publicacionesDemo: Publicacion[] = [
     doi: "10.1016/j.agora.2026.01.004",
     enlace: null,
     autores: [
-      { nombre: "Carlos Mejía Ruiz", rolAutoria: "Autor principal", esEstudiante: false },
-      { nombre: "Laura Restrepo Gómez", rolAutoria: "Coautora", esEstudiante: true },
+      {
+        nombre: "Carlos Mejía Ruiz",
+        rolAutoria: "Autor principal",
+        esEstudiante: false,
+      },
+      {
+        nombre: "Laura Restrepo Gómez",
+        rolAutoria: "Coautora",
+        esEstudiante: true,
+      },
     ],
   },
   {
@@ -293,7 +315,11 @@ export const publicacionesDemo: Publicacion[] = [
     doi: null,
     enlace: "https://repositorio.udea.edu.co/agora/92",
     autores: [
-      { nombre: "Mariana Ospina Zapata", rolAutoria: "Autora principal", esEstudiante: true },
+      {
+        nombre: "Mariana Ospina Zapata",
+        rolAutoria: "Autora principal",
+        esEstudiante: true,
+      },
     ],
   },
 ];
@@ -349,9 +375,9 @@ export const analiticaDemo: AnaliticaInstitucional = {
     },
   ],
   reconocimientos: [
-    { ambito: "LOCAL", total: 34 },
-    { ambito: "NACIONAL", total: 21 },
-    { ambito: "INTERNACIONAL", total: 8 },
+    { nombre: "Local", total: 34 },
+    { nombre: "Nacional", total: 21 },
+    { nombre: "Internacional", total: 8 },
   ],
   habilidadesEmergentes: [
     { nombre: "Python", totalAceptadas: 64 },

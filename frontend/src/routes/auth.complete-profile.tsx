@@ -7,9 +7,9 @@ import { apiRequest } from "@/lib/api/client";
 export const Route = createFileRoute("/auth/complete-profile")({
   validateSearch: (search: Record<string, unknown>) => ({
     role:
-      search.role === "PROFESOR"
+      search["role"] === "PROFESOR"
         ? "PROFESOR"
-        : search.role === "ESTUDIANTE"
+        : search["role"] === "ESTUDIANTE"
           ? "ESTUDIANTE"
           : "",
   }),
@@ -95,26 +95,34 @@ function CompleteProfilePage() {
 
     try {
       const isEstudiante = role === "ESTUDIANTE";
+      let resultado: { accessToken: string };
 
       if (isEstudiante) {
-        await apiRequest("/api/auth/onboarding/estudiante", {
-          method: "POST",
-          body: {
-            idPrograma: parseInt(formData.idPrograma),
-            semestre: parseInt(formData.semestre),
-            idLineasInvestigacion: formData.lineasInvestigacion,
+        resultado = await apiRequest<{ accessToken: string }>(
+          "/api/auth/onboarding/estudiante",
+          {
+            method: "POST",
+            body: {
+              idPrograma: parseInt(formData.idPrograma),
+              semestre: parseInt(formData.semestre),
+              idLineasInvestigacion: formData.lineasInvestigacion,
+            },
           },
-        });
+        );
       } else {
-        await apiRequest("/api/auth/onboarding/profesor", {
-          method: "POST",
-          body: {
-            idPrograma: parseInt(formData.idPrograma),
-            idAreasEspecialidad: formData.areasEspecialidad,
+        resultado = await apiRequest<{ accessToken: string }>(
+          "/api/auth/onboarding/profesor",
+          {
+            method: "POST",
+            body: {
+              idPrograma: parseInt(formData.idPrograma),
+              idAreasEspecialidad: formData.areasEspecialidad,
+            },
           },
-        });
+        );
       }
 
+      window.localStorage.setItem("access_token", resultado.accessToken);
       navigate({ to: "/" });
     } catch (err) {
       setError(

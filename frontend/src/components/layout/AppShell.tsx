@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
   FileText,
@@ -8,7 +9,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { SESION_DEMO } from "@/lib/api/queries";
+import { usuarioSesionQuery } from "@/lib/api/queries";
 
 interface NavItem {
   to: string;
@@ -25,20 +26,26 @@ const navItems: NavItem[] = [
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const { data: sesion } = useQuery(usuarioSesionQuery());
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-primary text-primary-foreground">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link to="/" className="flex items-baseline gap-3">
-            <span className="font-display text-lg font-semibold tracking-tight">Agora UdeA</span>
+            <span className="font-display text-lg font-semibold tracking-tight">
+              Agora UdeA
+            </span>
             <span className="hidden border-l border-sidebar-border pl-3 text-xs text-sidebar-foreground/80 sm:block">
               Sistema de Gestión de Semilleros de Investigación
             </span>
           </Link>
           <div className="text-right">
-            <p className="text-sm font-medium">{SESION_DEMO.nombre}</p>
+            <p className="text-sm font-medium">
+              {sesion?.nombreCompleto ?? ""}
+            </p>
             <p className="text-xs text-sidebar-foreground/75">
-              {SESION_DEMO.programa} · {SESION_DEMO.rol}
+              {sesion?.rol ?? ""}
             </p>
           </div>
         </div>
@@ -68,7 +75,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <footer className="mt-8 border-t border-border bg-surface">
         <div className="mx-auto max-w-7xl px-6 py-6 text-xs text-muted-foreground">
-          Universidad de Antioquia · Vicerrectoría de Investigación · Plataforma Agora UdeA
+          Universidad de Antioquia · Vicerrectoría de Investigación · Plataforma
+          Agora UdeA
         </div>
       </footer>
     </div>

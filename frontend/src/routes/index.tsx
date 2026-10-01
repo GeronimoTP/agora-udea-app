@@ -1,6 +1,14 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { ArrowRight, BarChart3, CalendarClock, FileText, Library, Target, Users } from "lucide-react";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  BarChart3,
+  CalendarClock,
+  FileText,
+  Library,
+  Target,
+  Users,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
@@ -11,14 +19,15 @@ import {
   convocatoriasAbiertasQuery,
   misPostulacionesQuery,
   recomendacionesQuery,
-  SESION_DEMO,
 } from "@/lib/api/queries";
+import { apiRequest } from "@/lib/api/client";
+import type { UsuarioSesion } from "@/types/api";
 
 export const Route = createFileRoute("/")({
   ssr: false,
   beforeLoad: () => {
     const isAuthenticated = localStorage.getItem("access_token");
-    
+
     if (!isAuthenticated) {
       throw redirect({
         to: "/auth/login",
@@ -43,13 +52,29 @@ export const Route = createFileRoute("/")({
   }),
   loader: async ({ context }) => {
     const isAuthenticated = localStorage.getItem("access_token");
-    if (!isAuthenticated) return null;
-    await Promise.all([
+    if (!isAuthenticated) {
+      throw redirect({ to: "/auth/login" });
+    }
+
+    const sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
+    const consultas: Promise<unknown>[] = [
       context.queryClient.ensureQueryData(analiticaQuery()),
       context.queryClient.ensureQueryData(convocatoriasAbiertasQuery()),
-      context.queryClient.ensureQueryData(misPostulacionesQuery(SESION_DEMO.idEstudiante)),
-      context.queryClient.ensureQueryData(recomendacionesQuery(SESION_DEMO.idEstudiante)),
-    ]);
+    ];
+
+    if (sesion.idEstudiante !== null) {
+      consultas.push(
+        context.queryClient.ensureQueryData(
+          misPostulacionesQuery(sesion.idEstudiante),
+        ),
+        context.queryClient.ensureQueryData(
+          recomendacionesQuery(sesion.idEstudiante),
+        ),
+      );
+    }
+
+    await Promise.all(consultas);
+    return sesion;
   },
   component: TableroPage,
 });
@@ -58,13 +83,15 @@ const accesos = [
   {
     to: "/semilleros" as const,
     titulo: "Explorar semilleros",
-    detalle: "Consulta líneas de investigación, proyectos y publicaciones por facultad.",
+    detalle:
+      "Consulta líneas de investigación, proyectos y publicaciones por facultad.",
     icon: Library,
   },
   {
     to: "/compatibilidad" as const,
     titulo: "Revisar compatibilidad",
-    detalle: "Ranking de afinidad ponderada entre tu perfil y los semilleros activos.",
+    detalle:
+      "Ranking de afinidad ponderada entre tu perfil y los semilleros activos.",
     icon: Target,
   },
   {
@@ -76,23 +103,31 @@ const accesos = [
   {
     to: "/analitica" as const,
     titulo: "Analítica institucional",
-    detalle: "Indicadores de demanda, productividad científica e interdisciplinariedad.",
+    detalle:
+      "Indicadores de demanda, productividad científica e interdisciplinariedad.",
     icon: BarChart3,
   },
 ];
 
 function TableroPage() {
+  const sesion = Route.useLoaderData();
   const { data: analitica } = useSuspenseQuery(analiticaQuery());
-  const { data: convocatorias } = useSuspenseQuery(convocatoriasAbiertasQuery());
-  const { data: postulaciones } = useSuspenseQuery(
-    misPostulacionesQuery(SESION_DEMO.idEstudiante),
+  const { data: convocatorias } = useSuspenseQuery(
+    convocatoriasAbiertasQuery(),
   );
-  const { data: recomendaciones } = useSuspenseQuery(
-    recomendacionesQuery(SESION_DEMO.idEstudiante),
-  );
+  const { data: postulaciones = [] } = useQuery({
+    ...misPostulacionesQuery(sesion.idEstudiante ?? 0),
+    enabled: sesion.idEstudiante !== null,
+  });
+  const { data: recomendaciones = [] } = useQuery({
+    ...recomendacionesQuery(sesion.idEstudiante ?? 0),
+    enabled: sesion.idEstudiante !== null,
+  });
 
   const kpis = analitica.kpis;
-  const ofertasPendientes = postulaciones.filter((p) => p.estado === "PRE_APROBADA");
+  const ofertasPendientes = postulaciones.filter(
+    (p) => p.estado === "PRE_APROBADA",
+  );
 
   return (
     <AppShell>
@@ -103,7 +138,10 @@ function TableroPage() {
       />
 
       <section aria-labelledby="indicadores" className="mb-10">
-        <h2 id="indicadores" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="indicadores"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Indicadores generales
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -120,9 +158,17 @@ function TableroPage() {
             icon={CalendarClock}
           />
           <StatCard
-            label="Postulaciones activas"
-            value={kpis.postulacionesActivas}
-            hint="En revisión, pre-aprobadas o en espera de decisión del estudiante."
+            label={
+              sesion.idEstudiante !== null ? "Mis postulaciones" : "Mi perfil"
+            }
+            value={
+              sesion.idEstudiante !== null ? postulaciones.length : sesion.rol
+            }
+            hint={
+              sesion.idEstudiante !== null
+                ? "Postulaciones asociadas a tu perfil de estudiante."
+                : "Perfil docente registrado en Agora UdeA."
+            }
             icon={FileText}
           />
           <StatCard
@@ -138,7 +184,10 @@ function TableroPage() {
       <div className="grid gap-8 lg:grid-cols-3">
         <section aria-labelledby="convocatorias" className="lg:col-span-2">
           <div className="mb-3 flex items-end justify-between">
-            <h2 id="convocatorias" className="font-display text-sm font-semibold text-foreground">
+            <h2
+              id="convocatorias"
+              className="font-display text-sm font-semibold text-foreground"
+            >
               Convocatorias con cupos disponibles
             </h2>
             <Link
@@ -173,7 +222,8 @@ function TableroPage() {
                   <p className="text-muted-foreground">
                     Cupos:{" "}
                     <span className="font-medium tabular-nums text-foreground">
-                      {convocatoria.cuposDisponibles} de {convocatoria.cuposTotales}
+                      {convocatoria.cuposDisponibles} de{" "}
+                      {convocatoria.cuposTotales}
                     </span>
                   </p>
                   <Link
@@ -182,7 +232,11 @@ function TableroPage() {
                     className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-primary"
                   >
                     Postularme
-                    <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
+                    <ArrowRight
+                      className="size-3.5"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                   </Link>
                 </div>
               </li>
@@ -191,67 +245,99 @@ function TableroPage() {
         </section>
 
         <div className="space-y-8">
-          <section aria-labelledby="ofertas">
-            <h2 id="ofertas" className="mb-3 font-display text-sm font-semibold text-foreground">
-              Ofertas por confirmar
-            </h2>
-            <div className="panel p-5">
-              {ofertasPendientes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No tienes ofertas de admisión pendientes de respuesta.
-                </p>
-              ) : (
-                <ul className="space-y-4">
-                  {ofertasPendientes.map((postulacion) => (
-                    <li key={postulacion.idPostulacion}>
-                      <p className="text-sm font-medium text-foreground">
-                        {postulacion.nombreSemillero}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Pre-aprobada el {formatearFecha(postulacion.fechaPreAprobacion)}
-                      </p>
-                      <Link
-                        to="/postulaciones"
-                        className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-4 hover:underline"
-                      >
-                        Responder oferta
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </section>
-
-          <section aria-labelledby="afinidad">
-            <h2 id="afinidad" className="mb-3 font-display text-sm font-semibold text-foreground">
-              Mayor afinidad con tu perfil
-            </h2>
-            <div className="panel divide-y divide-border">
-              {recomendaciones.slice(0, 3).map((match) => (
-                <div key={match.idSemillero} className="p-4">
-                  <p className="text-sm font-medium leading-snug text-foreground">{match.nombre}</p>
-                  <MatchScore porcentaje={match.porcentajeMatch} className="mt-2" compact />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {match.factoresCoincidencia.join(" · ")}
+          {sesion.idEstudiante !== null && (
+            <section aria-labelledby="ofertas">
+              <h2
+                id="ofertas"
+                className="mb-3 font-display text-sm font-semibold text-foreground"
+              >
+                Ofertas por confirmar
+              </h2>
+              <div className="panel p-5">
+                {ofertasPendientes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No tienes ofertas de admisión pendientes de respuesta.
                   </p>
-                </div>
-              ))}
-            </div>
-          </section>
+                ) : (
+                  <ul className="space-y-4">
+                    {ofertasPendientes.map((postulacion) => (
+                      <li key={postulacion.idPostulacion}>
+                        <p className="text-sm font-medium text-foreground">
+                          {postulacion.nombreSemillero}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Pre-aprobada el{" "}
+                          {formatearFecha(postulacion.fechaPreAprobacion)}
+                        </p>
+                        <Link
+                          to="/postulaciones"
+                          className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-4 hover:underline"
+                        >
+                          Responder oferta
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+          )}
+
+          {sesion.idEstudiante !== null && (
+            <section aria-labelledby="afinidad">
+              <h2
+                id="afinidad"
+                className="mb-3 font-display text-sm font-semibold text-foreground"
+              >
+                Mayor afinidad con tu perfil
+              </h2>
+              <div className="panel divide-y divide-border">
+                {recomendaciones.slice(0, 3).map((match) => (
+                  <div key={match.idSemillero} className="p-4">
+                    <p className="text-sm font-medium leading-snug text-foreground">
+                      {match.nombre}
+                    </p>
+                    <MatchScore
+                      porcentaje={match.porcentajeMatch}
+                      className="mt-2"
+                      compact
+                    />
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {match.factoresCoincidencia.join(" · ")}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
       <section aria-labelledby="accesos" className="mt-10">
-        <h2 id="accesos" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="accesos"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Accesos rápidos
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {accesos.map(({ to, titulo, detalle, icon: Icon }) => (
-            <Link key={to} to={to} className="panel p-5 transition-colors hover:bg-secondary/50">
-              <Icon className="size-5 text-accent" strokeWidth={1.75} aria-hidden />
-              <p className="mt-3 font-display text-sm font-semibold text-foreground">{titulo}</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{detalle}</p>
+            <Link
+              key={to}
+              to={to}
+              className="panel p-5 transition-colors hover:bg-secondary/50"
+            >
+              <Icon
+                className="size-5 text-accent"
+                strokeWidth={1.75}
+                aria-hidden
+              />
+              <p className="mt-3 font-display text-sm font-semibold text-foreground">
+                {titulo}
+              </p>
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                {detalle}
+              </p>
             </Link>
           ))}
         </div>

@@ -2,7 +2,14 @@ package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.request.UsuarioRequestDTO;
 import com.udea.agora_backend.dto.response.UsuarioResponseDTO;
+import com.udea.agora_backend.dto.response.UsuarioSesionResponseDTO;
+import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.service.UsuarioService;
+import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.ProfesorRepository;
+import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
+import com.udea.agora_backend.repository.UsuarioRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -11,6 +18,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +31,30 @@ import java.util.List;
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
+    private final UsuarioRepository usuarioRepository;
+    private final EstudianteRepository estudianteRepository;
+    private final ProfesorRepository profesorRepository;
+    private final ProfesorSemilleroRepository profesorSemilleroRepository;
+
+    @GetMapping("/me")
+    public ResponseEntity<UsuarioSesionResponseDTO> obtenerSesion(Authentication authentication) {
+    Usuario usuario = usuarioRepository.findWithRolByEmail(authentication.getName())
+        .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", "email", authentication.getName()));
+
+    return ResponseEntity.ok(UsuarioSesionResponseDTO.builder()
+        .idUsuario(usuario.getId())
+        .nombreCompleto(usuario.getNombreCompleto())
+        .email(usuario.getEmail())
+        .rol(usuario.getRol().getNombre())
+        .idEstudiante(estudianteRepository.findByUsuarioId(usuario.getId())
+            .map(estudiante -> estudiante.getId()).orElse(null))
+        .idProfesor(profesorRepository.findByUsuarioId(usuario.getId())
+            .map(profesor -> profesor.getId()).orElse(null))
+        .idSemillerosLiderados(profesorRepository.findByUsuarioId(usuario.getId())
+            .map(profesor -> profesorSemilleroRepository.findSemilleroIdsByProfesorId(profesor.getId()))
+            .orElseGet(List::of))
+        .build());
+    }
 
     @Operation(summary = "Obtener todos los usuarios")
     @ApiResponse(responseCode = "200", description = "Lista de usuarios obtenida exitosamente")

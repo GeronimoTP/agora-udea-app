@@ -6,16 +6,14 @@ import {
   postulacionesService,
   semillerosService,
 } from "./services";
-import type { FiltroSemilleros } from "@/types/api";
+import { apiRequest } from "./client";
+import type { FiltroSemilleros, UsuarioSesion } from "@/types/api";
 
-/** Sesión de demostración; reemplazar por el usuario autenticado vía OAuth/JWT. */
-export const SESION_DEMO = {
-  idEstudiante: 88,
-  idSemilleroLiderado: 4,
-  nombre: "Laura Restrepo Gómez",
-  rol: "ESTUDIANTE" as const,
-  programa: "Ingeniería de Sistemas",
-};
+export const usuarioSesionQuery = () =>
+  queryOptions({
+    queryKey: ["sesion", "usuario"],
+    queryFn: () => apiRequest<UsuarioSesion>("/api/usuarios/me"),
+  });
 
 export const semillerosQuery = (filtros: FiltroSemilleros = {}) =>
   queryOptions({
@@ -59,10 +57,15 @@ export const misPostulacionesQuery = (idEstudiante: number) =>
     queryFn: () => postulacionesService.misPostulaciones(idEstudiante),
   });
 
-export const postulacionesRecibidasQuery = (idSemillero: number) =>
+export const postulacionesRecibidasQuery = (idSemilleros: number[]) =>
   queryOptions({
-    queryKey: ["postulaciones", "semillero", idSemillero],
-    queryFn: () => postulacionesService.recibidas(idSemillero),
+    queryKey: ["postulaciones", "semilleros", idSemilleros],
+    queryFn: async () =>
+      (
+        await Promise.all(
+          idSemilleros.map((id) => postulacionesService.recibidas(id)),
+        )
+      ).flat(),
   });
 
 export const recomendacionesQuery = (idEstudiante: number) =>

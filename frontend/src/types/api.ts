@@ -5,7 +5,8 @@
 
 export type RolUsuario = "ESTUDIANTE" | "PROFESOR" | "ADMINISTRADOR";
 
-export type EstadoSemillero = "ACTIVO" | "EN_PAUSA" | "PENDIENTE_APROBACION" | "INACTIVO";
+export type EstadoSemillero =
+  "ACTIVO" | "EN_PAUSA" | "PENDIENTE_APROBACION" | "INACTIVO";
 
 export type EstadoConvocatoria = "ABIERTA" | "CERRADA" | "BORRADOR";
 
@@ -36,6 +37,16 @@ export interface Usuario {
   apellidos: string;
   correoInstitucional: string;
   rol: RolUsuario;
+}
+
+export interface UsuarioSesion {
+  idUsuario: number;
+  nombreCompleto: string;
+  email: string;
+  rol: string;
+  idEstudiante: number | null;
+  idProfesor: number | null;
+  idSemillerosLiderados: number[];
 }
 
 export interface Estudiante {
@@ -161,7 +172,7 @@ export interface DemandaSemillero {
 }
 
 export interface DistribucionReconocimientos {
-  ambito: "LOCAL" | "NACIONAL" | "INTERNACIONAL";
+  nombre: string;
   total: number;
 }
 

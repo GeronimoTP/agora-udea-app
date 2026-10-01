@@ -52,6 +52,13 @@ public class PostulacionController {
         return ResponseEntity.ok(postulacionService.obtenerPorEstudiante(idEstudiante));
     }
 
+    @Operation(summary = "Obtener postulaciones de un semillero")
+    @ApiResponse(responseCode = "200", description = "Postulaciones del semillero obtenidas exitosamente")
+    @GetMapping("/semillero/{idSemillero}")
+    public ResponseEntity<List<PostulacionResponseDTO>> obtenerPorSemillero(@PathVariable Integer idSemillero) {
+        return ResponseEntity.ok(postulacionService.obtenerPorSemillero(idSemillero));
+    }
+
     @Operation(summary = "Obtener postulaciones activas de un estudiante (Pendiente o Pre-aprobada)")
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones activas obtenida exitosamente")
     @GetMapping("/estudiante/{idEstudiante}/activas")

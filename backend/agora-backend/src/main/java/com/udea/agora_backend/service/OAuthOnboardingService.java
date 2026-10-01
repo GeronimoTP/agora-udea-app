@@ -16,9 +16,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OAuthOnboardingService {
 
-    private static final String ROL_PENDIENTE = "Pendiente";
-
     private final UsuarioRepository usuarioRepository;
+        private final OauthProveedorRepository oauthProveedorRepository;
     private final RolRepository rolRepository;
     private final ProgramaAcademicoRepository programaRepository;
     private final EstudianteRepository estudianteRepository;
@@ -29,14 +28,14 @@ public class OAuthOnboardingService {
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
 
     @Transactional
-    public Integer completarEstudiante(String email, Integer idPrograma, Integer semestre,
+        public Integer completarEstudiante(String email, String oauthId, String nombreCompleto,
+                                                                           Integer idPrograma, Integer semestre,
                                        List<Integer> idLineasInvestigacion) {
-        Usuario usuario = obtenerUsuarioPendiente(email);
-        validarSinPerfil(usuario);
-
+                OauthProveedor proveedor = obtenerProveedorGoogle();
         Rol rol = obtenerRol("Estudiante");
         ProgramaAcademico programa = programaRepository.findById(idPrograma)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
+                Usuario usuario = obtenerUsuarioParaCompletar(email, oauthId, nombreCompleto, proveedor, rol);
 
         Estudiante estudiante = estudianteRepository.save(Estudiante.builder()
                 .usuario(usuario)
@@ -54,19 +53,17 @@ public class OAuthOnboardingService {
                     .build());
         }
 
-        usuario.setRol(rol);
-        usuarioRepository.save(usuario);
         return estudiante.getId();
     }
 
     @Transactional
-    public Integer completarProfesor(String email, Integer idPrograma, List<Integer> idAreasEspecialidad) {
-        Usuario usuario = obtenerUsuarioPendiente(email);
-        validarSinPerfil(usuario);
-
+        public Integer completarProfesor(String email, String oauthId, String nombreCompleto,
+                                                                          Integer idPrograma, List<Integer> idAreasEspecialidad) {
+                OauthProveedor proveedor = obtenerProveedorGoogle();
         Rol rol = obtenerRol("Profesor");
         ProgramaAcademico programa = programaRepository.findById(idPrograma)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
+                Usuario usuario = obtenerUsuarioParaCompletar(email, oauthId, nombreCompleto, proveedor, rol);
 
         Profesor profesor = profesorRepository.save(Profesor.builder()
                 .usuario(usuario)
@@ -83,18 +80,34 @@ public class OAuthOnboardingService {
                     .build());
         }
 
-        usuario.setRol(rol);
-        usuarioRepository.save(usuario);
         return profesor.getId();
     }
 
-    private Usuario obtenerUsuarioPendiente(String email) {
-        Usuario usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", "email", email));
+        private Usuario obtenerUsuarioParaCompletar(String email, String oauthId, String nombreCompleto,
+                                                                                                 OauthProveedor proveedor, Rol rol) {
+                Usuario usuario = usuarioRepository.findByOauthId(oauthId).orElse(null);
 
-        if (!ROL_PENDIENTE.equalsIgnoreCase(usuario.getRol().getNombre())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "El perfil de este usuario ya fue completado");
+                if (usuario != null) {
+                        if (!usuario.getEmail().equalsIgnoreCase(email)) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                                "La cuenta Google no coincide con el correo registrado");
+                        }
+                        validarSinPerfil(usuario);
+                } else {
+                        if (usuarioRepository.findByEmail(email).isPresent()) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                                "El correo ya está asociado a otra cuenta OAuth");
+                        }
+                        usuario = new Usuario();
+                        usuario.setOauthId(oauthId);
+                        usuario.setCreatedAt(ZonedDateTime.now());
         }
+
+                usuario.setEmail(email);
+                usuario.setNombreCompleto(nombreCompleto == null || nombreCompleto.isBlank() ? email : nombreCompleto);
+                usuario.setProveedorOauth(proveedor);
+                usuario.setRol(rol);
+                usuario = usuarioRepository.save(usuario);
         return usuario;
     }
 
@@ -109,4 +122,9 @@ public class OAuthOnboardingService {
         return rolRepository.findByNombre(nombre)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "nombre", nombre));
     }
+
+        private OauthProveedor obtenerProveedorGoogle() {
+                return oauthProveedorRepository.findByNombre("Google")
+                                .orElseThrow(() -> new RecursoNoEncontradoException("Proveedor OAuth", "nombre", "Google"));
+        }
 }

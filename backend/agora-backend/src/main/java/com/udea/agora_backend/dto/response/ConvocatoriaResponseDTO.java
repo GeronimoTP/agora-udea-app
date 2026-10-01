@@ -8,6 +8,7 @@ import java.time.LocalDate;
 @Builder
 public class ConvocatoriaResponseDTO {
     private Integer id;
+    private Integer idSemillero;
     private String titulo;
     private String descripcion;
     private Integer cuposTotales;

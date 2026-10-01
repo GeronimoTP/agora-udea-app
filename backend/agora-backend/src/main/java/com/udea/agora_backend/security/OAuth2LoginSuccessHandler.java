@@ -10,6 +10,8 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.ProfesorRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 
 import java.io.IOException;
@@ -22,6 +24,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
 
     private final JwtService jwtService; // Inyectamos el servicio creador de tokens
     private final UsuarioRepository usuarioRepository;
+    private final EstudianteRepository estudianteRepository;
+    private final ProfesorRepository profesorRepository;
 
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -34,11 +38,15 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         String email = oAuth2User.getAttribute("email");
         String oauthId = oAuth2User.getAttribute("sub");
 
-        Usuario usuario = usuarioRepository.findWithRolByOauthId(oauthId)
-            .orElseThrow(() -> new IllegalStateException("No se encontró el usuario autenticado de Google"));
-        boolean onboarding = "Pendiente".equalsIgnoreCase(usuario.getRol().getNombre());
-
-        String token = jwtService.generarToken(email);
+        Usuario usuario = usuarioRepository.findWithRolByOauthId(oauthId).orElse(null);
+        boolean perfilCompleto = usuario != null && (
+            estudianteRepository.findByUsuarioId(usuario.getId()).isPresent()
+                || profesorRepository.findByUsuarioId(usuario.getId()).isPresent());
+        boolean onboarding = !perfilCompleto;
+        String nombre = oAuth2User.getAttribute("name");
+        String token = onboarding
+            ? jwtService.generarTokenOnboarding(email, oauthId, nombre == null ? email : nombre)
+            : jwtService.generarToken(email);
 
         String targetUrl = frontendUrl.replaceAll("/+$", "")
             + "/oauth2/redirect?token="

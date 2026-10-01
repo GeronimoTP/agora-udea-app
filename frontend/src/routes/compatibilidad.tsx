@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { MatchScore } from "@/components/common/MatchScore";
 import { EstadoBadge } from "@/components/common/EstadoBadge";
-import { recomendacionesQuery, SESION_DEMO } from "@/lib/api/queries";
+import { recomendacionesQuery, usuarioSesionQuery } from "@/lib/api/queries";
 import type { ResultadoMatch } from "@/types/api";
 
 export const Route = createFileRoute("/compatibilidad")({
@@ -17,7 +17,10 @@ export const Route = createFileRoute("/compatibilidad")({
         content:
           "Ranking de afinidad ponderada entre el perfil académico del estudiante y los semilleros de investigación de la Universidad de Antioquia.",
       },
-      { property: "og:title", content: "Compatibilidad con semilleros | Agora UdeA" },
+      {
+        property: "og:title",
+        content: "Compatibilidad con semilleros | Agora UdeA",
+      },
       {
         property: "og:description",
         content:
@@ -26,21 +29,46 @@ export const Route = createFileRoute("/compatibilidad")({
     ],
   }),
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(recomendacionesQuery(SESION_DEMO.idEstudiante));
+    const sesion =
+      await context.queryClient.ensureQueryData(usuarioSesionQuery());
+    if (sesion.idEstudiante !== null) {
+      await context.queryClient.ensureQueryData(
+        recomendacionesQuery(sesion.idEstudiante),
+      );
+    }
+    return sesion;
   },
   component: CompatibilidadPage,
 });
 
 const factores = [
   { clave: "habilidades", etiqueta: "Habilidades clave", peso: 40 },
-  { clave: "areasEspecialidad", etiqueta: "Áreas de especialidad del tutor", peso: 25 },
-  { clave: "convocatoriaAbierta", etiqueta: "Convocatoria abierta con cupos", peso: 20 },
-  { clave: "proximidadTematica", etiqueta: "Proximidad temática y de programa", peso: 15 },
+  {
+    clave: "areasEspecialidad",
+    etiqueta: "Áreas de especialidad del tutor",
+    peso: 25,
+  },
+  {
+    clave: "convocatoriaAbierta",
+    etiqueta: "Convocatoria abierta con cupos",
+    peso: 20,
+  },
+  {
+    clave: "proximidadTematica",
+    etiqueta: "Proximidad temática y de programa",
+    peso: 15,
+  },
 ] as const;
 
 function CompatibilidadPage() {
-  const { data: resultados } = useSuspenseQuery(recomendacionesQuery(SESION_DEMO.idEstudiante));
-  const ordenados = [...resultados].sort((a, b) => b.porcentajeMatch - a.porcentajeMatch);
+  const sesion = Route.useLoaderData();
+  const { data: resultados = [] } = useQuery({
+    ...recomendacionesQuery(sesion.idEstudiante ?? 0),
+    enabled: sesion.idEstudiante !== null,
+  });
+  const ordenados = [...resultados].sort(
+    (a, b) => b.porcentajeMatch - a.porcentajeMatch,
+  );
 
   return (
     <AppShell>
@@ -50,37 +78,64 @@ function CompatibilidadPage() {
         description="El puntaje combina cuatro factores ponderados sobre el perfil del estudiante y la información oficial de cada semillero, priorizando aquellos con convocatorias vigentes."
       />
 
-      <section aria-labelledby="ponderacion" className="mb-8">
-        <h2 id="ponderacion" className="mb-3 font-display text-sm font-semibold text-foreground">
-          Ponderación aplicada
-        </h2>
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {factores.map((factor) => (
-            <div key={factor.clave} className="panel p-4">
-              <dt className="text-sm font-medium text-foreground">{factor.etiqueta}</dt>
-              <dd className="mt-2 font-display text-2xl font-semibold tabular-nums text-primary">
-                {factor.peso}%
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </section>
+      {sesion.idEstudiante === null ? (
+        <div className="panel p-5 text-sm text-muted-foreground">
+          Las recomendaciones de compatibilidad están disponibles para perfiles
+          de estudiante.
+        </div>
+      ) : (
+        <>
+          <section aria-labelledby="ponderacion" className="mb-8">
+            <h2
+              id="ponderacion"
+              className="mb-3 font-display text-sm font-semibold text-foreground"
+            >
+              Ponderación aplicada
+            </h2>
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {factores.map((factor) => (
+                <div key={factor.clave} className="panel p-4">
+                  <dt className="text-sm font-medium text-foreground">
+                    {factor.etiqueta}
+                  </dt>
+                  <dd className="mt-2 font-display text-2xl font-semibold tabular-nums text-primary">
+                    {factor.peso}%
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
 
-      <section aria-labelledby="ranking">
-        <h2 id="ranking" className="mb-3 font-display text-sm font-semibold text-foreground">
-          Ranking de afinidad para {SESION_DEMO.nombre}
-        </h2>
-        <ul className="space-y-4">
-          {ordenados.map((match, indice) => (
-            <ResultadoItem key={match.idSemillero} match={match} posicion={indice + 1} />
-          ))}
-        </ul>
-      </section>
+          <section aria-labelledby="ranking">
+            <h2
+              id="ranking"
+              className="mb-3 font-display text-sm font-semibold text-foreground"
+            >
+              Ranking de afinidad para {sesion.nombreCompleto}
+            </h2>
+            <ul className="space-y-4">
+              {ordenados.map((match, indice) => (
+                <ResultadoItem
+                  key={match.idSemillero}
+                  match={match}
+                  posicion={indice + 1}
+                />
+              ))}
+            </ul>
+          </section>
+        </>
+      )}
     </AppShell>
   );
 }
 
-function ResultadoItem({ match, posicion }: { match: ResultadoMatch; posicion: number }) {
+function ResultadoItem({
+  match,
+  posicion,
+}: {
+  match: ResultadoMatch;
+  posicion: number;
+}) {
   return (
     <li className="panel p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -111,7 +166,9 @@ function ResultadoItem({ match, posicion }: { match: ResultadoMatch; posicion: n
             {match.convocatoriaAbierta ? (
               <EstadoBadge estado="ABIERTA" />
             ) : (
-              <span className="text-xs text-muted-foreground">Sin convocatoria vigente</span>
+              <span className="text-xs text-muted-foreground">
+                Sin convocatoria vigente
+              </span>
             )}
             <Link
               to="/semilleros/$idSemillero"

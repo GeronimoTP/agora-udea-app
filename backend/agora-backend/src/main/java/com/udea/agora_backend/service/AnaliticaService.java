@@ -271,6 +271,11 @@ public class AnaliticaService {
      */
     public DashboardResumenDTO obtenerResumenDashboard() {
         return DashboardResumenDTO.builder()
+                .postulacionesActivas(postulacionRepository.findAll().stream()
+                        .filter(postulacion -> postulacion.getEstado() != null
+                                && (postulacion.getEstado().getNombre().equalsIgnoreCase("Pendiente")
+                                || postulacion.getEstado().getNombre().equalsIgnoreCase("Pre-aprobada")))
+                        .count())
                 .tasasDemanda(calcularTasaDemandaPorSemillero())
                 .tiempoRespuesta(calcularTiempoPromedioRespuesta())
                 .tasaRetencion(calcularTasaRetencionRechazo())
@@ -357,6 +362,7 @@ public class AnaliticaService {
     @Data
     @Builder
     public static class DashboardResumenDTO {
+                private Long postulacionesActivas;
         private List<TasaDemandaSemilleroDTO> tasasDemanda;
         private TiempoPromedioRespuestaDTO tiempoRespuesta;
         private TasaRetencionOfertasDTO tasaRetencion;
