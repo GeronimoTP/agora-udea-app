@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/queries";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   beforeLoad: () => {
     const isAuthenticated = localStorage.getItem("access_token");
     
