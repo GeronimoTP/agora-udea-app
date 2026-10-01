@@ -16,8 +16,7 @@ import {
 
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
-    // Verificamos si existe el email en localStorage como indicador de sesión activa
-    const isAuthenticated = localStorage.getItem("email");
+    const isAuthenticated = localStorage.getItem("access_token");
     
     if (!isAuthenticated) {
       throw redirect({
@@ -42,7 +41,7 @@ export const Route = createFileRoute("/")({
     ],
   }),
   loader: async ({ context }) => {
-    const isAuthenticated = localStorage.getItem("email");
+    const isAuthenticated = localStorage.getItem("access_token");
     if (!isAuthenticated) return null;
     await Promise.all([
       context.queryClient.ensureQueryData(analiticaQuery()),

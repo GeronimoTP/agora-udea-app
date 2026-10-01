@@ -9,6 +9,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.repository.UsuarioRepository;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtService jwtService; // Inyectamos el servicio creador de tokens
+    private final UsuarioRepository usuarioRepository;
 
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
@@ -29,13 +32,18 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oAuth2User.getAttribute("email");
+        String oauthId = oAuth2User.getAttribute("sub");
 
-        // Generar el token JWT real
-        String token = jwtService.generarToken(email); 
+        Usuario usuario = usuarioRepository.findByOauthId(oauthId)
+            .orElseThrow(() -> new IllegalStateException("No se encontró el usuario autenticado de Google"));
+        boolean onboarding = "Pendiente".equalsIgnoreCase(usuario.getRol().getNombre());
 
-        // Redirigir a Vercel/Localhost pasándole el token en la URL
-        String targetUrl = frontendUrl + "/oauth2/redirect?token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
-        
+        String token = jwtService.generarToken(email);
+
+        String targetUrl = frontendUrl.replaceAll("/+$", "")
+            + "/oauth2/redirect?token="
+            + URLEncoder.encode(token, StandardCharsets.UTF_8)
+            + "&onboarding=" + onboarding;
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }

@@ -1,6 +1,10 @@
 package com.udea.agora_backend.security;
 
 import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.model.OauthProveedor;
+import com.udea.agora_backend.model.Rol;
+import com.udea.agora_backend.repository.OauthProveedorRepository;
+import com.udea.agora_backend.repository.RolRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,7 +15,7 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.time.ZonedDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +23,8 @@ import java.util.Optional;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UsuarioRepository usuarioRepository;
+    private final OauthProveedorRepository oauthProveedorRepository;
+    private final RolRepository rolRepository;
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -26,24 +32,42 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         
         String email = oAuth2User.getAttribute("email");
         String nombre = oAuth2User.getAttribute("name");
+        String oauthId = oAuth2User.getAttribute("sub");
 
-        // 1. Validar dominio institucional
-        if (email == null || !email.endsWith("@udea.edu.co")) {
+        if (email == null || !email.toLowerCase().endsWith("@udea.edu.co") || oauthId == null) {
             log.warn("Intento de login con correo no institucional: {}", email);
-            throw new OAuth2AuthenticationException(new OAuth2Error("invalid_domain"), "Debe usar un correo @udea.edu.co");
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("invalid_google_account"),
+                    "Debe usar una cuenta Google @udea.edu.co válida"
+            );
         }
 
-        // 2. Buscar usuario en BD o crearlo si no existe
-        Optional<Usuario> usuarioOpt = usuarioRepository.findByEmail(email);
-        
-        if (usuarioOpt.isEmpty()) {
-            log.info("Registrando nuevo usuario desde Google: {}", email);
-            Usuario nuevoUsuario = new Usuario();
-            nuevoUsuario.setEmail(email);
-            nuevoUsuario.setNombreCompleto(nombre);
-            // Aquí puedes asignar roles por defecto o marcarlo como pendiente de completar perfil
-            usuarioRepository.save(nuevoUsuario);
+        if (usuarioRepository.findByOauthId(oauthId).isPresent()) {
+            return oAuth2User;
         }
+
+        if (usuarioRepository.findByEmail(email).isPresent()) {
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("account_conflict"),
+                    "El correo ya está asociado a otra cuenta"
+            );
+        }
+
+        OauthProveedor proveedor = oauthProveedorRepository.findByNombre("Google")
+                .orElseThrow(() -> new IllegalStateException("No existe el proveedor OAuth 'Google'"));
+        Rol rolPendiente = rolRepository.findByNombre("Pendiente")
+                .orElseThrow(() -> new IllegalStateException("No existe el rol 'Pendiente'"));
+
+        Usuario nuevoUsuario = new Usuario();
+        nuevoUsuario.setEmail(email);
+        nuevoUsuario.setNombreCompleto(nombre == null ? email : nombre);
+        nuevoUsuario.setProveedorOauth(proveedor);
+        nuevoUsuario.setOauthId(oauthId);
+        nuevoUsuario.setRol(rolPendiente);
+        nuevoUsuario.setCreatedAt(ZonedDateTime.now());
+        usuarioRepository.save(nuevoUsuario);
+
+        log.info("Registrando nuevo usuario desde Google: {}", email);
 
         return oAuth2User;
     }

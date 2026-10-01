@@ -1,24 +1,25 @@
-import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { apiRequest } from "@/lib/api/client";
 
 export const Route = createFileRoute("/auth/complete-profile")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    role:
+      search.role === "PROFESOR"
+        ? "PROFESOR"
+        : search.role === "ESTUDIANTE"
+          ? "ESTUDIANTE"
+          : "",
+  }),
   component: CompleteProfilePage,
 });
-
-interface SearchParams {
-  email: string;
-  isNew: string;
-  role?: string;
-}
 
 interface Programa {
   id: number;
   nombre: string;
-  facultad: string;
+  nombreFacultad: string | null;
 }
 
 interface LineaInvestigacion {
@@ -33,7 +34,7 @@ interface AreaEspecialidad {
 
 function CompleteProfilePage() {
   const navigate = useNavigate();
-  const { email, isNew, role } = useSearch({ from: "/auth/complete-profile" }) as SearchParams;
+  const { role } = Route.useSearch();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [programas, setProgramas] = useState<Programa[]>([]);
@@ -43,7 +44,6 @@ function CompleteProfilePage() {
 
   // Form state
   const [formData, setFormData] = useState({
-    nombreCompleto: "",
     idPrograma: "",
     semestre: "1", // Solo estudiantes
     lineasInvestigacion: [] as number[], // Solo estudiantes
@@ -52,11 +52,21 @@ function CompleteProfilePage() {
 
   // Cargar datos iniciales
   useEffect(() => {
+    if (!window.localStorage.getItem("access_token")) {
+      navigate({ to: "/auth/login", replace: true });
+      return;
+    }
+
+    if (role !== "ESTUDIANTE" && role !== "PROFESOR") {
+      navigate({ to: "/auth/select-role", replace: true });
+      return;
+    }
+
     const loadData = async () => {
       try {
         const [programasRes, lineasRes, areasRes] = await Promise.all([
-          apiRequest<Programa[]>("/api/catalogo/programas"),
-          apiRequest<LineaInvestigacion[]>("/api/catalogo/lineas-investigacion"),
+          apiRequest<Programa[]>("/api/catalogos/programas-academicos"),
+          apiRequest<LineaInvestigacion[]>("/api/lineas-investigacion"),
           apiRequest<AreaEspecialidad[]>("/api/areas-especialidad"),
         ]);
 
@@ -64,6 +74,11 @@ function CompleteProfilePage() {
         setLineas(lineasRes || []);
         setAreas(areasRes || []);
       } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudieron cargar los datos del perfil.",
+        );
         console.error("Error cargando datos:", err);
       } finally {
         setLoadingData(false);
@@ -71,7 +86,7 @@ function CompleteProfilePage() {
     };
 
     loadData();
-  }, []);
+  }, [navigate, role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,61 +94,53 @@ function CompleteProfilePage() {
     setLoading(true);
 
     try {
-      const isEstudiante = isNew === "true" ? role === "ESTUDIANTE" : true; // Asumir estudiante si no es nuevo
+      const isEstudiante = role === "ESTUDIANTE";
 
       if (isEstudiante) {
-        // Crear estudiante
-        await apiRequest("/api/auth/register/estudiante", {
+        await apiRequest("/api/auth/onboarding/estudiante", {
           method: "POST",
           body: {
-            email,
-            nombreCompleto: formData.nombreCompleto,
             idPrograma: parseInt(formData.idPrograma),
             semestre: parseInt(formData.semestre),
             idLineasInvestigacion: formData.lineasInvestigacion,
           },
         });
       } else {
-        // Crear profesor
-        await apiRequest("/api/auth/register/profesor", {
+        await apiRequest("/api/auth/onboarding/profesor", {
           method: "POST",
           body: {
-            email,
-            nombreCompleto: formData.nombreCompleto,
             idPrograma: parseInt(formData.idPrograma),
             idAreasEspecialidad: formData.areasEspecialidad,
           },
         });
       }
 
-      // Limpiar localStorage
-      localStorage.removeItem("email");
-      localStorage.removeItem("selectedRole");
-
-      // Redirigir a dashboard
       navigate({ to: "/" });
     } catch (err) {
-      setError("Error al guardar el perfil. Intenta nuevamente.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Error al guardar el perfil. Intenta nuevamente.",
+      );
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (!email) {
-    navigate({ to: "/auth/login" });
-    return null;
-  }
-
-  const isEstudiante = isNew === "true" ? role === "ESTUDIANTE" : true;
+  const isEstudiante = role === "ESTUDIANTE";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-8">
       <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-lg">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">Completa tu perfil</h1>
-          <p className="mt-2 text-sm text-gray-600">{email}</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Completa tu perfil
+          </h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Perfil de {isEstudiante ? "estudiante" : "profesor"}
+          </p>
         </div>
 
         {loadingData ? (
@@ -142,28 +149,12 @@ function CompleteProfilePage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Nombre Completo */}
-            <div>
-              <label htmlFor="nombreCompleto" className="block text-sm font-medium text-gray-700">
-                Nombre Completo
-              </label>
-              <Input
-                id="nombreCompleto"
-                type="text"
-                placeholder="Juan Pérez García"
-                value={formData.nombreCompleto}
-                onChange={(e) =>
-                  setFormData({ ...formData, nombreCompleto: e.target.value })
-                }
-                required
-                className="mt-2"
-                disabled={loading}
-              />
-            </div>
-
             {/* Programa Académico */}
             <div>
-              <label htmlFor="programa" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="programa"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Programa Académico
               </label>
               <select
@@ -188,7 +179,10 @@ function CompleteProfilePage() {
             {/* Estudiante: Semestre */}
             {isEstudiante && (
               <div>
-                <label htmlFor="semestre" className="block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="semestre"
+                  className="block text-sm font-medium text-gray-700"
+                >
                   Semestre
                 </label>
                 <select
@@ -220,7 +214,9 @@ function CompleteProfilePage() {
                     <label key={linea.id} className="flex items-center">
                       <input
                         type="checkbox"
-                        checked={formData.lineasInvestigacion.includes(linea.id)}
+                        checked={formData.lineasInvestigacion.includes(
+                          linea.id,
+                        )}
                         onChange={(e) => {
                           if (e.target.checked) {
                             setFormData({
@@ -233,16 +229,19 @@ function CompleteProfilePage() {
                           } else {
                             setFormData({
                               ...formData,
-                              lineasInvestigacion: formData.lineasInvestigacion.filter(
-                                (id) => id !== linea.id
-                              ),
+                              lineasInvestigacion:
+                                formData.lineasInvestigacion.filter(
+                                  (id) => id !== linea.id,
+                                ),
                             });
                           }
                         }}
                         disabled={loading}
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
                       />
-                      <span className="ml-2 text-sm text-gray-700">{linea.nombre}</span>
+                      <span className="ml-2 text-sm text-gray-700">
+                        {linea.nombre}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -273,26 +272,42 @@ function CompleteProfilePage() {
                           } else {
                             setFormData({
                               ...formData,
-                              areasEspecialidad: formData.areasEspecialidad.filter(
-                                (id) => id !== area.id
-                              ),
+                              areasEspecialidad:
+                                formData.areasEspecialidad.filter(
+                                  (id) => id !== area.id,
+                                ),
                             });
                           }
                         }}
                         disabled={loading}
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
                       />
-                      <span className="ml-2 text-sm text-gray-700">{area.nombre}</span>
+                      <span className="ml-2 text-sm text-gray-700">
+                        {area.nombre}
+                      </span>
                     </label>
                   ))}
                 </div>
               </div>
             )}
 
-            {error && <div className="rounded bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+            {error && (
+              <div className="rounded bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
             {/* Submit Button */}
-            <Button type="submit" className="w-full mt-6" disabled={loading || !formData.nombreCompleto || !formData.idPrograma}>
+            <Button
+              type="submit"
+              className="w-full mt-6"
+              disabled={
+                loading ||
+                !formData.idPrograma ||
+                (isEstudiante && formData.lineasInvestigacion.length === 0) ||
+                (!isEstudiante && formData.areasEspecialidad.length === 0)
+              }
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

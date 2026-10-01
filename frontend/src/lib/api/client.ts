@@ -1,6 +1,6 @@
 /**
  * Cliente HTTP para el backend Spring Boot de Agora UdeA.
- * 
+ *
  * Configuración:
  * - URL base desde VITE_API_URL (.env)
  * - Los endpoints incluyen "/api" en sus rutas
@@ -9,10 +9,11 @@
  */
 
 export const API_BASE_URL: string =
-  (import.meta.env["VITE_API_URL"] as string | undefined) ?? "https://agora-udea-app.onrender.com";
+  (import.meta.env["VITE_API_URL"] as string | undefined) ??
+  "https://agora-udea-app.onrender.com";
 
 export const API_TIMEOUT: number = parseInt(
-  (import.meta.env["VITE_API_TIMEOUT"] as string | undefined) ?? "10000"
+  (import.meta.env["VITE_API_TIMEOUT"] as string | undefined) ?? "10000",
 );
 
 export const DEBUG_API: boolean =
@@ -43,7 +44,9 @@ function getAuthToken(): string | null {
 /**
  * Construye los headers con autenticación
  */
-function getHeaders(additionalHeaders?: Record<string, string>): Record<string, string> {
+function getHeaders(
+  additionalHeaders?: Record<string, string>,
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -60,7 +63,7 @@ function getHeaders(additionalHeaders?: Record<string, string>): Record<string, 
 
 /**
  * Ejecuta una petición HTTP contra el backend.
- * 
+ *
  * @param path - Ruta del endpoint (ej. "/api/estudiantes", "/api/semilleros/123")
  * @param options - Opciones de la petición (método, body, query params)
  * @returns Promesa con la respuesta parseada
@@ -99,7 +102,7 @@ export async function apiRequest<T>(
       method,
       headers: getHeaders(additionalHeaders),
       body: body === undefined ? null : JSON.stringify(body),
-      credentials: "include", // Enviar cookies si existen
+      credentials: "omit",
       signal: AbortSignal.timeout(API_TIMEOUT),
     });
 
@@ -144,11 +147,14 @@ export async function apiRequest<T>(
       throw error;
     }
 
-    if (error instanceof TypeError && (error.message.includes("network") || error.message.includes("fetch"))) {
+    if (
+      error instanceof TypeError &&
+      (error.message.includes("network") || error.message.includes("fetch"))
+    ) {
       throw new ApiError(
         `No se pudo conectar al servidor. Asegúrate de que el backend está ejecutándose en ${API_BASE_URL}`,
         0,
-        path
+        path,
       );
     }
 

@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BookOpen, Users } from "lucide-react";
@@ -8,26 +8,23 @@ export const Route = createFileRoute("/auth/select-role")({
   component: SelectRolePage,
 });
 
-interface SearchParams {
-  email: string;
-}
-
 function SelectRolePage() {
   const navigate = useNavigate();
-  const { email } = useSearch({ from: "/auth/select-role" }) as SearchParams;
-  const [selectedRole, setSelectedRole] = useState<"PROFESOR" | "ESTUDIANTE" | null>(null);
+  const [selectedRole, setSelectedRole] = useState<
+    "PROFESOR" | "ESTUDIANTE" | null
+  >(null);
 
-  if (!email) {
-    navigate({ to: "/auth/login" });
-    return null;
-  }
+  useEffect(() => {
+    if (!window.localStorage.getItem("access_token")) {
+      navigate({ to: "/auth/login", replace: true });
+    }
+  }, [navigate]);
 
   const handleContinue = () => {
     if (selectedRole) {
-      localStorage.setItem("selectedRole", selectedRole);
       navigate({
         to: "/auth/complete-profile",
-        search: { email, isNew: "true", role: selectedRole },
+        search: { role: selectedRole },
       });
     }
   };
@@ -37,9 +34,12 @@ function SelectRolePage() {
       <div className="w-full max-w-2xl rounded-lg bg-white p-8 shadow-lg">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">¿Cuál es tu rol en Agora?</h1>
-          <p className="mt-2 text-gray-600">{email}</p>
-          <p className="mt-1 text-sm text-gray-500">Selecciona tu perfil para continuar</p>
+          <h1 className="text-2xl font-bold text-gray-900">
+            ¿Cuál es tu rol en Agora?
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Selecciona tu perfil para continuar
+          </p>
         </div>
 
         {/* Role Selection Cards */}
@@ -59,10 +59,12 @@ function SelectRolePage() {
               >
                 <BookOpen className="h-8 w-8 text-blue-600" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">Profesor</h3>
+              <h3 className="mt-4 text-lg font-semibold text-gray-900">
+                Profesor
+              </h3>
               <p className="mt-2 text-sm text-gray-600">
-                Crear y gestionar semilleros de investigación, revisar postulaciones y evaluar
-                estudiantes
+                Crear y gestionar semilleros de investigación, revisar
+                postulaciones y evaluar estudiantes
               </p>
               <ul className="mt-4 space-y-1 text-xs text-gray-500">
                 <li>✓ Gestionar semilleros</li>
@@ -87,9 +89,12 @@ function SelectRolePage() {
               >
                 <Users className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">Estudiante</h3>
+              <h3 className="mt-4 text-lg font-semibold text-gray-900">
+                Estudiante
+              </h3>
               <p className="mt-2 text-sm text-gray-600">
-                Explorar semilleros, postularse a convocatorias y ver recomendaciones personalizadas
+                Explorar semilleros, postularse a convocatorias y ver
+                recomendaciones personalizadas
               </p>
               <ul className="mt-4 space-y-1 text-xs text-gray-500">
                 <li>✓ Ver semilleros</li>
@@ -114,7 +119,12 @@ function SelectRolePage() {
             disabled={!selectedRole}
             onClick={handleContinue}
           >
-            Continuar como {selectedRole === "PROFESOR" ? "Profesor" : selectedRole === "ESTUDIANTE" ? "Estudiante" : ""}
+            Continuar como{" "}
+            {selectedRole === "PROFESOR"
+              ? "Profesor"
+              : selectedRole === "ESTUDIANTE"
+                ? "Estudiante"
+                : ""}
           </Button>
         </div>
       </div>
