@@ -34,7 +34,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         String email = oAuth2User.getAttribute("email");
         String oauthId = oAuth2User.getAttribute("sub");
 
-        Usuario usuario = usuarioRepository.findByOauthId(oauthId)
+        Usuario usuario = usuarioRepository.findWithRolByOauthId(oauthId)
             .orElseThrow(() -> new IllegalStateException("No se encontró el usuario autenticado de Google"));
         boolean onboarding = "Pendiente".equalsIgnoreCase(usuario.getRol().getNombre());
 

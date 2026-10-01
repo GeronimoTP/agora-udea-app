@@ -72,7 +72,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String email = obtenerEmail(authentication);
-        boolean perfilPendiente = email != null && usuarioRepository.findByEmail(email)
+        boolean perfilPendiente = email != null && usuarioRepository.findWithRolByEmail(email)
                 .map(usuario -> "Pendiente".equalsIgnoreCase(usuario.getRol().getNombre()))
                 .orElse(false);
 
