@@ -65,13 +65,13 @@ public class ConvocatoriaService {
      * Obtiene convocatorias activas con cupos disponibles
      */
     public List<ConvocatoriaResponseDTO> obtenerActivasConCupos() {
-        // Obtener estado "Activa"
-        Estado estadoActiva = estadoRepository.findAll().stream()
-                .filter(e -> e.getNombre().equalsIgnoreCase("Activa"))
+        // Obtener estado "Abierta"
+        Estado estadoAbierta = estadoRepository.findAll().stream()
+                .filter(e -> e.getNombre().equalsIgnoreCase("Abierta"))
                 .findFirst()
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Activa"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Abierta"));
         
-        return convocatoriaRepository.findActivasConCupos(estadoActiva.getId())
+        return convocatoriaRepository.findActivasConCupos(estadoAbierta.getId())
                 .stream()
                 .map(this::mapeoAResponseDTO)
                 .collect(Collectors.toList());
@@ -115,11 +115,11 @@ public class ConvocatoriaService {
         Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
 
-        // Obtener estado inicial (Activa)
+        // Obtener estado inicial (Abierta)
         Estado estado = estadoRepository.findAll().stream()
-                .filter(e -> e.getNombre().equalsIgnoreCase("Activa"))
+                .filter(e -> e.getNombre().equalsIgnoreCase("Abierta"))
                 .findFirst()
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Activa"));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Abierta"));
 
         // Crear convocatoria
         Convocatoria convocatoria = Convocatoria.builder()
