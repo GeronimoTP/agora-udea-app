@@ -20,7 +20,9 @@ import java.util.stream.Collectors;
  * - Factor 2: Afinidad Áreas de Especialidad (25%)
  * - Factor 3: Disponibilidad Convocatorias (20%)
  * - Factor 4: Proximidad Temática y Programa (15%)
- * 
+ *
+ * Solo se recomiendan semilleros activos a los que el estudiante podría postularse:
+ * se excluyen los que lidera y aquellos a los que ya pertenece.
  * Retorna ranking ordenado por porcentaje de afinidad (0-100%)
  */
 @Service
@@ -37,6 +39,14 @@ public class MotorRecomendacionService {
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
     private final ProfesorSemilleroRepository profesorSemilleroRepository;
+    private final EstudianteSemilleroRepository estudianteSemilleroRepository;
+
+    private static final String ESTADO_SEMILLERO_ACTIVO = "Activo";
+    private static final String ESTADO_CONVOCATORIA_ABIERTA = "Abierta";
+
+    // Peso interno del Factor 4: coincidencia de líneas de investigación vs. mismo programa
+    private static final double PESO_LINEAS_EN_FACTOR_4 = 0.75;
+    private static final double PESO_PROGRAMA_EN_FACTOR_4 = 0.25;
 
     // Nombre del estado de postulación que indica selección confirmada. Debe coincidir
     // exactamente con el valor sembrado en tbl_estados (categoría "Estado Postulación").
@@ -58,8 +68,17 @@ public class MotorRecomendacionService {
         Estudiante estudiante = estudianteRepository.findById(idEstudiante)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", idEstudiante));
 
-        // Obtener todos los semilleros disponibles
-        List<Semillero> semillerosDisponibles = semilleroRepository.findAll();
+        Set<Integer> semillerosDelEstudiante = estudianteSemilleroRepository.findByEstudianteId(idEstudiante)
+                .stream()
+                .map(es -> es.getSemillero().getId())
+                .collect(Collectors.toSet());
+
+        List<Semillero> semillerosDisponibles = semilleroRepository.findAll().stream()
+                .filter(s -> s.getEstado() != null
+                        && ESTADO_SEMILLERO_ACTIVO.equalsIgnoreCase(s.getEstado().getNombre()))
+                .filter(s -> !s.getEstudianteLider().getId().equals(idEstudiante))
+                .filter(s -> !semillerosDelEstudiante.contains(s.getId()))
+                .toList();
         
         if (semillerosDisponibles.isEmpty()) {
             log.warn("No hay semilleros disponibles para recomendar");
@@ -113,6 +132,7 @@ public class MotorRecomendacionService {
 /**
      * FACTOR 1 (40%): Calcula coincidencia de habilidades
      * Compara habilidades del estudiante con las que históricamente ha requerido el semillero.
+     * El perfil del estudiante no guarda habilidades: se toman de sus postulaciones previas.
      *
      * Estrategia de tres niveles (ajuste de código, sin cambios de esquema):
      *   1. Señal fuerte: habilidades de postulaciones ya ACEPTADAS al semillero (lo que
@@ -147,7 +167,9 @@ public class MotorRecomendacionService {
             );
 
             if (idsEstudiante.isEmpty()) {
-                return 0.0; // Sí hay señal del semillero, pero el estudiante no declaró habilidades
+                // El estudiante aún no se ha postulado a nada: no hay con qué comparar, así que
+                // no se le penaliza (mismo criterio que un semillero sin historial)
+                return FACTOR_NEUTRAL_SIN_HISTORIAL;
             }
 
             Set<Integer> interseccion = new HashSet<>(idsEstudiante);
@@ -202,7 +224,7 @@ public class MotorRecomendacionService {
 
     /**
      * FACTOR 3 (20%): Calcula disponibilidad de convocatorias
-     * Verifica si el semillero tiene convocatorias activas con cupos
+     * Verifica si el semillero tiene convocatorias abiertas, vigentes hoy y con cupos
      */
     private double calcularFactorDisponibilidadConvocatorias(Semillero semillero) {
         try {
@@ -210,6 +232,9 @@ public class MotorRecomendacionService {
             
             long convocatoriasActivas = convocatoriaRepository.findBySemilleroId(semillero.getId())
                     .stream()
+                    .filter(conv -> conv.getEstado() != null
+                            && ESTADO_CONVOCATORIA_ABIERTA.equalsIgnoreCase(conv.getEstado().getNombre()))
+                    .filter(conv -> !conv.getFechaInicio().isAfter(hoy)) // Ya abrió
                     .filter(conv -> !conv.getFechaCierre().isBefore(hoy)) // No expirada
                     .filter(conv -> conv.getCuposDisponibles() > 0) // Con cupos
                     .count();
@@ -223,8 +248,9 @@ public class MotorRecomendacionService {
     }
 
     /**
-     * FACTOR 4 (15%): Calcula proximidad temática
-     * Mide coincidencia en líneas de investigación entre estudiante y semillero
+     * FACTOR 4 (15%): Calcula proximidad temática y de programa
+     * 75%: coincidencia en líneas de investigación entre estudiante y semillero.
+     * 25%: el estudiante pertenece al mismo programa académico del semillero.
      */
     private double calcularFactorProximidadTematica(Estudiante estudiante, Semillero semillero) {
         try {
@@ -234,8 +260,11 @@ public class MotorRecomendacionService {
                     .map(eli -> eli.getLineaInvestigacion().getId())
                     .collect(Collectors.toSet());
 
+            double programa = estudiante.getPrograma() != null && semillero.getPrograma() != null
+                    && estudiante.getPrograma().getId().equals(semillero.getPrograma().getId()) ? 100.0 : 0.0;
+
             if (lineasEstudiante.isEmpty()) {
-                return 0.0; // Estudiante sin líneas de interés
+                return programa * PESO_PROGRAMA_EN_FACTOR_4; // Estudiante sin líneas de interés
             }
 
             // Obtener líneas del semillero
@@ -245,15 +274,15 @@ public class MotorRecomendacionService {
                     .collect(Collectors.toSet());
 
             if (lineasSemillero.isEmpty()) {
-                return 0.0; // Semillero sin líneas definidas
+                return programa * PESO_PROGRAMA_EN_FACTOR_4; // Semillero sin líneas definidas
             }
 
             // Calcular coincidencia
             Set<Integer> interseccion = new HashSet<>(lineasEstudiante);
             interseccion.retainAll(lineasSemillero);
 
-            double coincidencia = (double) interseccion.size() / lineasSemillero.size();
-            return Math.min(100.0, coincidencia * 100.0);
+            double lineas = Math.min(100.0, (double) interseccion.size() / lineasSemillero.size() * 100.0);
+            return lineas * PESO_LINEAS_EN_FACTOR_4 + programa * PESO_PROGRAMA_EN_FACTOR_4;
         } catch (Exception e) {
             log.error("Error calculando Factor 4 (Proximidad Temática)", e);
             return 0.0;

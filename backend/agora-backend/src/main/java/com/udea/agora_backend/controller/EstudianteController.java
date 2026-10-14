@@ -5,12 +5,14 @@ import com.udea.agora_backend.dto.request.EstudianteRequestDTO;
 import com.udea.agora_backend.dto.response.EstudianteLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.EstudianteResponseDTO;
 import com.udea.agora_backend.service.EstudianteService;
+import com.udea.agora_backend.service.AutorizacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ import java.util.List;
 public class EstudianteController {
 
     private final EstudianteService estudianteService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todos los estudiantes")
     @ApiResponse(responseCode = "200", description = "Lista de estudiantes obtenida exitosamente")
@@ -75,7 +78,9 @@ public class EstudianteController {
     @PutMapping("/{id}")
     public ResponseEntity<EstudianteResponseDTO> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody EstudianteRequestDTO request) {
+            @Valid @RequestBody EstudianteRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarEstudianteActual(authentication.getName(), id);
         return ResponseEntity.ok(estudianteService.actualizar(id, request));
     }
 
@@ -85,7 +90,8 @@ public class EstudianteController {
             @ApiResponse(responseCode = "404", description = "Estudiante no encontrado")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarEstudianteActual(authentication.getName(), id);
         estudianteService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -110,7 +116,9 @@ public class EstudianteController {
     })
     @PostMapping("/lineas-investigacion")
     public ResponseEntity<EstudianteLineaInvestigacionResponseDTO> agregarLineaInvestigacion(
-            @Valid @RequestBody EstudianteLineaInvestigacionRequestDTO request) {
+            @Valid @RequestBody EstudianteLineaInvestigacionRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarEstudianteActual(authentication.getName(), request.getIdEstudiante());
         EstudianteLineaInvestigacionResponseDTO creada = estudianteService.agregarLineaInvestigacion(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -123,7 +131,9 @@ public class EstudianteController {
     @DeleteMapping("/{idEstudiante}/lineas-investigacion/{idLinea}")
     public ResponseEntity<Void> eliminarLineaInvestigacion(
             @PathVariable Integer idEstudiante,
-            @PathVariable Integer idLinea) {
+            @PathVariable Integer idLinea,
+            Authentication authentication) {
+        autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);
         estudianteService.eliminarLineaInvestigacion(idEstudiante, idLinea);
         return ResponseEntity.noContent().build();
     }

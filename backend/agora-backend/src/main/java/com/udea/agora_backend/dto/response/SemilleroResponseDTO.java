@@ -16,4 +16,9 @@ public class SemilleroResponseDTO {
     private String nombrePrograma;
     private String estadoActual;
     private List<String> lineasInvestigacion;
+    private String nombreFacultad;
+    private Integer totalProyectos;
+    private Integer totalPublicaciones;
+    private Integer totalIntegrantes;
+    private Boolean convocatoriaAbierta;
 }

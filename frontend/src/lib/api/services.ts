@@ -47,23 +47,26 @@ export const estudianteService = {
 // ============================================
 
 export const semillerosService = {
-  listar: (filtros: FiltroSemilleros = {}) =>
-    apiRequest<Semillero[]>("/api/semilleros", {
-      query: {
-        busqueda: filtros.busqueda,
-        facultad: filtros.facultad,
-        convocatoriaAbierta: filtros.soloConvocatoriaAbierta,
-      },
-    }),
+  // El backend no filtra: la página de semilleros filtra en el cliente
+  listar: async (_filtros: FiltroSemilleros = {}) =>
+    (await apiRequest<SemilleroApi[]>("/api/semilleros")).map(mapearSemillero),
 
-  obtener: (idSemillero: number) =>
-    apiRequest<Semillero>(`/api/semilleros/${idSemillero}`),
+  obtener: async (idSemillero: number) =>
+    mapearSemillero(
+      await apiRequest<SemilleroApi>(`/api/semilleros/${idSemillero}`),
+    ),
 
-  proyectos: (idSemillero: number) =>
-    apiRequest<Proyecto[]>(`/api/semilleros/${idSemillero}/proyectos`),
+  proyectos: async (idSemillero: number) =>
+    (
+      await apiRequest<ProyectoApi[]>(`/api/proyectos/semillero/${idSemillero}`)
+    ).map(mapearProyecto),
 
-  publicaciones: (idSemillero: number) =>
-    apiRequest<Publicacion[]>(`/api/semilleros/${idSemillero}/publicaciones`),
+  publicaciones: async (idSemillero: number) =>
+    (
+      await apiRequest<PublicacionApi[]>(
+        `/api/publicaciones/semillero/${idSemillero}`,
+      )
+    ).map((publicacion) => mapearPublicacion(publicacion, idSemillero)),
 
   crear: (payload: Partial<Semillero>) =>
     apiRequest<Semillero>("/api/semilleros", {
@@ -87,31 +90,20 @@ export const convocatoriasService = {
     const convocatorias = await apiRequest<ConvocatoriaApi[]>(
       "/api/convocatorias/activas",
     );
-    return convocatorias.map(
-      (convocatoria) =>
-        ({
-          idConvocatoria: convocatoria.id,
-          idSemillero: convocatoria.idSemillero,
-          nombreSemillero: convocatoria.nombreSemillero,
-          titulo: convocatoria.titulo,
-          descripcion: convocatoria.descripcion,
-          fechaApertura: convocatoria.fechaInicio,
-          fechaCierre: convocatoria.fechaCierre,
-          cuposTotales: convocatoria.cuposTotales,
-          cuposDisponibles: convocatoria.cuposDisponibles,
-          estado: normalizarEstadoConvocatoria(convocatoria.estadoActual),
-          habilidadesRequeridas: [],
-        }) satisfies Convocatoria,
-    );
+    return convocatorias.map(mapearConvocatoria);
   },
 
-  obtener: (idConvocatoria: number) =>
-    apiRequest<Convocatoria>(`/api/convocatorias/${idConvocatoria}`),
+  obtener: async (idConvocatoria: number) =>
+    mapearConvocatoria(
+      await apiRequest<ConvocatoriaApi>(`/api/convocatorias/${idConvocatoria}`),
+    ),
 
-  porSemillero: (idSemillero: number) =>
-    apiRequest<Convocatoria[]>("/api/convocatorias", {
-      query: { idSemillero },
-    }),
+  porSemillero: async (idSemillero: number) =>
+    (
+      await apiRequest<ConvocatoriaApi[]>(
+        `/api/convocatorias/semillero/${idSemillero}`,
+      )
+    ).map(mapearConvocatoria),
 
   crear: (payload: Partial<Convocatoria>) =>
     apiRequest<Convocatoria>("/api/convocatorias", {
@@ -131,66 +123,54 @@ export const convocatoriasService = {
 // ============================================
 
 export const postulacionesService = {
-  misPostulaciones: async (idEstudiante: number) => {
-    const postulaciones = await apiRequest<PostulacionApi[]>(
-      `/api/postulaciones/estudiante/${idEstudiante}`,
-    );
-    return postulaciones.map(
-      (postulacion) =>
-        ({
-          idPostulacion: postulacion.id,
-          idConvocatoria: postulacion.idConvocatoria,
-          tituloConvocatoria: postulacion.tituloConvocatoria,
-          nombreSemillero: postulacion.nombreSemillero,
-          idEstudiante: postulacion.idEstudiante,
-          nombreEstudiante: postulacion.nombreEstudiante,
-          programaEstudiante: "",
-          estado: normalizarEstadoPostulacion(postulacion.estadoPostulacion),
-          fechaPostulacion: postulacion.fechaPostulacion,
-          fechaPreAprobacion: null,
-          fechaDecisionEstudiante: postulacion.fechaDecisionEstudiante,
-          habilidades: postulacion.habilidades ?? [],
-          cartaMotivacion: postulacion.respuestaMotivacion,
-        }) satisfies Postulacion,
-    );
-  },
+  misPostulaciones: async (idEstudiante: number) =>
+    (
+      await apiRequest<PostulacionApi[]>(
+        `/api/postulaciones/estudiante/${idEstudiante}`,
+      )
+    ).map(mapearPostulacion),
 
-  recibidas: (idSemillero: number) =>
-    apiRequest<Postulacion[]>(`/api/postulaciones/semillero/${idSemillero}`),
+  recibidas: async (idSemillero: number) =>
+    (
+      await apiRequest<PostulacionApi[]>(
+        `/api/postulaciones/semillero/${idSemillero}`,
+      )
+    ).map(mapearPostulacion),
 
-  obtener: (idPostulacion: number) =>
-    apiRequest<Postulacion>(`/api/postulaciones/${idPostulacion}`),
+  obtener: async (idPostulacion: number) =>
+    mapearPostulacion(
+      await apiRequest<PostulacionApi>(`/api/postulaciones/${idPostulacion}`),
+    ),
 
-  crear: (payload: Partial<Postulacion>) =>
-    apiRequest<Postulacion>("/api/postulaciones", {
+  crear: (payload: NuevaPostulacion) =>
+    apiRequest<unknown>("/api/postulaciones", {
       method: "POST",
       body: payload,
     }),
 
   preAprobar: (idPostulacion: number) =>
-    apiRequest<Postulacion>(`/api/postulaciones/${idPostulacion}/pre-aprobar`, {
-      method: "PATCH",
+    apiRequest<string>(`/api/postulaciones/${idPostulacion}/pre-aprobar`, {
+      method: "POST",
     }),
 
-  rechazar: (idPostulacion: number, motivo?: string) =>
-    apiRequest<Postulacion>(`/api/postulaciones/${idPostulacion}/rechazar`, {
-      method: "PATCH",
-      body: { motivo },
+  rechazar: (idPostulacion: number) =>
+    apiRequest<string>(`/api/postulaciones/${idPostulacion}/rechazar-lider`, {
+      method: "POST",
     }),
 
   aceptarOferta: (idPostulacion: number) =>
-    apiRequest<Postulacion>(
+    apiRequest<string>(
       `/api/postulaciones/${idPostulacion}/confirmar-aceptacion`,
       {
-        method: "PATCH",
+        method: "POST",
       },
     ),
 
   rechazarOferta: (idPostulacion: number) =>
-    apiRequest<Postulacion>(
-      `/api/postulaciones/${idPostulacion}/rechazar-oferta`,
+    apiRequest<string>(
+      `/api/postulaciones/${idPostulacion}/rechazar-estudiante`,
       {
-        method: "PATCH",
+        method: "POST",
       },
     ),
 };
@@ -300,9 +280,24 @@ export const catalogoService = {
   facultades: () => apiRequest("/api/catalogos/facultades"),
   areasEspecialidad: () => apiRequest("/api/areas-especialidad"),
   lineasInvestigacion: () => apiRequest("/api/lineas-investigacion"),
-  habilidades: () => apiRequest("/api/habilidades"),
+  habilidades: () => apiRequest<Habilidad[]>("/api/habilidades"),
   estados: () => apiRequest("/api/estados"),
 };
+
+// Cuerpo esperado por PostulacionRequestDTO en el backend
+export interface NuevaPostulacion {
+  idConvocatoria: number;
+  idEstudiante: number;
+  respuestaMotivacion: string;
+  disponibilidadHorasSemana: number;
+  experienciaPrevia: string;
+  idHabilidades: number[];
+}
+
+export interface Habilidad {
+  id: number;
+  nombre: string;
+}
 
 export default {
   estudiantes: estudianteService,
@@ -334,11 +329,139 @@ interface PostulacionApi {
   tituloConvocatoria: string;
   nombreSemillero: string;
   nombreEstudiante: string;
+  programaEstudiante: string | null;
   respuestaMotivacion: string;
   fechaPostulacion: string;
+  fechaPreAprobacion: string | null;
   fechaDecisionEstudiante: string | null;
   estadoPostulacion: string;
   habilidades: string[];
+}
+
+interface SemilleroApi {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  estadoActual: string | null;
+  lineasInvestigacion: string[];
+  nombreFacultad: string | null;
+  totalProyectos: number;
+  totalPublicaciones: number;
+  totalIntegrantes: number;
+  convocatoriaAbierta: boolean;
+}
+
+interface ProyectoApi {
+  id: number;
+  idSemillero: number;
+  titulo: string;
+  estadoActual: string | null;
+  fechaInicio: string;
+  fechaFin: string | null;
+  presupuestoAsignado: number | null;
+  totalIntegrantes: number;
+}
+
+interface PublicacionApi {
+  id: number;
+  titulo: string;
+  urlDocumento: string | null;
+  fechaPublicacion: string | null;
+  autoresDetalle: {
+    nombre: string;
+    rolAutoria: string;
+    esEstudiante: boolean;
+  }[];
+}
+
+function mapearSemillero(semillero: SemilleroApi): Semillero {
+  return {
+    idSemillero: semillero.id,
+    nombre: semillero.nombre,
+    descripcion: semillero.descripcion,
+    lineasInvestigacion: semillero.lineasInvestigacion ?? [],
+    estado: normalizarEstadoSemillero(semillero.estadoActual),
+    facultad: semillero.nombreFacultad ?? "Sin facultad",
+    lideres: [],
+    totalProyectos: semillero.totalProyectos ?? 0,
+    totalPublicaciones: semillero.totalPublicaciones ?? 0,
+    totalIntegrantes: semillero.totalIntegrantes ?? 0,
+    convocatoriaAbierta: semillero.convocatoriaAbierta ?? false,
+  };
+}
+
+function mapearConvocatoria(convocatoria: ConvocatoriaApi): Convocatoria {
+  return {
+    idConvocatoria: convocatoria.id,
+    idSemillero: convocatoria.idSemillero,
+    nombreSemillero: convocatoria.nombreSemillero,
+    titulo: convocatoria.titulo,
+    descripcion: convocatoria.descripcion,
+    fechaApertura: convocatoria.fechaInicio,
+    fechaCierre: convocatoria.fechaCierre,
+    cuposTotales: convocatoria.cuposTotales,
+    cuposDisponibles: convocatoria.cuposDisponibles,
+    estado: normalizarEstadoConvocatoria(convocatoria.estadoActual),
+    // El modelo de convocatoria no registra habilidades requeridas
+    habilidadesRequeridas: [],
+  };
+}
+
+function mapearPostulacion(postulacion: PostulacionApi): Postulacion {
+  return {
+    idPostulacion: postulacion.id,
+    idConvocatoria: postulacion.idConvocatoria,
+    tituloConvocatoria: postulacion.tituloConvocatoria,
+    nombreSemillero: postulacion.nombreSemillero,
+    idEstudiante: postulacion.idEstudiante,
+    nombreEstudiante: postulacion.nombreEstudiante,
+    programaEstudiante: postulacion.programaEstudiante ?? "",
+    estado: normalizarEstadoPostulacion(postulacion.estadoPostulacion),
+    fechaPostulacion: postulacion.fechaPostulacion,
+    fechaPreAprobacion: postulacion.fechaPreAprobacion,
+    fechaDecisionEstudiante: postulacion.fechaDecisionEstudiante,
+    habilidades: postulacion.habilidades ?? [],
+    cartaMotivacion: postulacion.respuestaMotivacion,
+  };
+}
+
+function mapearProyecto(proyecto: ProyectoApi): Proyecto {
+  return {
+    idProyecto: proyecto.id,
+    idSemillero: proyecto.idSemillero,
+    titulo: proyecto.titulo,
+    estado: proyecto.estadoActual ?? "",
+    fechaInicio: proyecto.fechaInicio,
+    fechaFin: proyecto.fechaFin,
+    presupuestoAsignado: proyecto.presupuestoAsignado ?? 0,
+    integrantes: proyecto.totalIntegrantes ?? 0,
+  };
+}
+
+function mapearPublicacion(
+  publicacion: PublicacionApi,
+  idSemillero: number,
+): Publicacion {
+  return {
+    idPublicacion: publicacion.id,
+    idSemillero,
+    titulo: publicacion.titulo,
+    tipo: "Publicación",
+    anio: publicacion.fechaPublicacion
+      ? new Date(publicacion.fechaPublicacion).getFullYear()
+      : 0,
+    doi: null,
+    enlace: publicacion.urlDocumento,
+    autores: publicacion.autoresDetalle ?? [],
+  };
+}
+
+function normalizarEstadoSemillero(estado: string | null): Semillero["estado"] {
+  const normalizado = (estado ?? "").toLocaleLowerCase();
+  if (normalizado.includes("inactivo")) return "INACTIVO";
+  if (normalizado.includes("activo")) return "ACTIVO";
+  if (normalizado.includes("pausa")) return "EN_PAUSA";
+  return "PENDIENTE_APROBACION";
 }
 
 interface RecomendacionApi {
@@ -377,25 +500,28 @@ function normalizarEstadoConvocatoria(estado: string): Convocatoria["estado"] {
   return "CERRADA";
 }
 
+// Refleja 1:1 los estados de postulación de tbl_estados
 function normalizarEstadoPostulacion(estado: string): EstadoPostulacion {
   const normalizado = estado
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleUpperCase();
+    .toLocaleLowerCase()
+    .trim();
 
-  if (
-    normalizado.includes("PRE-APROBADA") ||
-    normalizado.includes("PRE APROBADA")
-  ) {
-    return "PRE_APROBADA";
+  switch (normalizado) {
+    case "pre-aprobada":
+      return "PRE_APROBADA";
+    case "aceptada":
+      return "ACEPTADA";
+    case "rechazada":
+      return "RECHAZADA";
+    case "rechazada por estudiante":
+      return "RECHAZADA_POR_ESTUDIANTE";
+    case "expirada":
+      return "EXPIRADA";
+    case "cancelada":
+      return "CANCELADA";
+    default:
+      return "PENDIENTE";
   }
-  if (normalizado.includes("ACEPTADA")) return "ACEPTADA_POR_ESTUDIANTE";
-  if (normalizado.includes("RECHAZADA") && normalizado.includes("ESTUDIANTE")) {
-    return "RECHAZADA_POR_ESTUDIANTE";
-  }
-  if (normalizado.includes("RECHAZADA")) return "RECHAZADA_POR_LIDER";
-  if (normalizado.includes("EXPIRADA")) return "EXPIRADA";
-  if (normalizado.includes("CANCELADA")) return "CANCELADA_EN_CASCADA";
-  if (normalizado.includes("REVISION")) return "EN_REVISION";
-  return "ENVIADA";
 }

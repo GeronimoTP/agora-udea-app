@@ -1,11 +1,13 @@
 package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.service.MotorRecomendacionService;
+import com.udea.agora_backend.service.AutorizacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +21,7 @@ import java.util.List;
 public class RecomendacionController {
 
     private final MotorRecomendacionService motorRecomendacionService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(
             summary = "Calcular ranking de afinidad de semilleros para un estudiante",
@@ -30,7 +33,9 @@ public class RecomendacionController {
     })
     @GetMapping("/estudiante/{idEstudiante}")
     public ResponseEntity<List<MotorRecomendacionService.SemilleroRecomendadoDTO>> calcularAfinidad(
-            @PathVariable Integer idEstudiante) {
+            @PathVariable Integer idEstudiante,
+            Authentication authentication) {
+        autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);
         return ResponseEntity.ok(motorRecomendacionService.calcularAfinidad(idEstudiante));
     }
 }

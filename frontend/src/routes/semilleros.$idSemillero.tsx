@@ -1,5 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,6 +13,8 @@ import { EstadoBadge } from "@/components/common/EstadoBadge";
 import { DataTable, type Columna } from "@/components/common/DataTable";
 import {
   convocatoriasSemilleroQuery,
+  habilidadesQuery,
+  usuarioSesionQuery,
   proyectosQuery,
   publicacionesQuery,
   semilleroQuery,
@@ -52,6 +58,9 @@ function SemilleroDetallePage() {
   const { data: convocatorias } = useSuspenseQuery(convocatoriasSemilleroQuery(id));
   const { data: proyectos } = useSuspenseQuery(proyectosQuery(id));
   const { data: publicaciones } = useSuspenseQuery(publicacionesQuery(id));
+  // Solo los estudiantes pueden postularse a convocatorias
+  const { data: sesion } = useQuery(usuarioSesionQuery());
+  const idEstudiante = sesion?.idEstudiante ?? null;
 
   return (
     <AppShell>
@@ -100,7 +109,11 @@ function SemilleroDetallePage() {
         ) : (
           <ul className="space-y-3">
             {convocatorias.map((convocatoria) => (
-              <ConvocatoriaItem key={convocatoria.idConvocatoria} convocatoria={convocatoria} />
+              <ConvocatoriaItem
+                key={convocatoria.idConvocatoria}
+                convocatoria={convocatoria}
+                idEstudiante={idEstudiante}
+              />
             ))}
           </ul>
         )}
@@ -131,25 +144,66 @@ function SemilleroDetallePage() {
   );
 }
 
-function ConvocatoriaItem({ convocatoria }: { convocatoria: Convocatoria }) {
-  const [carta, setCarta] = useState("");
+function ConvocatoriaItem({
+  convocatoria,
+  idEstudiante,
+}: {
+  convocatoria: Convocatoria;
+  idEstudiante: number | null;
+}) {
+  const queryClient = useQueryClient();
+  const [motivacion, setMotivacion] = useState("");
+  const [experiencia, setExperiencia] = useState("");
+  const [horas, setHoras] = useState(4);
+  const [idHabilidades, setIdHabilidades] = useState<number[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [abierto, setAbierto] = useState(false);
-  const disponible = convocatoria.estado === "ABIERTA" && convocatoria.cuposDisponibles > 0;
+  const { data: habilidades = [] } = useQuery({
+    ...habilidadesQuery(),
+    enabled: abierto,
+  });
+  const disponible =
+    idEstudiante !== null &&
+    convocatoria.estado === "ABIERTA" &&
+    convocatoria.cuposDisponibles > 0;
+  const formularioValido =
+    motivacion.trim().length >= 20 &&
+    experiencia.trim().length > 0 &&
+    horas >= 2 &&
+    idHabilidades.length > 0;
+
+  function alternarHabilidad(idHabilidad: number) {
+    setIdHabilidades((actuales) =>
+      actuales.includes(idHabilidad)
+        ? actuales.filter((idActual) => idActual !== idHabilidad)
+        : [...actuales, idHabilidad],
+    );
+  }
 
   async function postular() {
+    if (idEstudiante === null) return;
     setEnviando(true);
     try {
       await postulacionesService.crear({
         idConvocatoria: convocatoria.idConvocatoria,
-        cartaMotivacion: carta,
-        habilidades: [],
+        idEstudiante,
+        respuestaMotivacion: motivacion.trim(),
+        experienciaPrevia: experiencia.trim(),
+        disponibilidadHorasSemana: horas,
+        idHabilidades,
       });
       toast.success("Postulación registrada correctamente.");
+      await queryClient.invalidateQueries({ queryKey: ["postulaciones"] });
       setAbierto(false);
-      setCarta("");
-    } catch {
-      toast.error("No fue posible registrar la postulación. Intenta nuevamente.");
+      setMotivacion("");
+      setExperiencia("");
+      setIdHabilidades([]);
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : "No fue posible registrar la postulación. Intenta nuevamente.",
+      );
     } finally {
       setEnviando(false);
     }
@@ -186,40 +240,103 @@ function ConvocatoriaItem({ convocatoria }: { convocatoria: Convocatoria }) {
         </div>
       </dl>
 
-      <div className="mt-4">
-        <p className="label-caps mb-1.5">Habilidades requeridas</p>
-        <ul className="flex flex-wrap gap-1.5">
-          {convocatoria.habilidadesRequeridas.map((habilidad) => (
-            <li
-              key={habilidad}
-              className="rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
-            >
-              {habilidad}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {convocatoria.habilidadesRequeridas.length > 0 && (
+        <div className="mt-4">
+          <p className="label-caps mb-1.5">Habilidades requeridas</p>
+          <ul className="flex flex-wrap gap-1.5">
+            {convocatoria.habilidadesRequeridas.map((habilidad) => (
+              <li
+                key={habilidad}
+                className="rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+              >
+                {habilidad}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {disponible ? (
         <div className="mt-5 border-t border-border pt-4">
           {abierto ? (
             <div>
-              <label htmlFor={`carta-${convocatoria.idConvocatoria}`} className="label-caps mb-1.5 block">
-                Carta de motivación
+              <label
+                htmlFor={`motivacion-${convocatoria.idConvocatoria}`}
+                className="label-caps mb-1.5 block"
+              >
+                Motivación
               </label>
               <textarea
-                id={`carta-${convocatoria.idConvocatoria}`}
-                value={carta}
-                onChange={(event) => setCarta(event.target.value)}
+                id={`motivacion-${convocatoria.idConvocatoria}`}
+                value={motivacion}
+                onChange={(event) => setMotivacion(event.target.value)}
                 rows={4}
                 className="w-full rounded-sm border border-input bg-surface p-3 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
-                placeholder="Describe tu interés académico y tu experiencia previa relacionada con la línea de investigación."
+                placeholder="Describe tu interés académico en la línea de investigación (mínimo 20 caracteres)."
               />
+
+              <label
+                htmlFor={`experiencia-${convocatoria.idConvocatoria}`}
+                className="label-caps mb-1.5 mt-4 block"
+              >
+                Experiencia previa
+              </label>
+              <textarea
+                id={`experiencia-${convocatoria.idConvocatoria}`}
+                value={experiencia}
+                onChange={(event) => setExperiencia(event.target.value)}
+                rows={3}
+                className="w-full rounded-sm border border-input bg-surface p-3 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                placeholder="Cursos, proyectos o trabajos relacionados."
+              />
+
+              <label
+                htmlFor={`horas-${convocatoria.idConvocatoria}`}
+                className="label-caps mb-1.5 mt-4 block"
+              >
+                Disponibilidad (horas por semana)
+              </label>
+              <input
+                id={`horas-${convocatoria.idConvocatoria}`}
+                type="number"
+                min={2}
+                value={horas}
+                onChange={(event) => setHoras(Number(event.target.value))}
+                className="w-32 rounded-sm border border-input bg-surface p-2 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+              />
+
+              <fieldset className="mt-4">
+                <legend className="label-caps mb-1.5">
+                  Habilidades que aportas
+                </legend>
+                <ul className="flex flex-wrap gap-1.5">
+                  {habilidades.map((habilidad) => {
+                    const seleccionada = idHabilidades.includes(habilidad.id);
+                    return (
+                      <li key={habilidad.id}>
+                        <button
+                          type="button"
+                          aria-pressed={seleccionada}
+                          onClick={() => alternarHabilidad(habilidad.id)}
+                          className={
+                            seleccionada
+                              ? "rounded-sm border border-primary bg-primary px-2 py-0.5 text-xs text-primary-foreground"
+                              : "rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground hover:border-border-strong"
+                          }
+                        >
+                          {habilidad.nombre}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </fieldset>
+
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
                   onClick={postular}
-                  disabled={enviando || carta.trim().length < 20}
+                  disabled={enviando || !formularioValido}
                   className="rounded-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
                 >
                   {enviando ? "Enviando" : "Enviar postulación"}

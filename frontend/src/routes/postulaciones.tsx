@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,8 @@ import { EstadoBadge } from "@/components/common/EstadoBadge";
 import { DataTable, type Columna } from "@/components/common/DataTable";
 import { MatchScore } from "@/components/common/MatchScore";
 import {
+  esEstudiante,
+  esProfesor,
   misPostulacionesQuery,
   postulacionesRecibidasQuery,
   usuarioSesionQuery,
@@ -38,6 +40,10 @@ export const Route = createFileRoute("/postulaciones")({
   loader: async ({ context }) => {
     const sesion =
       await context.queryClient.ensureQueryData(usuarioSesionQuery());
+    // Solo estudiantes (sus postulaciones) y profesores (postulaciones recibidas)
+    if (!esEstudiante(sesion) && !esProfesor(sesion)) {
+      throw redirect({ to: "/" });
+    }
     const consultas: Promise<unknown>[] = [];
     if (sesion.idEstudiante !== null) {
       consultas.push(
@@ -61,11 +67,22 @@ export const Route = createFileRoute("/postulaciones")({
 
 type Vista = "ESTUDIANTE" | "LIDER";
 
+const etiquetasVista: Record<Vista, string> = {
+  ESTUDIANTE: "Mis postulaciones",
+  LIDER: "Postulaciones recibidas",
+};
+
 function PostulacionesPage() {
   const sesion = Route.useLoaderData();
-  const [vista, setVista] = useState<Vista>(
-    sesion.idEstudiante !== null ? "ESTUDIANTE" : "LIDER",
-  );
+  // Un estudiante líder de semillero ve sus postulaciones y también las recibidas
+  const vistas: Vista[] = [
+    ...(esEstudiante(sesion) ? (["ESTUDIANTE"] as const) : []),
+    ...(esProfesor(sesion) || sesion.idSemillerosLiderados.length > 0
+      ? (["LIDER"] as const)
+      : []),
+  ];
+  const [vista, setVista] = useState<Vista>(vistas[0] ?? "LIDER");
+  const vistaEstudiante = vista === "ESTUDIANTE";
   const queryClient = useQueryClient();
   const { data: propias = [] } = useQuery({
     ...misPostulacionesQuery(sesion.idEstudiante ?? 0),
@@ -201,7 +218,7 @@ function PostulacionesPage() {
       header: "Evaluación",
       align: "right",
       cell: (row) =>
-        row.estado === "ENVIADA" || row.estado === "EN_REVISION" ? (
+        row.estado === "PENDIENTE" ? (
           <div className="flex justify-end gap-2">
             <button
               type="button"
@@ -240,45 +257,40 @@ function PostulacionesPage() {
     <AppShell>
       <PageHeader
         eyebrow="Flujo de selección de doble vía"
-        title="Gestión de postulaciones"
-        description="El líder emite una pre-aprobación y el estudiante confirma la decisión final. Al aceptar una oferta, el sistema cancela automáticamente las demás postulaciones activas y descuenta el cupo correspondiente."
+        title={etiquetasVista[vista]}
+        description={
+          vistaEstudiante
+            ? "Cuando el líder pre-apruebe una postulación, confirma o declina la oferta. Al aceptar, el sistema descuenta el cupo y cancela automáticamente tus demás postulaciones activas."
+            : "Revisa a los aspirantes de las convocatorias de los semilleros que lideras. Pre-aprobar no descuenta cupos: el cupo se asigna cuando el estudiante confirma la oferta."
+        }
       />
 
-      <div
-        role="tablist"
-        aria-label="Perspectiva de gestión"
-        className="mb-6 inline-flex rounded-sm border border-border bg-surface p-1"
-      >
-        {(
-          [
-            { valor: "ESTUDIANTE", etiqueta: "Mis postulaciones" },
-            { valor: "LIDER", etiqueta: "Postulaciones recibidas" },
-          ] as const
-        )
-          .filter((opcion) =>
-            opcion.valor === "ESTUDIANTE"
-              ? sesion.idEstudiante !== null
-              : sesion.idProfesor !== null,
-          )
-          .map((opcion) => (
+      {vistas.length > 1 && (
+        <div
+          role="tablist"
+          aria-label="Perspectiva de gestión"
+          className="mb-6 inline-flex rounded-sm border border-border bg-surface p-1"
+        >
+          {vistas.map((opcion) => (
             <button
-              key={opcion.valor}
+              key={opcion}
               type="button"
               role="tab"
-              aria-selected={vista === opcion.valor}
-              onClick={() => setVista(opcion.valor)}
+              aria-selected={vista === opcion}
+              onClick={() => setVista(opcion)}
               className={
-                vista === opcion.valor
+                vista === opcion
                   ? "rounded-sm bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground"
                   : "rounded-sm px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
               }
             >
-              {opcion.etiqueta}
+              {etiquetasVista[opcion]}
             </button>
           ))}
-      </div>
+        </div>
+      )}
 
-      {vista === "ESTUDIANTE" ? (
+      {vistaEstudiante ? (
         <DataTable<Postulacion>
           rows={propias}
           getRowKey={(row) => row.idPostulacion}
@@ -290,7 +302,7 @@ function PostulacionesPage() {
           rows={recibidas}
           getRowKey={(row) => row.idPostulacion}
           columns={columnasLider}
-          emptyMessage="No hay postulaciones recibidas en las convocatorias del semillero."
+          emptyMessage="No hay postulaciones recibidas en las convocatorias de tus semilleros."
         />
       )}
     </AppShell>

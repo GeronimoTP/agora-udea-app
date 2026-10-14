@@ -27,6 +27,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AnaliticaService {
 
+    private static final String ESTADO_ACEPTADA = "Aceptada";
+    private static final String ESTADO_RECHAZADA_ESTUDIANTE = "Rechazada por Estudiante";
+    private static final String ESTADO_CANCELADA = "Cancelada";
+    private static final String ESTADO_EXPIRADA = "Expirada";
+
     private final ConvocatoriaRepository convocatoriaRepository;
     private final PostulacionRepository postulacionRepository;
     private final ProyectoRepository proyectoRepository;
@@ -79,10 +84,13 @@ public class AnaliticaService {
 
     /**
      * 2. Tiempo Promedio de Respuesta del Estudiante (en horas / días)
+     * Desde que el líder emite la oferta (fechaPreAprobacion) hasta que el estudiante la
+     * acepta o la rechaza. No incluye rechazos del líder, cancelaciones en cascada ni expiraciones.
      */
     public TiempoPromedioRespuestaDTO calcularTiempoPromedioRespuesta() {
         List<Postulacion> postulacionesDecididas = postulacionRepository.findAll().stream()
-                .filter(p -> p.getFechaDecisionEstudiante() != null && p.getCreatedAt() != null)
+                .filter(p -> p.getFechaPreAprobacion() != null && p.getFechaDecisionEstudiante() != null)
+                .filter(p -> tieneEstado(p, ESTADO_ACEPTADA) || tieneEstado(p, ESTADO_RECHAZADA_ESTUDIANTE))
                 .toList();
 
         if (postulacionesDecididas.isEmpty()) {
@@ -95,7 +103,7 @@ public class AnaliticaService {
 
         double totalHoras = 0.0;
         for (Postulacion p : postulacionesDecididas) {
-            Duration duration = Duration.between(p.getCreatedAt(), p.getFechaDecisionEstudiante());
+            Duration duration = Duration.between(p.getFechaPreAprobacion(), p.getFechaDecisionEstudiante());
             totalHoras += Math.max(0, duration.toHours());
         }
 
@@ -111,20 +119,26 @@ public class AnaliticaService {
 
     /**
      * 3. Tasa de Retención vs. Rechazo de Ofertas
+     * Solo cuenta ofertas reales (postulaciones que el líder pre-aprobó):
+     * - Aceptadas.
+     * - Rechazadas: declinadas por el estudiante, o canceladas en cascada después de recibir oferta.
+     * - Expiradas: con oferta emitida que el estudiante no respondió a tiempo.
+     * Las postulaciones que nunca recibieron oferta (Pendiente cancelada/expirada) no son ofertas.
      */
     public TasaRetencionOfertasDTO calcularTasaRetencionRechazo() {
         List<Postulacion> postulaciones = postulacionRepository.findAll();
 
         long aceptadas = postulaciones.stream()
-                .filter(p -> p.getEstado() != null && p.getEstado().getNombre().equalsIgnoreCase("Aceptada"))
+                .filter(p -> tieneEstado(p, ESTADO_ACEPTADA))
                 .count();
 
         long rechazadasEstudiante = postulaciones.stream()
-                .filter(p -> p.getEstado() != null && p.getEstado().getNombre().equalsIgnoreCase("Rechazada por Estudiante"))
+                .filter(p -> tieneEstado(p, ESTADO_RECHAZADA_ESTUDIANTE)
+                        || (tieneEstado(p, ESTADO_CANCELADA) && p.getFechaPreAprobacion() != null))
                 .count();
 
         long expiradas = postulaciones.stream()
-                .filter(p -> p.getEstado() != null && p.getEstado().getNombre().equalsIgnoreCase("Expirada"))
+                .filter(p -> tieneEstado(p, ESTADO_EXPIRADA) && p.getFechaPreAprobacion() != null)
                 .count();
 
         long totalOfertasEmitidas = aceptadas + rechazadasEstudiante + expiradas;
@@ -264,6 +278,10 @@ public class AnaliticaService {
                 .estudiantesInterdisciplinarios(interdisciplinarios)
                 .porcentajeInterdisciplinariedad(Math.round(porcentaje * 100.0) / 100.0)
                 .build();
+    }
+
+    private static boolean tieneEstado(Postulacion postulacion, String nombreEstado) {
+        return postulacion.getEstado() != null && postulacion.getEstado().getNombre().equalsIgnoreCase(nombreEstado);
     }
 
     /**

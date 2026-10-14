@@ -8,6 +8,8 @@ import java.time.LocalDate;
 @Builder
 public class ProyectoResponseDTO {
     private Integer id;
+    private Integer idSemillero;
+    private Integer totalIntegrantes;
     private String titulo;
     private String descripcion;
     private String nombreSemillero;

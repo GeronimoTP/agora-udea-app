@@ -9,24 +9,58 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { usuarioSesionQuery } from "@/lib/api/queries";
+import {
+  tipoPerfil,
+  usuarioSesionQuery,
+  type TipoPerfil,
+} from "@/lib/api/queries";
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
+  perfiles: TipoPerfil[];
 }
 
 const navItems: NavItem[] = [
-  { to: "/", label: "Tablero", icon: LayoutDashboard },
-  { to: "/semilleros", label: "Semilleros", icon: Library },
-  { to: "/postulaciones", label: "Postulaciones", icon: FileText },
-  { to: "/compatibilidad", label: "Compatibilidad", icon: Target },
-  { to: "/analitica", label: "Analítica", icon: BarChart3 },
+  {
+    to: "/",
+    label: "Tablero",
+    icon: LayoutDashboard,
+    perfiles: ["ESTUDIANTE", "PROFESOR"],
+  },
+  {
+    to: "/semilleros",
+    label: "Semilleros",
+    icon: Library,
+    perfiles: ["ESTUDIANTE", "PROFESOR", "ADMINISTRADOR"],
+  },
+  {
+    to: "/postulaciones",
+    label: "Postulaciones",
+    icon: FileText,
+    perfiles: ["ESTUDIANTE", "PROFESOR"],
+  },
+  {
+    to: "/compatibilidad",
+    label: "Compatibilidad",
+    icon: Target,
+    perfiles: ["ESTUDIANTE"],
+  },
+  {
+    to: "/analitica",
+    label: "Analítica",
+    icon: BarChart3,
+    perfiles: ["ADMINISTRADOR"],
+  },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: sesion } = useQuery(usuarioSesionQuery());
+  const perfil = tipoPerfil(sesion);
+  const items = perfil
+    ? navItems.filter(({ perfiles }) => perfiles.includes(perfil))
+    : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -51,7 +85,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="border-t border-sidebar-border bg-sidebar">
           <ul className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4">
-            {navItems.map(({ to, label, icon: Icon }) => (
+            {items.map(({ to, label, icon: Icon }) => (
               <li key={to}>
                 <Link
                   to={to}

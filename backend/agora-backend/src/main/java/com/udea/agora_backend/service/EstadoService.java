@@ -39,9 +39,7 @@ public class EstadoService {
      * Obtiene un estado por su nombre
      */
     public Estado obtenerPorNombre(String nombre) {
-        return estadoRepository.findAll().stream()
-                .filter(e -> e.getNombre().equalsIgnoreCase(nombre))
-                .findFirst()
+        return estadoRepository.findByNombreIgnoreCase(nombre)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", nombre));
     }
 

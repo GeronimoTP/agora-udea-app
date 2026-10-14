@@ -5,12 +5,14 @@ import com.udea.agora_backend.dto.request.ProfesorRequestDTO;
 import com.udea.agora_backend.dto.response.ProfesorAreaEspecialidadResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorResponseDTO;
 import com.udea.agora_backend.service.ProfesorService;
+import com.udea.agora_backend.service.AutorizacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ import java.util.List;
 public class ProfesorController {
 
     private final ProfesorService profesorService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todos los profesores")
     @ApiResponse(responseCode = "200", description = "Lista de profesores obtenida exitosamente")
@@ -75,7 +78,9 @@ public class ProfesorController {
     @PutMapping("/{id}")
     public ResponseEntity<ProfesorResponseDTO> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody ProfesorRequestDTO request) {
+            @Valid @RequestBody ProfesorRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarProfesorActual(authentication.getName(), id);
         return ResponseEntity.ok(profesorService.actualizar(id, request));
     }
 
@@ -85,7 +90,8 @@ public class ProfesorController {
             @ApiResponse(responseCode = "404", description = "Profesor no encontrado")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarProfesorActual(authentication.getName(), id);
         profesorService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -110,7 +116,9 @@ public class ProfesorController {
     })
     @PostMapping("/areas-especialidad")
     public ResponseEntity<ProfesorAreaEspecialidadResponseDTO> agregarAreaEspecialidad(
-            @Valid @RequestBody ProfesorAreaEspecialidadRequestDTO request) {
+            @Valid @RequestBody ProfesorAreaEspecialidadRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarProfesorActual(authentication.getName(), request.getIdProfesor());
         ProfesorAreaEspecialidadResponseDTO creada = profesorService.agregarAreaEspecialidad(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -123,7 +131,9 @@ public class ProfesorController {
     @DeleteMapping("/{idProfesor}/areas-especialidad/{idArea}")
     public ResponseEntity<Void> eliminarAreaEspecialidad(
             @PathVariable Integer idProfesor,
-            @PathVariable Integer idArea) {
+            @PathVariable Integer idArea,
+            Authentication authentication) {
+        autorizacionService.validarProfesorActual(authentication.getName(), idProfesor);
         profesorService.eliminarAreaEspecialidad(idProfesor, idArea);
         return ResponseEntity.noContent().build();
     }

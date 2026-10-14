@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import {
   analiticaService,
+  catalogoService,
   convocatoriasService,
   matchingService,
   postulacionesService,
@@ -8,6 +9,28 @@ import {
 } from "./services";
 import { apiRequest } from "./client";
 import type { FiltroSemilleros, UsuarioSesion } from "@/types/api";
+
+export const ROL_ADMINISTRADOR = "Administrador";
+
+export const esAdministrador = (sesion?: UsuarioSesion | null) =>
+  sesion?.rol === ROL_ADMINISTRADOR;
+
+export const esEstudiante = (sesion?: UsuarioSesion | null) =>
+  sesion != null && sesion.idEstudiante !== null;
+
+export const esProfesor = (sesion?: UsuarioSesion | null) =>
+  sesion != null && sesion.idProfesor !== null;
+
+export type TipoPerfil = "ADMINISTRADOR" | "ESTUDIANTE" | "PROFESOR";
+
+export const tipoPerfil = (
+  sesion?: UsuarioSesion | null,
+): TipoPerfil | null => {
+  if (esAdministrador(sesion)) return "ADMINISTRADOR";
+  if (esEstudiante(sesion)) return "ESTUDIANTE";
+  if (esProfesor(sesion)) return "PROFESOR";
+  return null;
+};
 
 export const usuarioSesionQuery = () =>
   queryOptions({
@@ -72,6 +95,12 @@ export const recomendacionesQuery = (idEstudiante: number) =>
   queryOptions({
     queryKey: ["matching", idEstudiante],
     queryFn: () => matchingService.recomendaciones(idEstudiante),
+  });
+
+export const habilidadesQuery = () =>
+  queryOptions({
+    queryKey: ["catalogo", "habilidades"],
+    queryFn: () => catalogoService.habilidades(),
   });
 
 export const analiticaQuery = () =>

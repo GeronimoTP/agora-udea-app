@@ -70,12 +70,10 @@ public class ProyectoService {
         Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
 
-        // Obtener estado inicial (por defecto Activo o En desarrollo si existe)
-        Estado estado = estadoRepository.findAll().stream()
-                .filter(e -> e.getNombre().equalsIgnoreCase("Activo") || e.getNombre().equalsIgnoreCase("En ejecución"))
-                .findFirst()
-                .orElseGet(() -> estadoRepository.findAll().stream().findFirst()
-                        .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Activo")));
+        // Estado inicial: "En ejecución" si existe en el catálogo, si no "Activo"
+        Estado estado = estadoRepository.findByNombreIgnoreCase("En ejecución")
+                .or(() -> estadoRepository.findByNombreIgnoreCase("Activo"))
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Activo"));
 
         // Crear proyecto
         Proyecto proyecto = Proyecto.builder()
@@ -208,6 +206,8 @@ public class ProyectoService {
     private ProyectoResponseDTO mapeoAResponseDTO(Proyecto proyecto) {
         return ProyectoResponseDTO.builder()
                 .id(proyecto.getId())
+                .idSemillero(proyecto.getSemillero() != null ? proyecto.getSemillero().getId() : null)
+                .totalIntegrantes(estudianteProyectoRepository.findByProyectoId(proyecto.getId()).size())
                 .titulo(proyecto.getTitulo())
                 .descripcion(proyecto.getDescripcion())
                 .nombreSemillero(proyecto.getSemillero() != null ? proyecto.getSemillero().getNombre() : null)

@@ -5,6 +5,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -40,6 +41,26 @@ public class ManejadorExcepcionesGlobal extends ResponseEntityExceptionHandler {
                 .build();
 
         return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Maneja AccessDeniedException (403 Forbidden)
+     * Se lanza cuando el usuario autenticado no puede actuar sobre el recurso
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponseDTO> handleAccessDeniedException(
+            AccessDeniedException ex,
+            WebRequest request) {
+
+        ApiErrorResponseDTO errorResponse = ApiErrorResponseDTO.builder()
+                .status(HttpStatus.FORBIDDEN.value())
+                .error("Acceso Denegado")
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .timestamp(ZonedDateTime.now())
+                .build();
+
+        return new ResponseEntity<>(errorResponse, HttpStatus.FORBIDDEN);
     }
 
     /**

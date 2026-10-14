@@ -4,12 +4,14 @@ import com.udea.agora_backend.dto.request.ConvocatoriaRequestDTO;
 import com.udea.agora_backend.dto.response.ConvocatoriaResponseDTO;
 import com.udea.agora_backend.service.ConvocatoriaService;
 import com.udea.agora_backend.service.GestorConvocatoriasService;
+import com.udea.agora_backend.service.AutorizacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ public class ConvocatoriaController {
 
     private final ConvocatoriaService convocatoriaService;
     private final GestorConvocatoriasService gestorConvocatoriasService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todas las convocatorias")
     @ApiResponse(responseCode = "200", description = "Lista de convocatorias obtenida exitosamente")
@@ -74,7 +77,8 @@ public class ConvocatoriaController {
             @ApiResponse(responseCode = "404", description = "Semillero no encontrado")
     })
     @PostMapping
-    public ResponseEntity<ConvocatoriaResponseDTO> crear(@Valid @RequestBody ConvocatoriaRequestDTO request) {
+    public ResponseEntity<ConvocatoriaResponseDTO> crear(@Valid @RequestBody ConvocatoriaRequestDTO request, Authentication authentication) {
+        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         ConvocatoriaResponseDTO creada = convocatoriaService.crear(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -88,7 +92,9 @@ public class ConvocatoriaController {
     @PutMapping("/{id}")
     public ResponseEntity<ConvocatoriaResponseDTO> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody ConvocatoriaRequestDTO request) {
+            @Valid @RequestBody ConvocatoriaRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarLiderConvocatoria(authentication.getName(), id);
         return ResponseEntity.ok(convocatoriaService.actualizar(id, request));
     }
 
@@ -98,7 +104,8 @@ public class ConvocatoriaController {
             @ApiResponse(responseCode = "404", description = "Convocatoria no encontrada")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarLiderConvocatoria(authentication.getName(), id);
         convocatoriaService.eliminar(id);
         return ResponseEntity.noContent().build();
     }

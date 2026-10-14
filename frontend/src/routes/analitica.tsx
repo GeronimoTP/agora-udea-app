@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
   Award,
@@ -12,7 +12,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { DataTable, type Columna } from "@/components/common/DataTable";
-import { analiticaQuery } from "@/lib/api/queries";
+import {
+  analiticaQuery,
+  esAdministrador,
+  usuarioSesionQuery,
+} from "@/lib/api/queries";
 import type {
   DemandaSemillero,
   DistribucionReconocimientos,
@@ -36,6 +40,17 @@ export const Route = createFileRoute("/analitica")({
       },
     ],
   }),
+  ssr: false,
+  beforeLoad: async ({ context }) => {
+    if (!localStorage.getItem("access_token")) {
+      throw redirect({ to: "/auth/login" });
+    }
+    const sesion =
+      await context.queryClient.ensureQueryData(usuarioSesionQuery());
+    if (!esAdministrador(sesion)) {
+      throw redirect({ to: "/" });
+    }
+  },
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(analiticaQuery());
   },

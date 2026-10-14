@@ -4,11 +4,11 @@ import com.udea.agora_backend.dto.request.UsuarioRequestDTO;
 import com.udea.agora_backend.dto.response.UsuarioResponseDTO;
 import com.udea.agora_backend.dto.response.UsuarioSesionResponseDTO;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.service.LiderazgoSemilleroService;
 import com.udea.agora_backend.service.UsuarioService;
 import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
-import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -34,7 +34,7 @@ public class UsuarioController {
     private final UsuarioRepository usuarioRepository;
     private final EstudianteRepository estudianteRepository;
     private final ProfesorRepository profesorRepository;
-    private final ProfesorSemilleroRepository profesorSemilleroRepository;
+    private final LiderazgoSemilleroService liderazgoSemilleroService;
 
     @GetMapping("/me")
     public ResponseEntity<UsuarioSesionResponseDTO> obtenerSesion(Authentication authentication) {
@@ -50,9 +50,7 @@ public class UsuarioController {
             .map(estudiante -> estudiante.getId()).orElse(null))
         .idProfesor(profesorRepository.findByUsuarioId(usuario.getId())
             .map(profesor -> profesor.getId()).orElse(null))
-        .idSemillerosLiderados(profesorRepository.findByUsuarioId(usuario.getId())
-            .map(profesor -> profesorSemilleroRepository.findSemilleroIdsByProfesorId(profesor.getId()))
-            .orElseGet(List::of))
+        .idSemillerosLiderados(liderazgoSemilleroService.obtenerSemillerosLiderados(usuario))
         .build());
     }
 

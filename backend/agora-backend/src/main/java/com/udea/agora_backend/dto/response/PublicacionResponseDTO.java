@@ -9,6 +9,15 @@ import java.util.List;
 @Data
 @Builder
 public class PublicacionResponseDTO {
+
+    @Data
+    @Builder
+    public static class AutorDTO {
+        private String nombre;
+        private String rolAutoria;
+        private Boolean esEstudiante;
+    }
+
     private Integer id;
     private String titulo;
     private String urlDocumento;
@@ -16,5 +25,6 @@ public class PublicacionResponseDTO {
     private String nombreProyecto;
     private String nombreSemillero;
     private List<String> autores;
+    private List<AutorDTO> autoresDetalle;
     private ZonedDateTime createdAt;
 }

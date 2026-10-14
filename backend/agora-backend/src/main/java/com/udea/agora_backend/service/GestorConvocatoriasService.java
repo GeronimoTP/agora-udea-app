@@ -10,6 +10,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
 
@@ -22,6 +23,10 @@ import java.util.List;
  *   Pendiente --(líder pre-aprueba)--> Pre-aprobada --(estudiante confirma)--> Aceptada
  *      |                                    |
  *      +--(líder rechaza)--> Rechazada      +--(estudiante rechaza oferta)--> Rechazada por Estudiante
+ *
+ *   Al aceptar: las demás postulaciones activas del estudiante pasan a Cancelada (cascada) y
+ *   el estudiante queda vinculado al semillero. Lo que queda sin resolver al cerrarse la
+ *   convocatoria (sin cupos o por fecha) pasa a Expirada.
  *
  * 1. Postulación Concurrente: Permite múltiples postulaciones activas por estudiante
  * 2. Doble Vía: el líder pre-aprueba (filtra candidatos) y el estudiante decide
@@ -43,10 +48,14 @@ public class GestorConvocatoriasService {
     private static final String ESTADO_RECHAZADA_ESTUDIANTE = "Rechazada por Estudiante";
     private static final String ESTADO_CERRADA = "Cerrada";
     private static final String ESTADO_EXPIRADA = "Expirada";
+    private static final String ESTADO_CANCELADA = "Cancelada";
+    private static final String ESTADO_ABIERTA = "Abierta";
+    private static final String ESTADO_VINCULACION_ACTIVA = "Activo";
 
     private final PostulacionRepository postulacionRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final EstadoRepository estadoRepository;
+    private final EstudianteSemilleroRepository estudianteSemilleroRepository;
 
     /**
      * PASO 1 DEL FLUJO DOBLE VÍA (acción del líder): pre-aprueba una postulación.
@@ -60,8 +69,10 @@ public class GestorConvocatoriasService {
 
         validarEstadoPostulacion(postulacion, ESTADO_PENDIENTE,
                 "Solo se pueden pre-aprobar postulaciones en estado 'Pendiente'.");
+        validarConvocatoriaVigente(postulacion.getConvocatoria());
 
         postulacion.setEstado(buscarEstadoPorNombre(ESTADO_PRE_APROBADA));
+        postulacion.setFechaPreAprobacion(ZonedDateTime.now());
         postulacionRepository.save(postulacion);
 
         log.info("Postulación {} pre-aprobada. Esperando confirmación del estudiante.", idPostulacion);
@@ -78,8 +89,8 @@ public class GestorConvocatoriasService {
         validarEstadoPostulacion(postulacion, ESTADO_PENDIENTE,
                 "Solo se pueden rechazar postulaciones en estado 'Pendiente'.");
 
+        // Decisión del líder: no es una respuesta del estudiante, no se registra fechaDecisionEstudiante
         postulacion.setEstado(buscarEstadoPorNombre(ESTADO_RECHAZADA));
-        postulacion.setFechaDecisionEstudiante(ZonedDateTime.now());
         postulacionRepository.save(postulacion);
 
         log.info("Postulación {} rechazada por el líder", idPostulacion);
@@ -119,7 +130,12 @@ public class GestorConvocatoriasService {
         validarEstadoPostulacion(postulacion, ESTADO_PRE_APROBADA,
                 "Solo se puede confirmar la aceptación de una oferta en estado 'Pre-aprobada'.");
 
-        Convocatoria convocatoria = postulacion.getConvocatoria();
+        // Bloquea la fila de la convocatoria hasta el commit: dos aceptaciones simultáneas
+        // no pueden leer el mismo cupo disponible
+        Convocatoria convocatoria = convocatoriaRepository
+                .findByIdParaActualizarCupos(postulacion.getConvocatoria().getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", postulacion.getConvocatoria().getId()));
+        validarConvocatoriaVigente(convocatoria);
 
         if (convocatoria.getCuposDisponibles() <= 0) {
             throw new ErrorLogicaNegocioException(
@@ -135,15 +151,18 @@ public class GestorConvocatoriasService {
                 convocatoria.getCuposDisponibles() + 1,
                 convocatoria.getCuposDisponibles());
 
+        postulacionRepository.save(postulacion);
+
+        vincularEstudianteAlSemillero(postulacion.getEstudiante(), convocatoria.getSemillero());
+
+        ejecutarCascadaRechazo(postulacion.getEstudiante().getId(), idPostulacion);
+
         if (convocatoria.getCuposDisponibles() == 0) {
             convocatoria.setEstado(buscarEstadoPorNombre(ESTADO_CERRADA));
             log.info("Convocatoria marcada como CERRADA (sin cupos)");
+            expirarPostulacionesSinResolver(convocatoria.getId());
         }
-
-        postulacionRepository.save(postulacion);
         convocatoriaRepository.save(convocatoria);
-
-        ejecutarCascadaRechazo(postulacion.getEstudiante().getId(), idPostulacion);
 
         log.info("=== CONFIRMACIÓN DE ACEPTACIÓN COMPLETADA ===");
     }
@@ -151,13 +170,13 @@ public class GestorConvocatoriasService {
     /**
      * LÓGICA DE CASCADA: al confirmar una aceptación, libera todas las demás
      * postulaciones activas del estudiante (tanto las que aún esperaban revisión
-     * del líder como las que ya tenía pre-aprobadas), marcándolas como
-     * "Rechazada por Estudiante".
+     * del líder como las que ya tenía pre-aprobadas), marcándolas como "Cancelada".
+     * Se distingue de "Rechazada por Estudiante", que es una decisión explícita.
      */
     private void ejecutarCascadaRechazo(Integer idEstudiante, Integer idPostulacionAceptada) {
         log.info("Iniciando cascada de rechazos para estudiante {}", idEstudiante);
 
-        Estado estadoRechazadaEstudiante = buscarEstadoPorNombre(ESTADO_RECHAZADA_ESTUDIANTE);
+        Estado estadoCancelada = buscarEstadoPorNombre(ESTADO_CANCELADA);
 
         List<Postulacion> postulacionesActivas = postulacionRepository
                 .findPostulacionesActivasByEstudiante(idEstudiante, ESTADO_PENDIENTE, ESTADO_PRE_APROBADA);
@@ -168,14 +187,52 @@ public class GestorConvocatoriasService {
                 log.info("Rechazando (cascada) postulación {} para convocatoria '{}'",
                         p.getId(), p.getConvocatoria().getTitulo());
 
-                p.setEstado(estadoRechazadaEstudiante);
-                p.setFechaDecisionEstudiante(ZonedDateTime.now());
+                p.setEstado(estadoCancelada);
                 postulacionRepository.save(p);
                 contadorRechazadas++;
             }
         }
 
-        log.info("Cascada completada: {} postulaciones rechazadas", contadorRechazadas);
+        log.info("Cascada completada: {} postulaciones canceladas", contadorRechazadas);
+    }
+
+    /**
+     * Un estudiante que acepta una oferta pasa a ser miembro del semillero.
+     */
+    private void vincularEstudianteAlSemillero(Estudiante estudiante, Semillero semillero) {
+        if (estudianteSemilleroRepository.findBySemilleroIdAndEstudianteId(semillero.getId(), estudiante.getId()).isPresent()) {
+            return;
+        }
+        estudianteSemilleroRepository.save(EstudianteSemillero.builder()
+                .semillero(semillero)
+                .estudiante(estudiante)
+                .fechaIngreso(LocalDate.now())
+                .estado(buscarEstadoPorNombre(ESTADO_VINCULACION_ACTIVA))
+                .build());
+        log.info("Estudiante {} vinculado al semillero {}", estudiante.getId(), semillero.getId());
+    }
+
+    /**
+     * Expira lo que quedó en revisión o con oferta pendiente en una convocatoria cerrada.
+     */
+    private int expirarPostulacionesSinResolver(Integer idConvocatoria) {
+        Estado estadoExpirada = buscarEstadoPorNombre(ESTADO_EXPIRADA);
+        List<Postulacion> sinResolver = postulacionRepository
+                .findPostulacionesByConvocatoriaAndEstado(idConvocatoria, ESTADO_PENDIENTE, ESTADO_PRE_APROBADA);
+        for (Postulacion post : sinResolver) {
+            log.info("Marcando postulación {} como expirada", post.getId());
+            post.setEstado(estadoExpirada);
+            postulacionRepository.save(post);
+        }
+        return sinResolver.size();
+    }
+
+    private void validarConvocatoriaVigente(Convocatoria convocatoria) {
+        if (!ESTADO_ABIERTA.equalsIgnoreCase(convocatoria.getEstado().getNombre())
+                || convocatoria.getFechaCierre().isBefore(LocalDate.now())) {
+            throw new ErrorLogicaNegocioException(
+                    "La convocatoria '" + convocatoria.getTitulo() + "' ya no está abierta.");
+        }
     }
 
     /**
@@ -192,7 +249,6 @@ public class GestorConvocatoriasService {
         List<Convocatoria> convocatoriasExpiradas = convocatoriaRepository.findConvocatoriasExpiradas();
 
         Estado estadoCerrada = buscarEstadoPorNombre(ESTADO_CERRADA);
-        Estado estadoExpirada = buscarEstadoPorNombre(ESTADO_EXPIRADA);
 
         int convocatoriasActualizadas = 0;
         for (Convocatoria conv : convocatoriasExpiradas) {
@@ -203,17 +259,16 @@ public class GestorConvocatoriasService {
             convocatoriaRepository.save(conv);
             convocatoriasActualizadas++;
 
-            // Postulaciones que quedaron sin resolver a tiempo: en revisión del líder
-            // (Pendiente) o esperando confirmación del estudiante (Pre-aprobada)
-            List<Postulacion> postulacionesSinResolver = postulacionRepository
-                    .findPostulacionesByConvocatoriaAndEstado(conv.getId(), ESTADO_PENDIENTE, ESTADO_PRE_APROBADA);
+            expirarPostulacionesSinResolver(conv.getId());
+        }
 
-            for (Postulacion post : postulacionesSinResolver) {
-                log.info("Marcando postulación {} como expirada", post.getId());
-                post.setEstado(estadoExpirada);
-                post.setFechaDecisionEstudiante(ZonedDateTime.now());
-                postulacionRepository.save(post);
-            }
+        // Convocatorias que ya estaban cerradas (sin cupos o cierre manual) pero conservan
+        // postulaciones sin resolver: también expiran
+        Estado estadoExpirada = buscarEstadoPorNombre(ESTADO_EXPIRADA);
+        for (Postulacion post : postulacionRepository.findPostulacionesEnConvocatoriasConEstado(
+                ESTADO_CERRADA, ESTADO_PENDIENTE, ESTADO_PRE_APROBADA)) {
+            post.setEstado(estadoExpirada);
+            postulacionRepository.save(post);
         }
 
         log.info("=== PROCESAMIENTO COMPLETADO: {} convocatorias cerradas ===", convocatoriasActualizadas);

@@ -43,6 +43,13 @@ public class PublicacionController {
         return ResponseEntity.ok(publicacionService.obtenerPorId(id));
     }
 
+    @Operation(summary = "Obtener las publicaciones de todos los proyectos de un semillero")
+    @ApiResponse(responseCode = "200", description = "Lista de publicaciones del semillero obtenida exitosamente")
+    @GetMapping("/semillero/{idSemillero}")
+    public ResponseEntity<List<PublicacionResponseDTO>> obtenerPorSemillero(@PathVariable Integer idSemillero) {
+        return ResponseEntity.ok(publicacionService.obtenerPorSemillero(idSemillero));
+    }
+
     @Operation(summary = "Obtener publicaciones generadas por un proyecto de investigación")
     @ApiResponse(responseCode = "200", description = "Lista de publicaciones del proyecto obtenida exitosamente")
     @GetMapping("/proyecto/{idProyecto}")

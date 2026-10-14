@@ -25,6 +25,10 @@ public interface PostulacionRepository extends JpaRepository<Postulacion, Intege
     // Postulaciones de una convocatoria con estado específico
     @Query("SELECT p FROM Postulacion p WHERE p.convocatoria.id = ?1 AND p.estado.nombre IN (?2)")
     List<Postulacion> findPostulacionesByConvocatoriaAndEstado(Integer convocatoriaId, String... estadoNombres);
+
+    // Postulaciones sin resolver de convocatorias que ya están cerradas (por cupos, cierre manual o fecha)
+    @Query("SELECT p FROM Postulacion p WHERE p.convocatoria.estado.nombre = ?1 AND p.estado.nombre IN (?2)")
+    List<Postulacion> findPostulacionesEnConvocatoriasConEstado(String estadoConvocatoria, String... estadoNombres);
     
     // Búsqueda única: Estudiante en Convocatoria
     Optional<Postulacion> findByConvocatoriaIdAndEstudianteId(Integer convocatoriaId, Integer estudianteId);

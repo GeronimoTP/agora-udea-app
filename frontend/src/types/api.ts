@@ -10,15 +10,15 @@ export type EstadoSemillero =
 
 export type EstadoConvocatoria = "ABIERTA" | "CERRADA" | "BORRADOR";
 
+// Mismos estados de postulación que tbl_estados (Pendiente, Pre-aprobada, Aceptada, ...)
 export type EstadoPostulacion =
-  | "ENVIADA"
-  | "EN_REVISION"
+  | "PENDIENTE"
   | "PRE_APROBADA"
-  | "ACEPTADA_POR_ESTUDIANTE"
-  | "RECHAZADA_POR_LIDER"
+  | "ACEPTADA"
+  | "RECHAZADA"
   | "RECHAZADA_POR_ESTUDIANTE"
   | "EXPIRADA"
-  | "CANCELADA_EN_CASCADA";
+  | "CANCELADA";
 
 export interface ProgramaAcademico {
   idPrograma: number;

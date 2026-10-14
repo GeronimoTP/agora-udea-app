@@ -31,6 +31,7 @@ public class PublicacionService {
     private final UsuarioRepository usuarioRepository;
     private final RolAutorRepository rolAutorRepository;
     private final PublicacionUsuarioRepository publicacionUsuarioRepository;
+    private final EstudianteRepository estudianteRepository;
 
     /**
      * Obtiene todas las publicaciones
@@ -54,6 +55,13 @@ public class PublicacionService {
     /**
      * Obtiene publicaciones por proyecto
      */
+    public List<PublicacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
+        return publicacionRepository.findByProyectoSemilleroId(idSemillero)
+                .stream()
+                .map(this::mapeoAResponseDTO)
+                .collect(Collectors.toList());
+    }
+
     public List<PublicacionResponseDTO> obtenerPorProyecto(Integer idProyecto) {
         return publicacionRepository.findByProyectoId(idProyecto)
                 .stream()
@@ -169,9 +177,16 @@ public class PublicacionService {
      * Mapea entidad Publicacion a ResponseDTO
      */
     private PublicacionResponseDTO mapeoAResponseDTO(Publicacion publicacion) {
-        List<String> autores = publicacionUsuarioRepository.findByPublicacionId(publicacion.getId())
-                .stream()
+        List<PublicacionUsuario> autorias = publicacionUsuarioRepository.findByPublicacionId(publicacion.getId());
+        List<String> autores = autorias.stream()
                 .map(pu -> pu.getUsuario().getNombreCompleto() + " (" + pu.getRolAutor().getNombre() + ")")
+                .collect(Collectors.toList());
+        List<PublicacionResponseDTO.AutorDTO> autoresDetalle = autorias.stream()
+                .map(pu -> PublicacionResponseDTO.AutorDTO.builder()
+                        .nombre(pu.getUsuario().getNombreCompleto())
+                        .rolAutoria(pu.getRolAutor().getNombre())
+                        .esEstudiante(estudianteRepository.findByUsuarioId(pu.getUsuario().getId()).isPresent())
+                        .build())
                 .collect(Collectors.toList());
 
         String nombreProyecto = publicacion.getProyecto() != null ? publicacion.getProyecto().getTitulo() : null;
@@ -187,6 +202,7 @@ public class PublicacionService {
                 .nombreProyecto(nombreProyecto)
                 .nombreSemillero(nombreSemillero)
                 .autores(autores)
+                .autoresDetalle(autoresDetalle)
                 .createdAt(publicacion.getCreatedAt())
                 .build();
     }

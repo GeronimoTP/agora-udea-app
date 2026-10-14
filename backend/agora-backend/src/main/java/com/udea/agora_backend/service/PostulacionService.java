@@ -5,6 +5,7 @@ import com.udea.agora_backend.dto.request.PostulacionRequestDTO;
 import com.udea.agora_backend.dto.response.PostulacionHabilidadResponseDTO;
 import com.udea.agora_backend.dto.response.PostulacionResponseDTO;
 import com.udea.agora_backend.exception.ConflictoException;
+import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.*;
 import com.udea.agora_backend.repository.*;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -33,6 +35,9 @@ public class PostulacionService {
     private final EstadoRepository estadoRepository;
     private final HabilidadRepository habilidadRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
+    private final EstudianteSemilleroRepository estudianteSemilleroRepository;
+
+    private static final String ESTADO_PENDIENTE = "Pendiente";
 
     /**
      * Obtiene todas las postulaciones
@@ -95,7 +100,7 @@ public class PostulacionService {
      * revisión del líder o esperando confirmación del estudiante)
      */
     public List<PostulacionResponseDTO> obtenerPostulacionesActivasByEstudiante(Integer idEstudiante) {
-        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, "Pendiente", "Pre-aprobada")
+        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, ESTADO_PENDIENTE, "Pre-aprobada")
                 .stream()
                 .map(this::mapeoAResponseDTO)
                 .collect(Collectors.toList());
@@ -138,11 +143,11 @@ public class PostulacionService {
         Convocatoria convocatoria = convocatoriaRepository.findById(request.getIdConvocatoria())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", request.getIdConvocatoria()));
 
+        validarConvocatoriaDisponible(convocatoria, estudiante);
+
         // Obtener estado inicial (Pendiente)
-        Estado estado = estadoRepository.findAll().stream()
-                .filter(e -> e.getNombre().equalsIgnoreCase("Pendiente"))
-                .findFirst()
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Pendiente"));
+        Estado estado = estadoRepository.findByNombreIgnoreCase(ESTADO_PENDIENTE)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", ESTADO_PENDIENTE));
 
         // Crear postulación
         Postulacion postulacion = Postulacion.builder()
@@ -153,6 +158,7 @@ public class PostulacionService {
                 .experienciaPrevia(request.getExperienciaPrevia())
                 .fechaPostulacion(LocalDate.now())
                 .estado(estado)
+                .createdAt(ZonedDateTime.now())
                 .build();
 
         Postulacion postulacionGuardada = postulacionRepository.save(postulacion);
@@ -180,6 +186,7 @@ public class PostulacionService {
     public PostulacionResponseDTO actualizar(Integer id, PostulacionRequestDTO request) {
         Postulacion postulacion = postulacionRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Postulación", id));
+        validarEditable(postulacion);
 
         // Actualizar campos
         postulacion.setRespuestaMotivacion(request.getRespuestaMotivacion());
@@ -216,6 +223,10 @@ public class PostulacionService {
     public void eliminar(Integer id) {
         Postulacion postulacion = postulacionRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Postulación", id));
+        // Solo se retira una postulación aún en revisión: nunca ocupó cupo ni recibió oferta,
+        // así que eliminarla no altera los cupos de la convocatoria
+        validarEditable(postulacion);
+        postulacionHabilidadRepository.deleteAll(postulacionHabilidadRepository.findByPostulacionId(id));
         postulacionRepository.delete(postulacion);
     }
 
@@ -226,6 +237,7 @@ public class PostulacionService {
     public PostulacionHabilidadResponseDTO agregarHabilidad(PostulacionHabilidadRequestDTO request) {
         Postulacion postulacion = postulacionRepository.findById(request.getIdPostulacion())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Postulación", request.getIdPostulacion()));
+        validarEditable(postulacion);
 
         Habilidad habilidad = habilidadRepository.findById(request.getIdHabilidad())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Habilidad", request.getIdHabilidad()));
@@ -260,6 +272,8 @@ public class PostulacionService {
     }
 
     public void eliminarHabilidad(Integer idPostulacion, Integer idHabilidad) {
+        validarEditable(postulacionRepository.findById(idPostulacion)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Postulación", idPostulacion)));
         PostulacionHabilidad asociacion = postulacionHabilidadRepository.findByPostulacionIdAndHabilidadId(idPostulacion, idHabilidad)
                 .orElseThrow(() -> new RecursoNoEncontradoException("PostulacionHabilidad", "idHabilidad", idHabilidad));
         postulacionHabilidadRepository.delete(asociacion);
@@ -279,15 +293,48 @@ public class PostulacionService {
                 .idConvocatoria(postulacion.getConvocatoria() != null ? postulacion.getConvocatoria().getId() : null)
                 .idEstudiante(postulacion.getEstudiante() != null ? postulacion.getEstudiante().getId() : null)
                 .nombreEstudiante(postulacion.getEstudiante() != null && postulacion.getEstudiante().getUsuario() != null ? postulacion.getEstudiante().getUsuario().getNombreCompleto() : null)
+                .programaEstudiante(postulacion.getEstudiante() != null && postulacion.getEstudiante().getPrograma() != null ? postulacion.getEstudiante().getPrograma().getNombre() : null)
                 .tituloConvocatoria(postulacion.getConvocatoria() != null ? postulacion.getConvocatoria().getTitulo() : null)
                 .nombreSemillero(postulacion.getConvocatoria() != null && postulacion.getConvocatoria().getSemillero() != null ? postulacion.getConvocatoria().getSemillero().getNombre() : null)
                 .respuestaMotivacion(postulacion.getRespuestaMotivacion())
                 .disponibilidadHorasSemana(postulacion.getDisponibilidadHorasSemana())
                 .experienciaPrevia(postulacion.getExperienciaPrevia())
                 .fechaPostulacion(postulacion.getFechaPostulacion())
+                .fechaPreAprobacion(postulacion.getFechaPreAprobacion())
                 .fechaDecisionEstudiante(postulacion.getFechaDecisionEstudiante())
                 .estadoPostulacion(postulacion.getEstado() != null ? postulacion.getEstado().getNombre() : null)
                 .habilidades(habilidades)
                 .build();
+    }
+
+    // Reglas para postularse: convocatoria abierta, vigente, con cupos y de un semillero que el estudiante no lidera
+    private void validarConvocatoriaDisponible(Convocatoria convocatoria, Estudiante estudiante) {
+        if (!"Abierta".equalsIgnoreCase(convocatoria.getEstado().getNombre())) {
+            throw new ErrorLogicaNegocioException("La convocatoria no está abierta para postulaciones.");
+        }
+        if (convocatoria.getCuposDisponibles() == null || convocatoria.getCuposDisponibles() <= 0) {
+            throw new ErrorLogicaNegocioException("La convocatoria no tiene cupos disponibles.");
+        }
+        LocalDate hoy = LocalDate.now();
+        if ((convocatoria.getFechaInicio() != null && hoy.isBefore(convocatoria.getFechaInicio()))
+                || (convocatoria.getFechaCierre() != null && hoy.isAfter(convocatoria.getFechaCierre()))) {
+            throw new ErrorLogicaNegocioException("La convocatoria está fuera de su periodo de postulación.");
+        }
+        if (convocatoria.getSemillero().getEstudianteLider().getId().equals(estudiante.getId())) {
+            throw new ErrorLogicaNegocioException("No puedes postularte a una convocatoria de un semillero que lideras.");
+        }
+        if (estudianteSemilleroRepository.findBySemilleroIdAndEstudianteId(
+                convocatoria.getSemillero().getId(), estudiante.getId()).isPresent()) {
+            throw new ErrorLogicaNegocioException("Ya perteneces a este semillero.");
+        }
+    }
+
+    // Una postulación solo puede modificarse o retirarse mientras sigue en revisión del líder
+    private void validarEditable(Postulacion postulacion) {
+        if (!ESTADO_PENDIENTE.equalsIgnoreCase(postulacion.getEstado().getNombre())) {
+            throw new ErrorLogicaNegocioException(
+                    "Solo se puede modificar o retirar una postulación en estado 'Pendiente'. Estado actual: "
+                            + postulacion.getEstado().getNombre());
+        }
     }
 }

@@ -1,11 +1,15 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { MatchScore } from "@/components/common/MatchScore";
 import { EstadoBadge } from "@/components/common/EstadoBadge";
-import { recomendacionesQuery, usuarioSesionQuery } from "@/lib/api/queries";
+import {
+  esEstudiante,
+  recomendacionesQuery,
+  usuarioSesionQuery,
+} from "@/lib/api/queries";
 import type { ResultadoMatch } from "@/types/api";
 
 export const Route = createFileRoute("/compatibilidad")({
@@ -31,11 +35,13 @@ export const Route = createFileRoute("/compatibilidad")({
   loader: async ({ context }) => {
     const sesion =
       await context.queryClient.ensureQueryData(usuarioSesionQuery());
-    if (sesion.idEstudiante !== null) {
-      await context.queryClient.ensureQueryData(
-        recomendacionesQuery(sesion.idEstudiante),
-      );
+    // El motor de recomendación solo aplica a perfiles de estudiante
+    if (!esEstudiante(sesion)) {
+      throw redirect({ to: "/" });
     }
+    await context.queryClient.ensureQueryData(
+      recomendacionesQuery(sesion.idEstudiante!),
+    );
     return sesion;
   },
   component: CompatibilidadPage,

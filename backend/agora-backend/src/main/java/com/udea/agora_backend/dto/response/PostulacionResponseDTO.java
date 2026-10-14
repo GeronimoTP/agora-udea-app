@@ -15,10 +15,12 @@ public class PostulacionResponseDTO {
     private String tituloConvocatoria;
     private String nombreSemillero;
     private String nombreEstudiante;
+    private String programaEstudiante;
     private String respuestaMotivacion;
     private Integer disponibilidadHorasSemana;
     private String experienciaPrevia;
     private LocalDate fechaPostulacion;
+    private ZonedDateTime fechaPreAprobacion;
     private ZonedDateTime fechaDecisionEstudiante;
     private String estadoPostulacion;
     private List<String> habilidades;

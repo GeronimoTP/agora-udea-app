@@ -43,6 +43,10 @@ public class Postulacion {
     @Column(name = "fecha_postulacion", nullable = false)
     private LocalDate fechaPostulacion;
 
+    // Momento en que el líder emitió la oferta (Pre-aprobada). Requiere la migración V2.
+    @Column(name = "fecha_pre_aprobacion")
+    private ZonedDateTime fechaPreAprobacion;
+
     @Column(name = "fecha_decision_estudiante")
     private ZonedDateTime fechaDecisionEstudiante;
 
@@ -52,4 +56,14 @@ public class Postulacion {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
+
+    @PrePersist
+    void asignarFechasCreacion() {
+        if (createdAt == null) {
+            createdAt = ZonedDateTime.now();
+        }
+        if (fechaPostulacion == null) {
+            fechaPostulacion = LocalDate.now();
+        }
+    }
 }

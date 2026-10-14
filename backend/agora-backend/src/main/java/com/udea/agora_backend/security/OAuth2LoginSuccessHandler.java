@@ -38,9 +38,12 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         String email = oAuth2User.getAttribute("email");
         String oauthId = oAuth2User.getAttribute("sub");
 
-        Usuario usuario = usuarioRepository.findWithRolByOauthId(oauthId).orElse(null);
+        Usuario usuario = usuarioRepository.findWithRolByOauthId(oauthId)
+            .orElseGet(() -> vincularAdministrador(email, oauthId));
+        // El administrador no tiene perfil de estudiante/profesor y no pasa por onboarding
         boolean perfilCompleto = usuario != null && (
-            estudianteRepository.findByUsuarioId(usuario.getId()).isPresent()
+            "Administrador".equals(usuario.getRol().getNombre())
+                || estudianteRepository.findByUsuarioId(usuario.getId()).isPresent()
                 || profesorRepository.findByUsuarioId(usuario.getId()).isPresent());
         boolean onboarding = !perfilCompleto;
         String nombre = oAuth2User.getAttribute("name");
@@ -53,5 +56,17 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             + URLEncoder.encode(token, StandardCharsets.UTF_8)
             + "&onboarding=" + onboarding;
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
+    }
+
+    // La cuenta administrador se crea manualmente en la BD sin conocer el `sub` de Google.
+    // En su primer inicio de sesión se vincula por el correo verificado por Google.
+    private Usuario vincularAdministrador(String email, String oauthId) {
+        return usuarioRepository.findWithRolByEmail(email)
+            .filter(usuario -> "Administrador".equals(usuario.getRol().getNombre()))
+            .map(usuario -> {
+                usuario.setOauthId(oauthId);
+                return usuarioRepository.save(usuario);
+            })
+            .orElse(null);
     }
 }

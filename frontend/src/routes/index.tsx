@@ -2,12 +2,10 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  BarChart3,
   CalendarClock,
   FileText,
   Library,
   Target,
-  Users,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -15,8 +13,8 @@ import { StatCard } from "@/components/common/StatCard";
 import { EstadoBadge } from "@/components/common/EstadoBadge";
 import { MatchScore } from "@/components/common/MatchScore";
 import {
-  analiticaQuery,
   convocatoriasAbiertasQuery,
+  esAdministrador,
   misPostulacionesQuery,
   recomendacionesQuery,
 } from "@/lib/api/queries";
@@ -65,8 +63,11 @@ export const Route = createFileRoute("/")({
       }
       throw error;
     }
+    // El administrador no tiene tablero de estudiante/profesor: su página principal es la analítica
+    if (esAdministrador(sesion)) {
+      throw redirect({ to: "/analitica" });
+    }
     const consultas: Promise<unknown>[] = [
-      context.queryClient.ensureQueryData(analiticaQuery()),
       context.queryClient.ensureQueryData(convocatoriasAbiertasQuery()),
     ];
 
@@ -87,39 +88,38 @@ export const Route = createFileRoute("/")({
   component: TableroPage,
 });
 
-const accesos = [
+const accesos: {
+  to: "/semilleros" | "/compatibilidad" | "/postulaciones";
+  titulo: string;
+  detalle: string;
+  icon: typeof Library;
+  soloEstudiante?: boolean;
+}[] = [
   {
-    to: "/semilleros" as const,
+    to: "/semilleros",
     titulo: "Explorar semilleros",
     detalle:
       "Consulta líneas de investigación, proyectos y publicaciones por facultad.",
     icon: Library,
   },
   {
-    to: "/compatibilidad" as const,
+    to: "/compatibilidad",
     titulo: "Revisar compatibilidad",
     detalle:
       "Ranking de afinidad ponderada entre tu perfil y los semilleros activos.",
     icon: Target,
+    soloEstudiante: true,
   },
   {
-    to: "/postulaciones" as const,
+    to: "/postulaciones",
     titulo: "Gestionar postulaciones",
     detalle: "Seguimiento del flujo de doble vía y resolución en cascada.",
     icon: FileText,
-  },
-  {
-    to: "/analitica" as const,
-    titulo: "Analítica institucional",
-    detalle:
-      "Indicadores de demanda, productividad científica e interdisciplinariedad.",
-    icon: BarChart3,
   },
 ];
 
 function TableroPage() {
   const sesion = Route.useLoaderData();
-  const { data: analitica } = useSuspenseQuery(analiticaQuery());
   const { data: convocatorias } = useSuspenseQuery(
     convocatoriasAbiertasQuery(),
   );
@@ -132,7 +132,7 @@ function TableroPage() {
     enabled: sesion.idEstudiante !== null,
   });
 
-  const kpis = analitica.kpis;
+  const esEstudianteActual = sesion.idEstudiante !== null;
   const ofertasPendientes = postulaciones.filter(
     (p) => p.estado === "PRE_APROBADA",
   );
@@ -152,16 +152,10 @@ function TableroPage() {
         >
           Indicadores generales
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Semilleros activos"
-            value={kpis.semillerosActivos}
-            hint={`De ${kpis.totalSemilleros} semilleros registrados en la plataforma.`}
-            icon={Library}
-          />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             label="Convocatorias abiertas"
-            value={kpis.convocatoriasAbiertas}
+            value={convocatorias.length}
             hint="Con cupos disponibles para postulación inmediata."
             icon={CalendarClock}
           />
@@ -179,13 +173,21 @@ function TableroPage() {
             }
             icon={FileText}
           />
-          <StatCard
-            label="Interdisciplinariedad"
-            value={kpis.indiceInterdisciplinariedad.toFixed(1)}
-            unit="%"
-            hint="Estudiantes vinculados a semilleros de un programa distinto al propio."
-            icon={Users}
-          />
+          {sesion.idEstudiante !== null ? (
+            <StatCard
+              label="Semilleros recomendados"
+              value={recomendaciones.length}
+              hint="Semilleros afines a tu perfil según el motor de compatibilidad."
+              icon={Target}
+            />
+          ) : (
+            <StatCard
+              label="Semilleros liderados"
+              value={sesion.idSemillerosLiderados.length}
+              hint="Semilleros en los que eres profesor vinculado."
+              icon={Library}
+            />
+          )}
         </div>
       </section>
 
@@ -239,7 +241,7 @@ function TableroPage() {
                     params={{ idSemillero: String(convocatoria.idSemillero) }}
                     className="inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-primary"
                   >
-                    Postularme
+                    {esEstudianteActual ? "Postularme" : "Ver semillero"}
                     <ArrowRight
                       className="size-3.5"
                       strokeWidth={1.75}
@@ -329,25 +331,29 @@ function TableroPage() {
           Accesos rápidos
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {accesos.map(({ to, titulo, detalle, icon: Icon }) => (
-            <Link
-              key={to}
-              to={to}
-              className="panel p-5 transition-colors hover:bg-secondary/50"
-            >
-              <Icon
-                className="size-5 text-accent"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              <p className="mt-3 font-display text-sm font-semibold text-foreground">
-                {titulo}
-              </p>
-              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                {detalle}
-              </p>
-            </Link>
-          ))}
+          {accesos
+            .filter(
+              ({ soloEstudiante }) => !soloEstudiante || esEstudianteActual,
+            )
+            .map(({ to, titulo, detalle, icon: Icon }) => (
+              <Link
+                key={to}
+                to={to}
+                className="panel p-5 transition-colors hover:bg-secondary/50"
+              >
+                <Icon
+                  className="size-5 text-accent"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+                <p className="mt-3 font-display text-sm font-semibold text-foreground">
+                  {titulo}
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  {detalle}
+                </p>
+              </Link>
+            ))}
         </div>
       </section>
     </AppShell>

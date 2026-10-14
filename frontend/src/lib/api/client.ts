@@ -134,8 +134,13 @@ export async function apiRequest<T>(
       return undefined as T;
     }
 
-    // Parsear y retornar la respuesta
-    const data = (await response.json()) as T;
+    // Parsear y retornar la respuesta (algunos endpoints devuelven texto plano)
+    const contentType = response.headers.get("content-type") ?? "";
+    const data = (
+      contentType.includes("application/json")
+        ? await response.json()
+        : await response.text()
+    ) as T;
 
     if (DEBUG_API) {
       console.log(`[API RESPONSE] ${method} ${path}`, data);

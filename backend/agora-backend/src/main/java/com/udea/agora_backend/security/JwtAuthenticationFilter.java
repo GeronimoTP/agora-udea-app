@@ -4,22 +4,26 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import  org.jspecify.annotations.NonNull ;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     protected void doFilterInternal(
@@ -51,7 +55,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             correoUsuario,
                             null,
-                            Collections.emptyList() // Aquí irían los roles (ej. ROLE_ESTUDIANTE)
+                            obtenerAutoridades(jwt, correoUsuario)
                     );
                     
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -72,6 +76,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    // El token de onboarding no otorga roles; el JWT normal toma el rol actual desde la BD
+    private List<GrantedAuthority> obtenerAutoridades(String jwt, String correoUsuario) {
+        if (jwtService.esTokenOnboarding(jwt)) {
+            return List.of();
+        }
+        return usuarioRepository.findWithRolByEmail(correoUsuario)
+                .<List<GrantedAuthority>>map(usuario -> List.of(
+                        new SimpleGrantedAuthority("ROLE_" + usuario.getRol().getNombre())))
+                .orElseGet(List::of);
     }
 
     private boolean permiteCompletarPerfil(HttpServletRequest request) {

@@ -31,8 +31,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             );
         }
 
-        boolean correoAsociadoAOtraCuenta = usuarioRepository.findByEmail(email)
+        boolean correoVerificado = Boolean.TRUE.equals(oAuth2User.getAttribute("email_verified"));
+        // La cuenta administrador creada manualmente se vincula en su primer login
+        // (ver OAuth2LoginSuccessHandler); las demás cuentas no pueden cambiar de `sub`.
+        boolean correoAsociadoAOtraCuenta = usuarioRepository.findWithRolByEmail(email)
             .filter(usuario -> !oauthId.equals(usuario.getOauthId()))
+            .filter(usuario -> !(correoVerificado && "Administrador".equals(usuario.getRol().getNombre())))
             .isPresent();
         if (correoAsociadoAOtraCuenta) {
             throw new OAuth2AuthenticationException(

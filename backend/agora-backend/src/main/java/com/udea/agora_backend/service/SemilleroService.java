@@ -40,6 +40,9 @@ public class SemilleroService {
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
     private final ProfesorSemilleroRepository profesorSemilleroRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
+    private final ProyectoRepository proyectoRepository;
+    private final PublicacionRepository publicacionRepository;
+    private final ConvocatoriaRepository convocatoriaRepository;
 
     /**
      * Obtiene todos los semilleros
@@ -90,9 +93,10 @@ public class SemilleroService {
     }
 
     /**
-     * Crea un nuevo semillero
+     * Crea un nuevo semillero. Si lo crea un profesor (idProfesorCreador no nulo),
+     * queda vinculado como tutor en la misma transacción.
      */
-    public SemilleroResponseDTO crear(SemilleroRequestDTO request) {
+    public SemilleroResponseDTO crear(SemilleroRequestDTO request, Integer idProfesorCreador) {
         // Verificar código duplicado
         if (semilleroRepository.findByCodigoIdentificador(request.getCodigoIdentificador()).isPresent()) {
             throw new ConflictoException("Semillero", "codigoIdentificador", request.getCodigoIdentificador());
@@ -107,9 +111,7 @@ public class SemilleroService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", request.getIdPrograma()));
 
         // Obtener estado inicial (Activo)
-        Estado estado = estadoRepository.findAll().stream()
-                .filter(e -> e.getNombre().equalsIgnoreCase("Activo"))
-                .findFirst()
+        Estado estado = estadoRepository.findByNombreIgnoreCase("Activo")
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Activo"));
 
         // Crear semillero
@@ -137,6 +139,16 @@ public class SemilleroService {
                         .build();
                 semilleroLineaRepository.save(sli);
             }
+        }
+
+        if (idProfesorCreador != null) {
+            Profesor profesor = profesorRepository.findById(idProfesorCreador)
+                    .orElseThrow(() -> new RecursoNoEncontradoException("Profesor", idProfesorCreador));
+            profesorSemilleroRepository.save(ProfesorSemillero.builder()
+                    .semillero(semilleroGuardado)
+                    .profesor(profesor)
+                    .fechaAsignacion(LocalDate.now())
+                    .build());
         }
 
         return mapeoAResponseDTO(semilleroGuardado);
@@ -412,6 +424,15 @@ public class SemilleroService {
                 .nombrePrograma(semillero.getPrograma() != null ? semillero.getPrograma().getNombre() : null)
                 .estadoActual(semillero.getEstado() != null ? semillero.getEstado().getNombre() : null)
                 .lineasInvestigacion(lineasInvestigacion)
+                .nombreFacultad(semillero.getPrograma() != null && semillero.getPrograma().getFacultad() != null
+                        ? semillero.getPrograma().getFacultad().getNombre() : null)
+                .totalProyectos(proyectoRepository.findBySemilleroId(semillero.getId()).size())
+                .totalPublicaciones(publicacionRepository.findByProyectoSemilleroId(semillero.getId()).size())
+                .totalIntegrantes(estudianteSemilleroRepository.findBySemilleroId(semillero.getId()).size())
+                .convocatoriaAbierta(convocatoriaRepository.findBySemilleroId(semillero.getId()).stream()
+                        .anyMatch(c -> c.getEstado() != null && "Abierta".equalsIgnoreCase(c.getEstado().getNombre())
+                                && c.getCuposDisponibles() > 0
+                                && !c.getFechaCierre().isBefore(LocalDate.now())))
                 .build();
     }
 }
