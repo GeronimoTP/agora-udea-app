@@ -79,11 +79,15 @@ La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `
 
 | Ruta | Estudiante | Profesor | Administrador |
 | --- | --- | --- | --- |
-| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes y recomendaciones | Convocatorias y semilleros liderados | Redirige a `/analitica` |
+| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes y recomendaciones. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" | Redirige a `/analitica` |
+| `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Redirige a `/` | Redirige a `/` |
+| `/gestion/$idSemillero` | Gestión completa si es el estudiante líder | Gestión completa si es tutor | Redirige a `/` |
 | `/semilleros` y detalle | Ver y postularse | Solo ver | Solo ver |
 | `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas": pre-aprobar/rechazar | Redirige a `/` |
 | `/compatibilidad` | Ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
 | `/analitica` | Redirige a `/` | Redirige a `/` | KPIs institucionales |
+
+La gestión (`/gestion/$idSemillero?seccion=...`) tiene pestañas: Información (datos, líneas, estado, transferir liderazgo, eliminar), Convocatorias (crear, editar, cerrar, cancelar, eliminar), Integrantes y tutores (retirar integrantes, agregar/quitar tutores), Proyectos (CRUD, estado, integrantes con rol), Publicaciones (CRUD y autores) y Reconocimientos (CRUD). Se entra desde "Semilleros que lideras" en el tablero, el ítem "Mi semillero" del menú (si lidera exactamente uno) o el botón "Gestionar" del detalle público. Usa los DTOs del backend sin mapear (`frontend/src/lib/api/gestion.ts`) y todas sus consultas cuelgan de la clave `["gestion", id]`.
 
 Ocultar en el frontend no es seguridad: cada restricción tiene su regla equivalente en el backend.
 
@@ -102,13 +106,19 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 | Acción | Quién |
 | --- | --- |
 | Editar o eliminar el semillero, cambiar su estado, sus líneas, profesores y estudiantes vinculados | Líder del semillero |
-| Crear, editar o eliminar convocatorias | Líder del semillero |
+| Crear, editar, cerrar, cancelar o eliminar convocatorias | Líder del semillero |
+| Crear, editar, cambiar estado o eliminar proyectos y vincular estudiantes a ellos | Líder del semillero del proyecto |
+| Crear, editar o eliminar publicaciones y gestionar sus autores | Líder del semillero del proyecto de la publicación |
+| Crear, editar o eliminar reconocimientos | Líder del semillero |
+| Retirar integrantes y transferir el liderazgo | Líder del semillero |
 | Ver postulaciones de un semillero o convocatoria; pre-aprobar o rechazar | Líder del semillero |
 | Crear, editar, retirar una postulación y sus habilidades; aceptar o declinar una oferta | El estudiante postulado |
 | Ver una postulación concreta | El estudiante postulado, un líder del semillero o el administrador |
 | Ver postulaciones o recomendaciones de un estudiante | Ese estudiante |
 | Editar o eliminar un perfil y sus líneas/áreas | El dueño del perfil |
 | Crear semillero | Un estudiante solo como líder de sí mismo; un profesor con cualquier líder, y queda vinculado como tutor |
+
+- Liderar un semillero es una relación, no un rol: el estudiante líder conserva el rol `Estudiante` y su vista de líder sale de `idSemillerosLiderados` (`esEstudianteLider` en `queries.ts`).
 - Si la base de datos cambia el nombre de un rol, las reglas `hasRole(...)` dejan de coincidir: mantener la capitalización exacta.
 
 ### OAuth y JWT
@@ -131,15 +141,31 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 El token se transporta actualmente como query parameter del callback y se guarda en `localStorage`; no compartas URLs que lo incluyan ni lo escribas en logs.
 
 ### Semilleros y estados
-- La creación de semillero busca el estado `Activo`.
+- Crear un semillero (`POST /api/semilleros`, `SemilleroRequestDTO`):
+  - Requiere código identificador único (mayúsculas, números y guiones), nombre (5–150), descripción, programa, al menos una línea de investigación y `idProfesores` con al menos un profesor ya registrado (si lo crea un profesor, él se añade solo).
+  - Un estudiante lidera como máximo un semillero (también al cambiar de líder en la edición).
+  - Nace en estado `Activo` (categoría "Estado Semillero"), sin aprobación del administrador por ahora.
+  - El formulario `/semilleros/nuevo` lista los profesores de `GET /api/profesores` y los filtra en el cliente por nombre/correo, facultad, programa y área de especialidad.
+- Un semillero debe conservar al menos un profesor tutor y al menos una línea de investigación.
+- El líder estudiantil solo cambia con `POST /api/semilleros/{id}/transferir-liderazgo/{idEstudiante}`: el nuevo líder debe ser integrante activo y no liderar otro semillero; el saliente queda como integrante activo. El `PUT` del semillero rechaza un cambio de líder.
+- No se puede pausar ni inactivar un semillero con convocatorias `Abierta`.
+- Eliminar un semillero solo es posible sin convocatorias, proyectos, integrantes ni reconocimientos; si tiene historial se inactiva.
+- Integrantes (`tbl_estudiante_x_semillero`): activo = `fecha_salida` nula. `POST /api/semilleros/{id}/estudiantes/{idEstudiante}/retirar` pone fecha de salida hoy y estado `Inactivo` (categoría "Estado Usuario"). Un retirado puede volver a postularse y, si acepta una oferta, su vinculación se reactiva. `totalIntegrantes`, el chequeo "ya perteneces" y las recomendaciones solo cuentan integrantes activos.
+- Proyectos: `fechaFin` >= `fechaInicio`; no cambian de semillero; solo el estudiante líder o integrantes activos se vinculan a ellos; no se eliminan si tienen publicaciones (al eliminar se borran sus vínculos con estudiantes).
+- Publicaciones: solo se mueven a otro proyecto del mismo semillero; los autores deben ser el líder, un integrante activo o un tutor del semillero; al eliminar se borran sus autorías.
+- Reconocimientos: no cambian de semillero; `urlCertificado` debe empezar por http(s).
+- `GET /api/estados/categoria?nombre=Estado Semillero` lista los estados de una categoría (el frontend no usa IDs fijos).
+- Cambiar el estado de un semillero o de un proyecto exige un estado de su categoría.
 - Las convocatorias abiertas usan el estado `Abierta`; al crear una convocatoria, el cupo disponible inicia igual al total.
 - Crear una convocatoria exige semillero `Activo`, `fechaInicio` >= hoy y `fechaCierre` >= `fechaInicio` y >= hoy.
 - Editar una convocatoria:
   - No puede cambiar de semillero.
   - `cuposTotales` no puede ser menor que los cupos ya asignados; `cuposDisponibles` se recalcula como total − asignados.
   - Si los cupos disponibles quedan en 0 pasa a `Cerrada`; si estaba `Cerrada`, vuelve a tener cupos y su cierre no ha pasado, se reabre como `Abierta`.
-- Una convocatoria con postulaciones no se elimina (422); se cierra.
-- Las búsquedas de estado usan `EstadoRepository.findByNombreIgnoreCase`, no `findAll()` + filtro.
+- Una convocatoria con postulaciones no se elimina (422); se cierra o se cancela.
+- El líder puede cerrar (`POST /api/convocatorias/{id}/cerrar` → `Cerrada`) o cancelar (`/{id}/cancelar` → `Cancelada`) una convocatoria `Abierta`. En ambos casos lo `Pendiente` o `Pre-aprobada` pasa a `Expirada` y los cupos asignados se conservan. Una convocatoria cancelada no se edita.
+- El cron de expiración solo cierra convocatorias `Abierta` vencidas (no toca las canceladas).
+- Los nombres de estado se repiten entre categorías (`Activo` en Usuario y Semillero, `Expirada` en Postulación y Convocatoria, `Cancelada` es de Convocatoria). Toda búsqueda de estado usa categoría + nombre: `EstadoRepository.findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase` con las constantes de `CategoriasEstado`. No buscar solo por nombre.
 - `GET /api/convocatorias/activas` usa el ID de estado `Abierta` y cupos disponibles > 0. El nombre de la ruta es histórico; el nombre guardado en `tbl_estados` es `Abierta`, no `Activa`.
 - Los nombres de estado están en `tbl_estados`, ligados a `tbl_categorias_estado`. Al cambiar estados, revisa también la categoría y los nombres exactos usados por los servicios.
 
@@ -157,13 +183,13 @@ El token se transporta actualmente como query parameter del callback y se guarda
 - Confirmar aceptación, en una sola transacción:
   1. Bloquea la fila de la convocatoria (`findByIdParaActualizarCupos`, `PESSIMISTIC_WRITE`) para que dos aceptaciones simultáneas no consuman el mismo cupo.
   2. Exige que la convocatoria siga vigente y con cupos, y descuenta uno.
-  3. Vincula al estudiante al semillero (`tbl_estudiante_x_semillero`, estado `Activo`) si no lo estaba.
-  4. Marca las demás postulaciones activas del estudiante como `Cancelada` (cascada). `Rechazada por Estudiante` queda solo para la decisión explícita del estudiante.
+  3. Vincula al estudiante al semillero (`tbl_estudiante_x_semillero`, estado `Activo` de "Estado Usuario", porque la vinculación no tiene categoría propia; ver `CategoriasEstado.VINCULACION`) si no lo estaba.
+  4. Marca las demás postulaciones activas del estudiante como `Cancelada en cascada`. `Rechazada por Estudiante` queda solo para la decisión explícita del estudiante.
   5. Si los cupos llegan a cero, la convocatoria pasa a `Cerrada` y lo que quedaba `Pendiente` o `Pre-aprobada` en ella pasa a `Expirada`.
 - `fechaDecisionEstudiante` solo se registra cuando el estudiante acepta o declina; los rechazos del líder, la cascada y las expiraciones no la tocan.
 - Un cron diario, configurable con `app.scheduler.convocatorias-expiradas.cron` (por defecto 01:00), cierra convocatorias expiradas y marca como `Expirada` lo que quedó sin resolver, también en convocatorias que ya estaban `Cerradas`.
-- Estados de postulación (deben existir en `tbl_estados`): `Pendiente`, `Pre-aprobada`, `Aceptada`, `Rechazada`, `Rechazada por Estudiante`, `Cancelada`, `Expirada`. El frontend los refleja 1:1 (`PENDIENTE`, `PRE_APROBADA`, ...).
-- `Cancelada` y la columna `tbl_postulaciones.fecha_pre_aprobacion` se crean con `backend/agora-backend/db/migrations/V2__oferta_y_cancelacion_postulaciones.sql`, que debe ejecutarse antes de desplegar.
+- Estados de postulación (categoría "Estado Postulación" en `tbl_estados`): `Pendiente`, `Pre-aprobada`, `Aceptada`, `Rechazada`, `Rechazada por Estudiante`, `Cancelada en cascada`, `Expirada`. El frontend los refleja 1:1 (`PENDIENTE`, `PRE_APROBADA`, ..., `CANCELADA`).
+- La columna `tbl_postulaciones.fecha_pre_aprobacion` se crea con `backend/agora-backend/db/migrations/V2__oferta_y_cancelacion_postulaciones.sql`, que debe ejecutarse antes de desplegar.
 
 ### Recomendaciones
 `MotorRecomendacionService` solo considera semilleros `Activo` que el estudiante no lidera y a los que no pertenece. Los ordena por puntaje ponderado:
@@ -178,7 +204,7 @@ El puntaje se limita a 0–100. Las habilidades del estudiante salen de sus post
 - Tiempo de respuesta del estudiante: va de `fechaPreAprobacion` a `fechaDecisionEstudiante`, solo en postulaciones `Aceptada` o `Rechazada por Estudiante`.
 - Retención de ofertas: solo cuenta ofertas reales.
   - Aceptadas.
-  - Rechazadas: `Rechazada por Estudiante` y `Cancelada` con oferta previa.
+  - Rechazadas: `Rechazada por Estudiante` y `Cancelada en cascada` con oferta previa.
   - Expiradas: con oferta previa.
   - Las postulaciones que nunca recibieron oferta no cuentan.
 - Interdisciplinariedad: se calcula sobre `tbl_estudiante_x_semillero`, que ahora se llena al aceptar una oferta.

@@ -30,4 +30,8 @@ public class SemilleroRequestDTO {
 
     @NotEmpty(message = "Debe seleccionar al menos una línea de investigación")
     private List<Integer> idLineasInvestigacion;
+
+    // Profesores tutores ya registrados. Obligatorio al crear (al menos uno);
+    // al actualizar se ignora: la co-tutoría se gestiona con /api/semilleros/profesores
+    private List<Integer> idProfesores;
 }

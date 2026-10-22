@@ -76,7 +76,21 @@ function SemilleroDetallePage() {
         eyebrow={semillero.facultad}
         title={semillero.nombre}
         description={semillero.descripcion}
-        actions={<EstadoBadge estado={semillero.estado} />}
+        actions={
+          <div className="flex items-center gap-3">
+            <EstadoBadge estado={semillero.estado} />
+            {sesion?.idSemillerosLiderados.includes(id) && (
+              <Link
+                to="/gestion/$idSemillero"
+                params={{ idSemillero }}
+                search={{ seccion: "informacion" }}
+                className="rounded-sm bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+              >
+                Gestionar
+              </Link>
+            )}
+          </div>
+        }
       />
 
       <section aria-labelledby="lineas" className="mb-10">

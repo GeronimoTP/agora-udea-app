@@ -9,6 +9,7 @@ import com.udea.agora_backend.dto.response.ProfesorSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroResponseDTO;
 import com.udea.agora_backend.exception.ConflictoException;
+import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.*;
 import com.udea.agora_backend.repository.*;
@@ -18,7 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +34,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class SemilleroService {
+
+    private static final String ESTADO_SEMILLERO_ACTIVO = "Activo";
+    private static final String ESTADO_CONVOCATORIA_ABIERTA = "Abierta";
+    private static final String ESTADO_VINCULACION_ACTIVA = "Activo";
+    private static final String ESTADO_VINCULACION_INACTIVA = "Inactivo";
 
     private final SemilleroRepository semilleroRepository;
     private final EstudianteRepository estudianteRepository;
@@ -43,6 +52,7 @@ public class SemilleroService {
     private final ProyectoRepository proyectoRepository;
     private final PublicacionRepository publicacionRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final ReconocimientoSemilleroRepository reconocimientoRepository;
 
     /**
      * Obtiene todos los semilleros
@@ -93,8 +103,9 @@ public class SemilleroService {
     }
 
     /**
-     * Crea un nuevo semillero. Si lo crea un profesor (idProfesorCreador no nulo),
-     * queda vinculado como tutor en la misma transacción.
+     * Crea un nuevo semillero con al menos un profesor tutor ya registrado.
+     * Si lo crea un profesor (idProfesorCreador no nulo), queda vinculado como tutor
+     * aunque no venga en la lista. Un estudiante solo puede liderar un semillero.
      */
     public SemilleroResponseDTO crear(SemilleroRequestDTO request, Integer idProfesorCreador) {
         // Verificar código duplicado
@@ -105,14 +116,30 @@ public class SemilleroService {
         // Obtener estudiante líder
         Estudiante estudianteLider = estudianteRepository.findById(request.getIdEstudianteLider())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante Líder", request.getIdEstudianteLider()));
+        validarSinOtroLiderazgo(estudianteLider.getId());
+
+        // Profesores tutores (obligatorio al menos uno)
+        Set<Integer> idsProfesores = new LinkedHashSet<>();
+        if (request.getIdProfesores() != null) {
+            request.getIdProfesores().stream().filter(Objects::nonNull).forEach(idsProfesores::add);
+        }
+        if (idProfesorCreador != null) {
+            idsProfesores.add(idProfesorCreador);
+        }
+        if (idsProfesores.isEmpty()) {
+            throw new ErrorLogicaNegocioException("El semillero debe tener al menos un profesor tutor.");
+        }
+        List<Profesor> profesores = idsProfesores.stream()
+                .map(idProfesor -> profesorRepository.findById(idProfesor)
+                        .orElseThrow(() -> new RecursoNoEncontradoException("Profesor", idProfesor)))
+                .toList();
 
         // Obtener programa
         ProgramaAcademico programa = programaRepository.findById(request.getIdPrograma())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", request.getIdPrograma()));
 
         // Obtener estado inicial (Activo)
-        Estado estado = estadoRepository.findByNombreIgnoreCase("Activo")
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "Activo"));
+        Estado estado = buscarEstado(CategoriasEstado.SEMILLERO, ESTADO_SEMILLERO_ACTIVO);
 
         // Crear semillero
         Semillero semillero = Semillero.builder()
@@ -141,9 +168,7 @@ public class SemilleroService {
             }
         }
 
-        if (idProfesorCreador != null) {
-            Profesor profesor = profesorRepository.findById(idProfesorCreador)
-                    .orElseThrow(() -> new RecursoNoEncontradoException("Profesor", idProfesorCreador));
+        for (Profesor profesor : profesores) {
             profesorSemilleroRepository.save(ProfesorSemillero.builder()
                     .semillero(semilleroGuardado)
                     .profesor(profesor)
@@ -167,11 +192,10 @@ public class SemilleroService {
             throw new ConflictoException("Semillero", "codigoIdentificador", request.getCodigoIdentificador());
         }
 
-        // Obtener estudiante líder si cambió
+        // El líder solo cambia con transferirLiderazgo, que exige un integrante activo
         if (!semillero.getEstudianteLider().getId().equals(request.getIdEstudianteLider())) {
-            Estudiante nuevoLider = estudianteRepository.findById(request.getIdEstudianteLider())
-                    .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante Líder", request.getIdEstudianteLider()));
-            semillero.setEstudianteLider(nuevoLider);
+            throw new ErrorLogicaNegocioException(
+                    "Para cambiar el líder usa la transferencia de liderazgo.");
         }
 
         // Obtener programa si cambió
@@ -219,6 +243,13 @@ public class SemilleroService {
 
         Estado estado = estadoRepository.findById(idEstado)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estado", idEstado));
+        if (!CategoriasEstado.SEMILLERO.equalsIgnoreCase(estado.getCategoriaEstado().getNombre())) {
+            throw new ErrorLogicaNegocioException("El estado '" + estado.getNombre() + "' no es un estado de semillero.");
+        }
+        if (!ESTADO_SEMILLERO_ACTIVO.equalsIgnoreCase(estado.getNombre()) && tieneConvocatoriaAbierta(idSemillero)) {
+            throw new ErrorLogicaNegocioException(
+                    "Cierra o cancela las convocatorias abiertas antes de cambiar el semillero a '" + estado.getNombre() + "'.");
+        }
 
         semillero.setEstado(estado);
         Semillero semilleroActualizado = semilleroRepository.save(semillero);
@@ -231,6 +262,16 @@ public class SemilleroService {
     public void eliminar(Integer id) {
         Semillero semillero = semilleroRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", id));
+        // Con historial (convocatorias, proyectos, integrantes o reconocimientos) se inactiva, no se borra
+        if (!convocatoriaRepository.findBySemilleroId(id).isEmpty()
+                || !proyectoRepository.findBySemilleroId(id).isEmpty()
+                || !estudianteSemilleroRepository.findBySemilleroId(id).isEmpty()
+                || !reconocimientoRepository.findBySemilleroId(id).isEmpty()) {
+            throw new ErrorLogicaNegocioException(
+                    "El semillero tiene historial; cámbialo a 'Inactivo' en lugar de eliminarlo.");
+        }
+        semilleroLineaRepository.deleteAll(semilleroLineaRepository.findBySemilleroId(id));
+        profesorSemilleroRepository.deleteAll(profesorSemilleroRepository.findBySemilleroId(id));
         semilleroRepository.delete(semillero);
     }
 
@@ -259,6 +300,7 @@ public class SemilleroService {
         return SemilleroLineaInvestigacionResponseDTO.builder()
                 .id(guardada.getId())
                 .nombreSemillero(semillero.getNombre())
+                .idLineaInvestigacion(linea.getId())
                 .nombreLineaInvestigacion(linea.getNombre())
                 .build();
     }
@@ -269,6 +311,7 @@ public class SemilleroService {
                 .map(sli -> SemilleroLineaInvestigacionResponseDTO.builder()
                         .id(sli.getId())
                         .nombreSemillero(sli.getSemillero().getNombre())
+                        .idLineaInvestigacion(sli.getLineaInvestigacion().getId())
                         .nombreLineaInvestigacion(sli.getLineaInvestigacion().getNombre())
                         .build())
                 .collect(Collectors.toList());
@@ -277,7 +320,22 @@ public class SemilleroService {
     public void eliminarLineaInvestigacion(Integer idSemillero, Integer idLinea) {
         SemilleroLineaInvestigacion asociacion = semilleroLineaRepository.findBySemilleroIdAndLineaInvestigacionId(idSemillero, idLinea)
                 .orElseThrow(() -> new RecursoNoEncontradoException("SemilleroLineaInvestigacion", "idLinea", idLinea));
+        if (semilleroLineaRepository.findBySemilleroId(idSemillero).size() <= 1) {
+            throw new ErrorLogicaNegocioException("El semillero debe conservar al menos una línea de investigación.");
+        }
         semilleroLineaRepository.delete(asociacion);
+    }
+
+    private boolean tieneConvocatoriaAbierta(Integer idSemillero) {
+        return convocatoriaRepository.findBySemilleroId(idSemillero).stream()
+                .anyMatch(c -> ESTADO_CONVOCATORIA_ABIERTA.equalsIgnoreCase(c.getEstado().getNombre()));
+    }
+
+    // Un estudiante lidera como máximo un semillero
+    private void validarSinOtroLiderazgo(Integer idEstudiante) {
+        if (!semilleroRepository.findIdsByEstudianteLiderId(idEstudiante).isEmpty()) {
+            throw new ErrorLogicaNegocioException("El estudiante ya es líder de otro semillero.");
+        }
     }
 
     // ==========================================
@@ -306,7 +364,10 @@ public class SemilleroService {
         return ProfesorSemilleroResponseDTO.builder()
                 .id(guardado.getId())
                 .nombreSemillero(semillero.getNombre())
+                .idProfesor(profesor.getId())
+                .idUsuario(profesor.getUsuario().getId())
                 .nombreProfesor(profesor.getUsuario().getNombreCompleto())
+                .email(profesor.getUsuario().getEmail())
                 .fechaAsignacion(guardado.getFechaAsignacion())
                 .build();
     }
@@ -317,7 +378,10 @@ public class SemilleroService {
                 .map(ps -> ProfesorSemilleroResponseDTO.builder()
                         .id(ps.getId())
                         .nombreSemillero(ps.getSemillero().getNombre())
+                        .idProfesor(ps.getProfesor().getId())
+                        .idUsuario(ps.getProfesor().getUsuario().getId())
                         .nombreProfesor(ps.getProfesor().getUsuario().getNombreCompleto())
+                        .email(ps.getProfesor().getUsuario().getEmail())
                         .fechaAsignacion(ps.getFechaAsignacion())
                         .build())
                 .collect(Collectors.toList());
@@ -326,6 +390,9 @@ public class SemilleroService {
     public void removerProfesor(Integer idSemillero, Integer idProfesor) {
         ProfesorSemillero asociacion = profesorSemilleroRepository.findBySemilleroIdAndProfesorId(idSemillero, idProfesor)
                 .orElseThrow(() -> new RecursoNoEncontradoException("ProfesorSemillero", "idProfesor", idProfesor));
+        if (profesorSemilleroRepository.findBySemilleroId(idSemillero).size() <= 1) {
+            throw new ErrorLogicaNegocioException("El semillero debe conservar al menos un profesor tutor.");
+        }
         profesorSemilleroRepository.delete(asociacion);
     }
 
@@ -340,9 +407,11 @@ public class SemilleroService {
         Estudiante estudiante = estudianteRepository.findById(request.getIdEstudiante())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", request.getIdEstudiante()));
 
-        Estado estado = estadoRepository.findById(request.getIdEstado())
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", request.getIdEstado()));
+        Estado estado = buscarEstadoVinculacion(request.getIdEstado());
 
+        if (semillero.getEstudianteLider().getId().equals(estudiante.getId())) {
+            throw new ErrorLogicaNegocioException("El estudiante líder no se vincula como integrante.");
+        }
         if (estudianteSemilleroRepository.findBySemilleroIdAndEstudianteId(request.getIdSemillero(), request.getIdEstudiante()).isPresent()) {
             throw new ConflictoException("EstudianteSemillero", "idEstudiante", request.getIdEstudiante().toString());
         }
@@ -355,29 +424,13 @@ public class SemilleroService {
                 .estado(estado)
                 .build();
 
-        EstudianteSemillero guardado = estudianteSemilleroRepository.save(vinculacion);
-
-        return EstudianteSemilleroResponseDTO.builder()
-                .id(guardado.getId())
-                .nombreSemillero(semillero.getNombre())
-                .nombreEstudiante(estudiante.getUsuario().getNombreCompleto())
-                .fechaIngreso(guardado.getFechaIngreso())
-                .fechaSalida(guardado.getFechaSalida())
-                .estadoVinculacion(estado.getNombre())
-                .build();
+        return mapearVinculacion(estudianteSemilleroRepository.save(vinculacion));
     }
 
     public List<EstudianteSemilleroResponseDTO> obtenerEstudiantes(Integer idSemillero) {
         return estudianteSemilleroRepository.findBySemilleroId(idSemillero)
                 .stream()
-                .map(es -> EstudianteSemilleroResponseDTO.builder()
-                        .id(es.getId())
-                        .nombreSemillero(es.getSemillero().getNombre())
-                        .nombreEstudiante(es.getEstudiante().getUsuario().getNombreCompleto())
-                        .fechaIngreso(es.getFechaIngreso())
-                        .fechaSalida(es.getFechaSalida())
-                        .estadoVinculacion(es.getEstado() != null ? es.getEstado().getNombre() : null)
-                        .build())
+                .map(this::mapearVinculacion)
                 .collect(Collectors.toList());
     }
 
@@ -385,24 +438,93 @@ public class SemilleroService {
         EstudianteSemillero vinculacion = estudianteSemilleroRepository.findBySemilleroIdAndEstudianteId(idSemillero, idEstudiante)
                 .orElseThrow(() -> new RecursoNoEncontradoException("EstudianteSemillero", "idEstudiante", idEstudiante));
 
-        Estado estado = estadoRepository.findById(idEstado)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", idEstado));
-
-        vinculacion.setEstado(estado);
+        vinculacion.setEstado(buscarEstadoVinculacion(idEstado));
         if (fechaSalida != null) {
             vinculacion.setFechaSalida(fechaSalida);
         }
 
-        EstudianteSemillero actualizado = estudianteSemilleroRepository.save(vinculacion);
+        return mapearVinculacion(estudianteSemilleroRepository.save(vinculacion));
+    }
 
+    /**
+     * Retira a un integrante: la vinculación se conserva como historial con fecha de salida
+     * y estado "Inactivo". Un integrante retirado puede volver a postularse.
+     */
+    public EstudianteSemilleroResponseDTO retirarEstudiante(Integer idSemillero, Integer idEstudiante) {
+        EstudianteSemillero vinculacion = estudianteSemilleroRepository.findBySemilleroIdAndEstudianteId(idSemillero, idEstudiante)
+                .orElseThrow(() -> new RecursoNoEncontradoException("EstudianteSemillero", "idEstudiante", idEstudiante));
+        if (vinculacion.getFechaSalida() != null) {
+            throw new ErrorLogicaNegocioException("El estudiante ya fue retirado del semillero.");
+        }
+        vinculacion.setFechaSalida(LocalDate.now());
+        vinculacion.setEstado(buscarEstado(CategoriasEstado.VINCULACION, ESTADO_VINCULACION_INACTIVA));
+        return mapearVinculacion(estudianteSemilleroRepository.save(vinculacion));
+    }
+
+    /**
+     * Transfiere el liderazgo estudiantil a un integrante activo. El líder saliente queda
+     * como integrante activo del semillero, para no perder su historial.
+     */
+    public SemilleroResponseDTO transferirLiderazgo(Integer idSemillero, Integer idNuevoLider) {
+        Semillero semillero = semilleroRepository.findById(idSemillero)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", idSemillero));
+        Estudiante liderActual = semillero.getEstudianteLider();
+        if (liderActual.getId().equals(idNuevoLider)) {
+            throw new ErrorLogicaNegocioException("El estudiante ya es el líder del semillero.");
+        }
+        if (!estudianteSemilleroRepository.existsBySemilleroIdAndEstudianteIdAndFechaSalidaIsNull(idSemillero, idNuevoLider)) {
+            throw new ErrorLogicaNegocioException("El nuevo líder debe ser un integrante activo del semillero.");
+        }
+        validarSinOtroLiderazgo(idNuevoLider);
+        Estudiante nuevoLider = estudianteRepository.findById(idNuevoLider)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", idNuevoLider));
+
+        Estado activo = buscarEstado(CategoriasEstado.VINCULACION, ESTADO_VINCULACION_ACTIVA);
+        EstudianteSemillero vinculacionSaliente = estudianteSemilleroRepository
+                .findBySemilleroIdAndEstudianteId(idSemillero, liderActual.getId())
+                .orElseGet(() -> EstudianteSemillero.builder()
+                        .semillero(semillero)
+                        .estudiante(liderActual)
+                        .fechaIngreso(LocalDate.now())
+                        .build());
+        vinculacionSaliente.setFechaSalida(null);
+        vinculacionSaliente.setEstado(activo);
+        estudianteSemilleroRepository.save(vinculacionSaliente);
+
+        semillero.setEstudianteLider(nuevoLider);
+        return mapeoAResponseDTO(semilleroRepository.save(semillero));
+    }
+
+    private EstudianteSemilleroResponseDTO mapearVinculacion(EstudianteSemillero es) {
+        Estudiante estudiante = es.getEstudiante();
         return EstudianteSemilleroResponseDTO.builder()
-                .id(actualizado.getId())
-                .nombreSemillero(actualizado.getSemillero().getNombre())
-                .nombreEstudiante(actualizado.getEstudiante().getUsuario().getNombreCompleto())
-                .fechaIngreso(actualizado.getFechaIngreso())
-                .fechaSalida(actualizado.getFechaSalida())
-                .estadoVinculacion(actualizado.getEstado().getNombre())
+                .id(es.getId())
+                .idSemillero(es.getSemillero().getId())
+                .nombreSemillero(es.getSemillero().getNombre())
+                .idEstudiante(estudiante.getId())
+                .idUsuario(estudiante.getUsuario().getId())
+                .nombreEstudiante(estudiante.getUsuario().getNombreCompleto())
+                .email(estudiante.getUsuario().getEmail())
+                .nombrePrograma(estudiante.getPrograma() != null ? estudiante.getPrograma().getNombre() : null)
+                .semestre(estudiante.getSemestre())
+                .fechaIngreso(es.getFechaIngreso())
+                .fechaSalida(es.getFechaSalida())
+                .estadoVinculacion(es.getEstado() != null ? es.getEstado().getNombre() : null)
                 .build();
+    }
+
+    private Estado buscarEstadoVinculacion(Integer idEstado) {
+        Estado estado = estadoRepository.findById(idEstado)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", idEstado));
+        if (!CategoriasEstado.VINCULACION.equalsIgnoreCase(estado.getCategoriaEstado().getNombre())) {
+            throw new ErrorLogicaNegocioException("El estado '" + estado.getNombre() + "' no es válido para una vinculación.");
+        }
+        return estado;
+    }
+
+    private Estado buscarEstado(String categoria, String nombre) {
+        return estadoRepository.findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(categoria, nombre)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", categoria + " / " + nombre));
     }
 
     /**
@@ -420,7 +542,10 @@ public class SemilleroService {
                 .codigoIdentificador(semillero.getCodigoIdentificador())
                 .nombre(semillero.getNombre())
                 .descripcion(semillero.getDescripcion())
+                .idEstudianteLider(semillero.getEstudianteLider() != null ? semillero.getEstudianteLider().getId() : null)
+                .idUsuarioLider(semillero.getEstudianteLider() != null && semillero.getEstudianteLider().getUsuario() != null ? semillero.getEstudianteLider().getUsuario().getId() : null)
                 .nombreEstudianteLider(semillero.getEstudianteLider() != null && semillero.getEstudianteLider().getUsuario() != null ? semillero.getEstudianteLider().getUsuario().getNombreCompleto() : null)
+                .idPrograma(semillero.getPrograma() != null ? semillero.getPrograma().getId() : null)
                 .nombrePrograma(semillero.getPrograma() != null ? semillero.getPrograma().getNombre() : null)
                 .estadoActual(semillero.getEstado() != null ? semillero.getEstado().getNombre() : null)
                 .lineasInvestigacion(lineasInvestigacion)
@@ -428,9 +553,9 @@ public class SemilleroService {
                         ? semillero.getPrograma().getFacultad().getNombre() : null)
                 .totalProyectos(proyectoRepository.findBySemilleroId(semillero.getId()).size())
                 .totalPublicaciones(publicacionRepository.findByProyectoSemilleroId(semillero.getId()).size())
-                .totalIntegrantes(estudianteSemilleroRepository.findBySemilleroId(semillero.getId()).size())
+                .totalIntegrantes(estudianteSemilleroRepository.findBySemilleroIdAndFechaSalidaIsNull(semillero.getId()).size())
                 .convocatoriaAbierta(convocatoriaRepository.findBySemilleroId(semillero.getId()).stream()
-                        .anyMatch(c -> c.getEstado() != null && "Abierta".equalsIgnoreCase(c.getEstado().getNombre())
+                        .anyMatch(c -> c.getEstado() != null && ESTADO_CONVOCATORIA_ABIERTA.equalsIgnoreCase(c.getEstado().getNombre())
                                 && c.getCuposDisponibles() > 0
                                 && !c.getFechaCierre().isBefore(LocalDate.now())))
                 .build();

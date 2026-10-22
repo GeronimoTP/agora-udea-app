@@ -8,10 +8,13 @@ import java.time.LocalDate;
 @Builder
 public class ReconocimientoResponseDTO {
     private Integer id;
+    private Integer idSemillero;
     private String nombreSemillero;
+    private Integer idTipoReconocimiento;
     private String tipoReconocimiento;
     private String titulo;
     private String descripcion;
+    private Integer idEntidadOtorgante;
     private String entidadOtorgante;
     private LocalDate fechaObtencion;
     private String urlCertificado;

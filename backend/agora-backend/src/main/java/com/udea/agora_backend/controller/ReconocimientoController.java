@@ -2,6 +2,7 @@ package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.request.ReconocimientoRequestDTO;
 import com.udea.agora_backend.dto.response.ReconocimientoResponseDTO;
+import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.ReconocimientoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -9,6 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +25,7 @@ import java.util.List;
 public class ReconocimientoController {
 
     private final ReconocimientoService reconocimientoService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todos los reconocimientos")
     @ApiResponse(responseCode = "200", description = "Lista de reconocimientos obtenida exitosamente")
@@ -55,7 +58,8 @@ public class ReconocimientoController {
             @ApiResponse(responseCode = "404", description = "Semillero, tipo de reconocimiento o entidad otorgante no encontrada")
     })
     @PostMapping
-    public ResponseEntity<ReconocimientoResponseDTO> crear(@Valid @RequestBody ReconocimientoRequestDTO request) {
+    public ResponseEntity<ReconocimientoResponseDTO> crear(@Valid @RequestBody ReconocimientoRequestDTO request, Authentication authentication) {
+        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         ReconocimientoResponseDTO creado = reconocimientoService.crear(request);
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
     }
@@ -69,7 +73,9 @@ public class ReconocimientoController {
     @PutMapping("/{id}")
     public ResponseEntity<ReconocimientoResponseDTO> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody ReconocimientoRequestDTO request) {
+            @Valid @RequestBody ReconocimientoRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarLiderReconocimiento(authentication.getName(), id);
         return ResponseEntity.ok(reconocimientoService.actualizar(id, request));
     }
 
@@ -79,7 +85,8 @@ public class ReconocimientoController {
             @ApiResponse(responseCode = "404", description = "Reconocimiento no encontrado")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarLiderReconocimiento(authentication.getName(), id);
         reconocimientoService.eliminar(id);
         return ResponseEntity.noContent().build();
     }

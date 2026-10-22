@@ -9,6 +9,7 @@ import java.time.LocalDate;
 public class PublicacionUsuarioResponseDTO {
     private Integer id;
     private String nombrePublicacion;
+    private Integer idUsuario;
     private String nombreUsuario;
     private String rolAutor;
     private LocalDate fechaAsociacion;

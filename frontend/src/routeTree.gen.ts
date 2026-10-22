@@ -16,9 +16,11 @@ import { Route as PostulacionesRouteImport } from './routes/postulaciones'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth.complete-profile'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthSelectRoleRouteImport } from './routes/auth.select-role'
+import { Route as GestionIdSemilleroRouteImport } from './routes/gestion.$idSemillero'
 import { Route as Oauth2RedirectRouteImport } from './routes/oauth2.redirect'
 import { Route as SemillerosIndexRouteImport } from './routes/semilleros.index'
 import { Route as SemillerosIdSemilleroRouteImport } from './routes/semilleros.$idSemillero'
+import { Route as SemillerosNuevoRouteImport } from './routes/semilleros.nuevo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -55,6 +57,11 @@ const AuthSelectRoleRoute = AuthSelectRoleRouteImport.update({
   path: '/auth/select-role',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GestionIdSemilleroRoute = GestionIdSemilleroRouteImport.update({
+  id: '/gestion/$idSemillero',
+  path: '/gestion/$idSemillero',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Oauth2RedirectRoute = Oauth2RedirectRouteImport.update({
   id: '/oauth2/redirect',
   path: '/oauth2/redirect',
@@ -70,6 +77,11 @@ const SemillerosIdSemilleroRoute = SemillerosIdSemilleroRouteImport.update({
   path: '/semilleros/$idSemillero',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SemillerosNuevoRoute = SemillerosNuevoRouteImport.update({
+  id: '/semilleros/nuevo',
+  path: '/semilleros/nuevo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -79,8 +91,10 @@ export interface FileRoutesByFullPath {
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/select-role': typeof AuthSelectRoleRoute
+  '/gestion/$idSemillero': typeof GestionIdSemilleroRoute
   '/oauth2/redirect': typeof Oauth2RedirectRoute
   '/semilleros/$idSemillero': typeof SemillerosIdSemilleroRoute
+  '/semilleros/nuevo': typeof SemillerosNuevoRoute
   '/semilleros/': typeof SemillerosIndexRoute
 }
 export interface FileRoutesByTo {
@@ -91,8 +105,10 @@ export interface FileRoutesByTo {
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/select-role': typeof AuthSelectRoleRoute
+  '/gestion/$idSemillero': typeof GestionIdSemilleroRoute
   '/oauth2/redirect': typeof Oauth2RedirectRoute
   '/semilleros/$idSemillero': typeof SemillerosIdSemilleroRoute
+  '/semilleros/nuevo': typeof SemillerosNuevoRoute
   '/semilleros': typeof SemillerosIndexRoute
 }
 export interface FileRoutesById {
@@ -104,8 +120,10 @@ export interface FileRoutesById {
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/select-role': typeof AuthSelectRoleRoute
+  '/gestion/$idSemillero': typeof GestionIdSemilleroRoute
   '/oauth2/redirect': typeof Oauth2RedirectRoute
   '/semilleros/$idSemillero': typeof SemillerosIdSemilleroRoute
+  '/semilleros/nuevo': typeof SemillerosNuevoRoute
   '/semilleros/': typeof SemillerosIndexRoute
 }
 export interface FileRouteTypes {
@@ -118,8 +136,10 @@ export interface FileRouteTypes {
     | '/auth/complete-profile'
     | '/auth/login'
     | '/auth/select-role'
+    | '/gestion/$idSemillero'
     | '/oauth2/redirect'
     | '/semilleros/$idSemillero'
+    | '/semilleros/nuevo'
     | '/semilleros/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -130,8 +150,10 @@ export interface FileRouteTypes {
     | '/auth/complete-profile'
     | '/auth/login'
     | '/auth/select-role'
+    | '/gestion/$idSemillero'
     | '/oauth2/redirect'
     | '/semilleros/$idSemillero'
+    | '/semilleros/nuevo'
     | '/semilleros'
   id:
     | '__root__'
@@ -142,8 +164,10 @@ export interface FileRouteTypes {
     | '/auth/complete-profile'
     | '/auth/login'
     | '/auth/select-role'
+    | '/gestion/$idSemillero'
     | '/oauth2/redirect'
     | '/semilleros/$idSemillero'
+    | '/semilleros/nuevo'
     | '/semilleros/'
   fileRoutesById: FileRoutesById
 }
@@ -155,8 +179,10 @@ export interface RootRouteChildren {
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthSelectRoleRoute: typeof AuthSelectRoleRoute
+  GestionIdSemilleroRoute: typeof GestionIdSemilleroRoute
   Oauth2RedirectRoute: typeof Oauth2RedirectRoute
   SemillerosIdSemilleroRoute: typeof SemillerosIdSemilleroRoute
+  SemillerosNuevoRoute: typeof SemillerosNuevoRoute
   SemillerosIndexRoute: typeof SemillerosIndexRoute
 }
 
@@ -211,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSelectRoleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gestion/$idSemillero': {
+      id: '/gestion/$idSemillero'
+      path: '/gestion/$idSemillero'
+      fullPath: '/gestion/$idSemillero'
+      preLoaderRoute: typeof GestionIdSemilleroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/oauth2/redirect': {
       id: '/oauth2/redirect'
       path: '/oauth2/redirect'
@@ -232,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SemillerosIdSemilleroRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/semilleros/nuevo': {
+      id: '/semilleros/nuevo'
+      path: '/semilleros/nuevo'
+      fullPath: '/semilleros/nuevo'
+      preLoaderRoute: typeof SemillerosNuevoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -243,8 +283,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthSelectRoleRoute: AuthSelectRoleRoute,
+  GestionIdSemilleroRoute: GestionIdSemilleroRoute,
   Oauth2RedirectRoute: Oauth2RedirectRoute,
   SemillerosIdSemilleroRoute: SemillerosIdSemilleroRoute,
+  SemillerosNuevoRoute: SemillerosNuevoRoute,
   SemillerosIndexRoute: SemillerosIndexRoute,
 }
 export const routeTree = rootRouteImport

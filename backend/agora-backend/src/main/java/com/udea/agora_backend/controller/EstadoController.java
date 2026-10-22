@@ -1,5 +1,6 @@
 package com.udea.agora_backend.controller;
 
+import com.udea.agora_backend.dto.response.EstadoResponseDTO;
 import com.udea.agora_backend.model.Estado;
 import com.udea.agora_backend.service.EstadoService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,13 +40,20 @@ public class EstadoController {
         return ResponseEntity.ok(estadoService.obtenerPorId(id));
     }
 
-    @Operation(summary = "Obtener un estado por su nombre exacto")
+    @Operation(summary = "Obtener los estados de una categoría (ej. 'Estado Semillero')")
+    @ApiResponse(responseCode = "200", description = "Estados de la categoría")
+    @GetMapping("/categoria")
+    public ResponseEntity<List<EstadoResponseDTO>> obtenerPorCategoria(@RequestParam String nombre) {
+        return ResponseEntity.ok(estadoService.obtenerPorCategoria(nombre));
+    }
+
+    @Operation(summary = "Obtener los estados con un nombre exacto (uno por categoría)")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Estado encontrado"),
+            @ApiResponse(responseCode = "200", description = "Estados encontrados"),
             @ApiResponse(responseCode = "404", description = "Estado no encontrado")
     })
     @GetMapping("/nombre/{nombre}")
-    public ResponseEntity<Estado> obtenerPorNombre(@PathVariable String nombre) {
+    public ResponseEntity<List<Estado>> obtenerPorNombre(@PathVariable String nombre) {
         return ResponseEntity.ok(estadoService.obtenerPorNombre(nombre));
     }
 

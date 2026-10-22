@@ -2,6 +2,7 @@ package com.udea.agora_backend.service;
 
 import com.udea.agora_backend.dto.request.ReconocimientoRequestDTO;
 import com.udea.agora_backend.dto.response.ReconocimientoResponseDTO;
+import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.EntidadOtorgante;
 import com.udea.agora_backend.model.ReconocimientoSemillero;
@@ -80,6 +81,7 @@ public class ReconocimientoService {
                 .tipoReconocimiento(tipo)
                 .titulo(request.getTitulo())
                 .descripcion(request.getDescripcion())
+                .idEntidadOtorgante(reconocimiento.getEntidadOtorgante() != null ? reconocimiento.getEntidadOtorgante().getId() : null)
                 .entidadOtorgante(entidad)
                 .fechaObtencion(request.getFechaObtencion())
                 .urlCertificado(request.getUrlCertificado())
@@ -98,9 +100,7 @@ public class ReconocimientoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("ReconocimientoSemillero", id));
 
         if (!reconocimiento.getSemillero().getId().equals(request.getIdSemillero())) {
-            Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
-                    .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
-            reconocimiento.setSemillero(semillero);
+            throw new ErrorLogicaNegocioException("Un reconocimiento no puede cambiar de semillero.");
         }
 
         if (!reconocimiento.getTipoReconocimiento().getId().equals(request.getIdTipoReconocimiento())) {
@@ -139,7 +139,9 @@ public class ReconocimientoService {
     private ReconocimientoResponseDTO mapeoAResponseDTO(ReconocimientoSemillero reconocimiento) {
         return ReconocimientoResponseDTO.builder()
                 .id(reconocimiento.getId())
+                .idSemillero(reconocimiento.getSemillero() != null ? reconocimiento.getSemillero().getId() : null)
                 .nombreSemillero(reconocimiento.getSemillero() != null ? reconocimiento.getSemillero().getNombre() : null)
+                .idTipoReconocimiento(reconocimiento.getTipoReconocimiento() != null ? reconocimiento.getTipoReconocimiento().getId() : null)
                 .tipoReconocimiento(reconocimiento.getTipoReconocimiento() != null ? reconocimiento.getTipoReconocimiento().getNombre() : null)
                 .titulo(reconocimiento.getTitulo())
                 .descripcion(reconocimiento.getDescripcion())

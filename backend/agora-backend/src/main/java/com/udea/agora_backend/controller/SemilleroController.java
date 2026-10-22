@@ -262,5 +262,32 @@ public class SemilleroController {
         autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(semilleroService.actualizarVinculacionEstudiante(idSemillero, idEstudiante, idEstado, fechaSalida));
     }
-}
 
+    @Operation(summary = "Retirar a un integrante del semillero (queda como historial con fecha de salida)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Integrante retirado"),
+            @ApiResponse(responseCode = "422", description = "El estudiante ya estaba retirado")
+    })
+    @PostMapping("/{idSemillero}/estudiantes/{idEstudiante}/retirar")
+    public ResponseEntity<EstudianteSemilleroResponseDTO> retirarEstudiante(
+            @PathVariable Integer idSemillero,
+            @PathVariable Integer idEstudiante,
+            Authentication authentication) {
+        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        return ResponseEntity.ok(semilleroService.retirarEstudiante(idSemillero, idEstudiante));
+    }
+
+    @Operation(summary = "Transferir el liderazgo estudiantil a un integrante activo")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Liderazgo transferido"),
+            @ApiResponse(responseCode = "422", description = "El estudiante no es integrante activo o ya lidera otro semillero")
+    })
+    @PostMapping("/{id}/transferir-liderazgo/{idEstudiante}")
+    public ResponseEntity<SemilleroResponseDTO> transferirLiderazgo(
+            @PathVariable Integer id,
+            @PathVariable Integer idEstudiante,
+            Authentication authentication) {
+        autorizacionService.validarLiderSemillero(authentication.getName(), id);
+        return ResponseEntity.ok(semilleroService.transferirLiderazgo(id, idEstudiante));
+    }
+}

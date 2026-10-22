@@ -9,6 +9,9 @@ import java.time.LocalDate;
 public class ProfesorSemilleroResponseDTO {
     private Integer id;
     private String nombreSemillero;
+    private Integer idProfesor;
+    private Integer idUsuario;
     private String nombreProfesor;
+    private String email;
     private LocalDate fechaAsignacion;
 }

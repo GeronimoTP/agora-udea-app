@@ -1,7 +1,10 @@
--- Migración V2: fecha de la oferta y estado de cancelación en cascada.
+-- Migración V2: fecha de la oferta de una postulación.
 -- Ejecutar en la base de datos (Supabase) ANTES de desplegar el backend que la usa:
 -- con ddl-auto=validate, Hibernate no arranca si falta la columna fecha_pre_aprobacion.
 -- Es idempotente: puede ejecutarse más de una vez.
+--
+-- La cancelación en cascada usa el estado existente "Cancelada en cascada" (categoría
+-- "Estado Postulación"); no hace falta crear estados nuevos.
 
 BEGIN;
 
@@ -10,19 +13,16 @@ BEGIN;
 ALTER TABLE tbl_postulaciones
     ADD COLUMN IF NOT EXISTS fecha_pre_aprobacion timestamptz;
 
--- Estado para las postulaciones que se liberan en cascada cuando el estudiante acepta
--- otra oferta. Se crea en la misma categoría que "Pendiente" (estados de postulación).
-INSERT INTO tbl_estados (id_categoria_estado, nombre, descripcion)
-SELECT e.id_categoria_estado,
-       'Cancelada',
-       'Postulación liberada automáticamente porque el estudiante aceptó otra oferta'
-FROM tbl_estados e
-WHERE e.nombre = 'Pendiente'
-  AND NOT EXISTS (SELECT 1 FROM tbl_estados WHERE lower(nombre) = 'cancelada');
-
 COMMIT;
 
--- Verificación: deben existir todos los estados que usa el backend.
--- SELECT nombre FROM tbl_estados
--- WHERE nombre IN ('Pendiente', 'Pre-aprobada', 'Aceptada', 'Rechazada', 'Rechazada por Estudiante',
---                  'Cancelada', 'Expirada', 'Abierta', 'Cerrada', 'Activo');
+-- Verificación: deben existir todos los estados que usa el backend (por categoría).
+-- Los nombres se repiten entre categorías, por eso el backend busca por categoría + nombre.
+-- SELECT c.nombre AS categoria, e.nombre
+-- FROM tbl_estados e JOIN tbl_categorias_estado c ON c.id = e.id_categoria_estado
+-- WHERE (c.nombre = 'Estado Postulación' AND e.nombre IN ('Pendiente', 'Pre-aprobada', 'Aceptada',
+--            'Rechazada', 'Rechazada por Estudiante', 'Cancelada en cascada', 'Expirada'))
+--    OR (c.nombre = 'Estado Convocatoria' AND e.nombre IN ('Abierta', 'Cerrada'))
+--    OR (c.nombre = 'Estado Semillero' AND e.nombre = 'Activo')
+--    OR (c.nombre = 'Estado Proyecto' AND e.nombre = 'En ejecución')
+--    OR (c.nombre = 'Estado Usuario' AND e.nombre = 'Activo');
+-- Debe devolver 12 filas.

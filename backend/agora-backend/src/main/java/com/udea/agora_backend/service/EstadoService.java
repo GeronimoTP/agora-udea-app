@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dto.response.EstadoResponseDTO;
 import com.udea.agora_backend.model.Estado;
 import com.udea.agora_backend.repository.EstadoRepository;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
@@ -36,11 +37,36 @@ public class EstadoService {
     }
 
     /**
-     * Obtiene un estado por su nombre
+     * Obtiene los estados con ese nombre (puede haber uno por categoría)
      */
-    public Estado obtenerPorNombre(String nombre) {
-        return estadoRepository.findByNombreIgnoreCase(nombre)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", nombre));
+    public List<Estado> obtenerPorNombre(String nombre) {
+        List<Estado> estados = estadoRepository.findByNombreIgnoreCase(nombre);
+        if (estados.isEmpty()) {
+            throw new RecursoNoEncontradoException("Estado", "nombre", nombre);
+        }
+        return estados;
+    }
+
+    /**
+     * Obtiene los estados de una categoría (ver CategoriasEstado)
+     */
+    public List<EstadoResponseDTO> obtenerPorCategoria(String categoria) {
+        return estadoRepository.findByCategoriaEstadoNombreIgnoreCase(categoria).stream()
+                .map(e -> EstadoResponseDTO.builder()
+                        .id(e.getId())
+                        .nombre(e.getNombre())
+                        .descripcion(e.getDescripcion())
+                        .nombreCategoria(e.getCategoriaEstado().getNombre())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Obtiene el estado de una categoría (ver CategoriasEstado) por su nombre
+     */
+    public Estado obtener(String categoria, String nombre) {
+        return estadoRepository.findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(categoria, nombre)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", categoria + " / " + nombre));
     }
 
     /**

@@ -68,17 +68,22 @@ export const semillerosService = {
       )
     ).map((publicacion) => mapearPublicacion(publicacion, idSemillero)),
 
-  crear: (payload: Partial<Semillero>) =>
-    apiRequest<Semillero>("/api/semilleros", {
-      method: "POST",
-      body: payload,
-    }),
+  // El backend asigna el estudiante líder y vincula los profesores tutores
+  crear: async (payload: NuevoSemillero) =>
+    mapearSemillero(
+      await apiRequest<SemilleroApi>("/api/semilleros", {
+        method: "POST",
+        body: payload,
+      }),
+    ),
+};
 
-  actualizar: (idSemillero: number, payload: Partial<Semillero>) =>
-    apiRequest<Semillero>(`/api/semilleros/${idSemillero}`, {
-      method: "PUT",
-      body: payload,
-    }),
+// ============================================
+// PROFESORES
+// ============================================
+
+export const profesoresService = {
+  listar: () => apiRequest<Profesor[]>("/api/profesores"),
 };
 
 // ============================================
@@ -276,10 +281,12 @@ export const analiticaService = {
 // ============================================
 
 export const catalogoService = {
-  programas: () => apiRequest("/api/catalogos/programas-academicos"),
-  facultades: () => apiRequest("/api/catalogos/facultades"),
-  areasEspecialidad: () => apiRequest("/api/areas-especialidad"),
-  lineasInvestigacion: () => apiRequest("/api/lineas-investigacion"),
+  programas: () =>
+    apiRequest<ProgramaCatalogo[]>("/api/catalogos/programas-academicos"),
+  facultades: () => apiRequest<ItemCatalogo[]>("/api/catalogos/facultades"),
+  areasEspecialidad: () => apiRequest<ItemCatalogo[]>("/api/areas-especialidad"),
+  lineasInvestigacion: () =>
+    apiRequest<ItemCatalogo[]>("/api/lineas-investigacion"),
   habilidades: () => apiRequest<Habilidad[]>("/api/habilidades"),
   estados: () => apiRequest("/api/estados"),
 };
@@ -297,6 +304,38 @@ export interface NuevaPostulacion {
 export interface Habilidad {
   id: number;
   nombre: string;
+}
+
+export interface ItemCatalogo {
+  id: number;
+  nombre: string;
+}
+
+export interface ProgramaCatalogo extends ItemCatalogo {
+  nombreFacultad: string | null;
+}
+
+// ProfesorResponseDTO del backend
+export interface Profesor {
+  id: number;
+  nombreCompleto: string;
+  email: string;
+  idPrograma: number | null;
+  nombrePrograma: string | null;
+  idFacultad: number | null;
+  nombreFacultad: string | null;
+  areasEspecialidad: string[];
+}
+
+// Cuerpo esperado por SemilleroRequestDTO en el backend
+export interface NuevoSemillero {
+  codigoIdentificador: string;
+  nombre: string;
+  descripcion: string;
+  idEstudianteLider: number;
+  idPrograma: number;
+  idLineasInvestigacion: number[];
+  idProfesores: number[];
 }
 
 export default {
@@ -519,7 +558,7 @@ function normalizarEstadoPostulacion(estado: string): EstadoPostulacion {
       return "RECHAZADA_POR_ESTUDIANTE";
     case "expirada":
       return "EXPIRADA";
-    case "cancelada":
+    case "cancelada en cascada":
       return "CANCELADA";
     default:
       return "PENDIENTE";

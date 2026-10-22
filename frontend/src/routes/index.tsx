@@ -5,6 +5,7 @@ import {
   CalendarClock,
   FileText,
   Library,
+  Plus,
   Target,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -16,7 +17,9 @@ import {
   convocatoriasAbiertasQuery,
   esAdministrador,
   misPostulacionesQuery,
+  postulacionesRecibidasQuery,
   recomendacionesQuery,
+  semillerosQuery,
 } from "@/lib/api/queries";
 import { ApiError, apiRequest } from "@/lib/api/client";
 import type { UsuarioSesion } from "@/types/api";
@@ -191,6 +194,37 @@ function TableroPage() {
         </div>
       </section>
 
+      {sesion.idSemillerosLiderados.length > 0 ? (
+        <SemillerosLiderados idSemilleros={sesion.idSemillerosLiderados} />
+      ) : (
+        esEstudianteActual && (
+          <section
+            aria-labelledby="registrar-semillero"
+            className="panel mb-10 flex flex-wrap items-center justify-between gap-4 p-5"
+          >
+            <div className="max-w-2xl">
+              <h2
+                id="registrar-semillero"
+                className="font-display text-sm font-semibold text-foreground"
+              >
+                ¿Lideras un semillero avalado por la universidad?
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Regístralo con sus profesores tutores. Quedarás como líder y
+                podrás gestionar sus convocatorias y postulaciones.
+              </p>
+            </div>
+            <Link
+              to="/semilleros/nuevo"
+              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+            >
+              <Plus className="size-4" strokeWidth={1.75} aria-hidden />
+              Registrar semillero
+            </Link>
+          </section>
+        )
+      )}
+
       <div className="grid gap-8 lg:grid-cols-3">
         <section aria-labelledby="convocatorias" className="lg:col-span-2">
           <div className="mb-3 flex items-end justify-between">
@@ -357,6 +391,101 @@ function TableroPage() {
         </div>
       </section>
     </AppShell>
+  );
+}
+
+// Vista de líder: estudiante líder o profesor tutor de uno o varios semilleros
+function SemillerosLiderados({ idSemilleros }: { idSemilleros: number[] }) {
+  const { data: semilleros = [] } = useQuery(semillerosQuery());
+  const { data: recibidas = [] } = useQuery(
+    postulacionesRecibidasQuery(idSemilleros),
+  );
+  const liderados = semilleros.filter((s) =>
+    idSemilleros.includes(s.idSemillero),
+  );
+
+  return (
+    <section aria-labelledby="mis-semilleros" className="mb-10">
+      <h2
+        id="mis-semilleros"
+        className="mb-3 font-display text-sm font-semibold text-foreground"
+      >
+        Semilleros que lideras
+      </h2>
+      <ul className="grid gap-4 lg:grid-cols-2">
+        {liderados.map((semillero) => {
+          const porRevisar = recibidas.filter(
+            (p) =>
+              p.nombreSemillero === semillero.nombre &&
+              p.estado === "PENDIENTE",
+          ).length;
+          return (
+            <li key={semillero.idSemillero} className="panel p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="label-caps">{semillero.facultad}</p>
+                  <h3 className="mt-1 font-display text-base font-semibold text-foreground">
+                    {semillero.nombre}
+                  </h3>
+                </div>
+                <EstadoBadge estado={semillero.estado} />
+              </div>
+              <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm">
+                <div>
+                  <dt className="label-caps">Integrantes</dt>
+                  <dd className="mt-1 tabular-nums text-foreground">
+                    {semillero.totalIntegrantes}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="label-caps">Proyectos</dt>
+                  <dd className="mt-1 tabular-nums text-foreground">
+                    {semillero.totalProyectos}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="label-caps">Por revisar</dt>
+                  <dd className="mt-1 tabular-nums text-foreground">
+                    {porRevisar}
+                  </dd>
+                </div>
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  to="/gestion/$idSemillero"
+                  params={{ idSemillero: String(semillero.idSemillero) }}
+                  search={{ seccion: "informacion" }}
+                  className="rounded-sm bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+                >
+                  Gestionar semillero
+                </Link>
+                <Link
+                  to="/gestion/$idSemillero"
+                  params={{ idSemillero: String(semillero.idSemillero) }}
+                  search={{ seccion: "convocatorias" }}
+                  className="rounded-sm border border-border-strong px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                >
+                  Convocatorias
+                </Link>
+                <Link
+                  to="/postulaciones"
+                  className="rounded-sm bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition-colors hover:bg-primary"
+                >
+                  Revisar postulaciones
+                </Link>
+                <Link
+                  to="/semilleros/$idSemillero"
+                  params={{ idSemillero: String(semillero.idSemillero) }}
+                  className="rounded-sm border border-border-strong px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                >
+                  Ver semillero
+                </Link>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

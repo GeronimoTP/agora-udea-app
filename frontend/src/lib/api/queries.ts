@@ -5,6 +5,7 @@ import {
   convocatoriasService,
   matchingService,
   postulacionesService,
+  profesoresService,
   semillerosService,
 } from "./services";
 import { apiRequest } from "./client";
@@ -20,6 +21,10 @@ export const esEstudiante = (sesion?: UsuarioSesion | null) =>
 
 export const esProfesor = (sesion?: UsuarioSesion | null) =>
   sesion != null && sesion.idProfesor !== null;
+
+// Liderar es una relación con el semillero, no un rol: el estudiante sigue siendo Estudiante
+export const esEstudianteLider = (sesion?: UsuarioSesion | null) =>
+  esEstudiante(sesion) && (sesion?.idSemillerosLiderados.length ?? 0) > 0;
 
 export type TipoPerfil = "ADMINISTRADOR" | "ESTUDIANTE" | "PROFESOR";
 
@@ -107,4 +112,24 @@ export const analiticaQuery = () =>
   queryOptions({
     queryKey: ["analitica", "institucional"],
     queryFn: () => analiticaService.institucional(),
+  });
+
+export const profesoresQuery = () =>
+  queryOptions({
+    queryKey: ["profesores"],
+    queryFn: () => profesoresService.listar(),
+  });
+
+export const catalogoSemilleroQuery = () =>
+  queryOptions({
+    queryKey: ["catalogo", "semillero"],
+    queryFn: async () => {
+      const [programas, facultades, lineas, areas] = await Promise.all([
+        catalogoService.programas(),
+        catalogoService.facultades(),
+        catalogoService.lineasInvestigacion(),
+        catalogoService.areasEspecialidad(),
+      ]);
+      return { programas, facultades, lineas, areas };
+    },
   });

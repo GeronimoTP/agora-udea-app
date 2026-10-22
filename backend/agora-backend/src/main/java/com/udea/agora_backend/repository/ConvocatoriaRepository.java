@@ -27,8 +27,8 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Inte
     @Query("SELECT c FROM Convocatoria c WHERE c.cuposDisponibles > 0 AND c.estado.id = ?1")
     List<Convocatoria> findActivasConCupos(Integer estadoId);
     
-    // Convocatorias que necesitan ser cerradas (fecha expirada)
-    @Query("SELECT c FROM Convocatoria c WHERE c.fechaCierre < CURRENT_DATE AND c.estado.nombre != 'Cerrada'")
+    // Convocatorias abiertas que necesitan ser cerradas (fecha expirada); las canceladas no se tocan
+    @Query("SELECT c FROM Convocatoria c WHERE c.fechaCierre < CURRENT_DATE AND c.estado.nombre = 'Abierta'")
     List<Convocatoria> findConvocatoriasExpiradas();
 
     // Bloqueo de fila para descontar cupos sin condiciones de carrera entre aceptaciones simultáneas

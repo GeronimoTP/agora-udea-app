@@ -12,7 +12,10 @@ public class SemilleroResponseDTO {
     private String codigoIdentificador;
     private String nombre;
     private String descripcion;
+    private Integer idEstudianteLider;
+    private Integer idUsuarioLider;
     private String nombreEstudianteLider;
+    private Integer idPrograma;
     private String nombrePrograma;
     private String estadoActual;
     private List<String> lineasInvestigacion;

@@ -3,11 +3,17 @@ package com.udea.agora_backend.service;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.Convocatoria;
 import com.udea.agora_backend.model.Postulacion;
+import com.udea.agora_backend.model.Proyecto;
+import com.udea.agora_backend.model.Publicacion;
+import com.udea.agora_backend.model.ReconocimientoSemillero;
 import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.ConvocatoriaRepository;
 import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.PostulacionRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
+import com.udea.agora_backend.repository.ProyectoRepository;
+import com.udea.agora_backend.repository.PublicacionRepository;
+import com.udea.agora_backend.repository.ReconocimientoSemilleroRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -21,7 +27,8 @@ import java.util.Optional;
  * - Un estudiante o profesor solo gestiona su propio perfil.
  * - Un estudiante solo crea, edita y decide sobre sus propias postulaciones.
  * - Solo un líder del semillero (estudiante líder o profesor vinculado) gestiona el
- *   semillero, sus convocatorias y evalúa sus postulaciones.
+ *   semillero, sus convocatorias, proyectos, publicaciones y reconocimientos, y evalúa
+ *   sus postulaciones.
  * Todas reciben el email del usuario autenticado (Authentication#getName()).
  */
 @Service
@@ -36,6 +43,9 @@ public class AutorizacionService {
     private final ProfesorRepository profesorRepository;
     private final PostulacionRepository postulacionRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final ProyectoRepository proyectoRepository;
+    private final PublicacionRepository publicacionRepository;
+    private final ReconocimientoSemilleroRepository reconocimientoRepository;
     private final LiderazgoSemilleroService liderazgoSemilleroService;
 
     // ==========================================
@@ -76,6 +86,24 @@ public class AutorizacionService {
         Convocatoria convocatoria = convocatoriaRepository.findById(idConvocatoria)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", idConvocatoria));
         validarLiderSemillero(email, convocatoria.getSemillero().getId());
+    }
+
+    public void validarLiderProyecto(String email, Integer idProyecto) {
+        Proyecto proyecto = proyectoRepository.findById(idProyecto)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Proyecto", idProyecto));
+        validarLiderSemillero(email, proyecto.getSemillero().getId());
+    }
+
+    public void validarLiderPublicacion(String email, Integer idPublicacion) {
+        Publicacion publicacion = publicacionRepository.findById(idPublicacion)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Publicación", idPublicacion));
+        validarLiderSemillero(email, publicacion.getProyecto().getSemillero().getId());
+    }
+
+    public void validarLiderReconocimiento(String email, Integer idReconocimiento) {
+        ReconocimientoSemillero reconocimiento = reconocimientoRepository.findById(idReconocimiento)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Reconocimiento", idReconocimiento));
+        validarLiderSemillero(email, reconocimiento.getSemillero().getId());
     }
 
     // ==========================================

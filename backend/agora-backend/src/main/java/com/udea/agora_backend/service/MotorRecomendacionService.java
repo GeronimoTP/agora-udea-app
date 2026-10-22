@@ -68,7 +68,7 @@ public class MotorRecomendacionService {
         Estudiante estudiante = estudianteRepository.findById(idEstudiante)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", idEstudiante));
 
-        Set<Integer> semillerosDelEstudiante = estudianteSemilleroRepository.findByEstudianteId(idEstudiante)
+        Set<Integer> semillerosDelEstudiante = estudianteSemilleroRepository.findByEstudianteIdAndFechaSalidaIsNull(idEstudiante)
                 .stream()
                 .map(es -> es.getSemillero().getId())
                 .collect(Collectors.toSet());

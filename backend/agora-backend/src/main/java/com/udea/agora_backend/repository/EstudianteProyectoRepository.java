@@ -10,6 +10,7 @@ import java.util.Optional;
 @Repository
 public interface EstudianteProyectoRepository extends JpaRepository<EstudianteProyecto, Integer> {
     List<EstudianteProyecto> findByProyectoId(Integer proyectoId);
+    void deleteByProyectoId(Integer proyectoId);
     List<EstudianteProyecto> findByEstudianteId(Integer estudianteId);
     Optional<EstudianteProyecto> findByProyectoIdAndEstudianteId(Integer proyectoId, Integer estudianteId);
 }

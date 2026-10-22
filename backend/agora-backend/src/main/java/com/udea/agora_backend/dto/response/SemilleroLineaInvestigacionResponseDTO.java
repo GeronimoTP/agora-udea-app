@@ -8,5 +8,6 @@ import lombok.Data;
 public class SemilleroLineaInvestigacionResponseDTO {
     private Integer id;
     private String nombreSemillero;
+    private Integer idLineaInvestigacion;
     private String nombreLineaInvestigacion;
 }

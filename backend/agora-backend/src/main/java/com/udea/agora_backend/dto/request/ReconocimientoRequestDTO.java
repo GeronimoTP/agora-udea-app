@@ -3,6 +3,7 @@ package com.udea.agora_backend.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import java.time.LocalDate;
 
@@ -29,5 +30,6 @@ public class ReconocimientoRequestDTO {
     private LocalDate fechaObtencion;
 
     @NotBlank(message = "La URL del certificado es obligatoria")
+    @Pattern(regexp = "^https?://.*", message = "La URL debe comenzar con http:// o https://")
     private String urlCertificado;
 }

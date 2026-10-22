@@ -258,7 +258,10 @@ public class ProfesorService {
                 .id(profesor.getId())
                 .nombreCompleto(profesor.getUsuario() != null ? profesor.getUsuario().getNombreCompleto() : null)
                 .email(profesor.getUsuario() != null ? profesor.getUsuario().getEmail() : null)
+                .idPrograma(profesor.getPrograma() != null ? profesor.getPrograma().getId() : null)
                 .nombrePrograma(profesor.getPrograma() != null ? profesor.getPrograma().getNombre() : null)
+                .idFacultad(profesor.getPrograma() != null ? profesor.getPrograma().getFacultad().getId() : null)
+                .nombreFacultad(profesor.getPrograma() != null ? profesor.getPrograma().getFacultad().getNombre() : null)
                 .areasEspecialidad(areas)
                 .createdAt(profesor.getCreatedAt())
                 .build();

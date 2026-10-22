@@ -4,6 +4,7 @@ import com.udea.agora_backend.dto.request.PublicacionRequestDTO;
 import com.udea.agora_backend.dto.request.PublicacionUsuarioRequestDTO;
 import com.udea.agora_backend.dto.response.PublicacionResponseDTO;
 import com.udea.agora_backend.dto.response.PublicacionUsuarioResponseDTO;
+import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.PublicacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ import java.util.List;
 public class PublicacionController {
 
     private final PublicacionService publicacionService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todas las publicaciones académicas")
     @ApiResponse(responseCode = "200", description = "Lista de publicaciones obtenida exitosamente")
@@ -64,7 +67,8 @@ public class PublicacionController {
             @ApiResponse(responseCode = "404", description = "Proyecto no encontrado")
     })
     @PostMapping
-    public ResponseEntity<PublicacionResponseDTO> crear(@Valid @RequestBody PublicacionRequestDTO request) {
+    public ResponseEntity<PublicacionResponseDTO> crear(@Valid @RequestBody PublicacionRequestDTO request, Authentication authentication) {
+        autorizacionService.validarLiderProyecto(authentication.getName(), request.getIdProyecto());
         PublicacionResponseDTO creada = publicacionService.crear(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -78,7 +82,9 @@ public class PublicacionController {
     @PutMapping("/{id}")
     public ResponseEntity<PublicacionResponseDTO> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody PublicacionRequestDTO request) {
+            @Valid @RequestBody PublicacionRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarLiderPublicacion(authentication.getName(), id);
         return ResponseEntity.ok(publicacionService.actualizar(id, request));
     }
 
@@ -88,7 +94,8 @@ public class PublicacionController {
             @ApiResponse(responseCode = "404", description = "Publicación no encontrada")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarLiderPublicacion(authentication.getName(), id);
         publicacionService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -113,7 +120,9 @@ public class PublicacionController {
     })
     @PostMapping("/autores")
     public ResponseEntity<PublicacionUsuarioResponseDTO> asociarAutor(
-            @Valid @RequestBody PublicacionUsuarioRequestDTO request) {
+            @Valid @RequestBody PublicacionUsuarioRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarLiderPublicacion(authentication.getName(), request.getIdPublicacion());
         PublicacionUsuarioResponseDTO asociacion = publicacionService.asociarAutor(request);
         return new ResponseEntity<>(asociacion, HttpStatus.CREATED);
     }
@@ -126,7 +135,9 @@ public class PublicacionController {
     @DeleteMapping("/{idPublicacion}/autores/{idUsuario}")
     public ResponseEntity<Void> removerAutor(
             @PathVariable Integer idPublicacion,
-            @PathVariable Integer idUsuario) {
+            @PathVariable Integer idUsuario,
+            Authentication authentication) {
+        autorizacionService.validarLiderPublicacion(authentication.getName(), idPublicacion);
         publicacionService.removerAutor(idPublicacion, idUsuario);
         return ResponseEntity.noContent().build();
     }

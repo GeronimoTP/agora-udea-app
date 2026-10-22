@@ -12,4 +12,9 @@ public interface EstudianteSemilleroRepository extends JpaRepository<EstudianteS
     List<EstudianteSemillero> findBySemilleroId(Integer semilleroId);
     List<EstudianteSemillero> findByEstudianteId(Integer estudianteId);
     Optional<EstudianteSemillero> findBySemilleroIdAndEstudianteId(Integer semilleroId, Integer estudianteId);
+
+    // Integrante activo = vinculación sin fecha de salida
+    List<EstudianteSemillero> findBySemilleroIdAndFechaSalidaIsNull(Integer semilleroId);
+    List<EstudianteSemillero> findByEstudianteIdAndFechaSalidaIsNull(Integer estudianteId);
+    boolean existsBySemilleroIdAndEstudianteIdAndFechaSalidaIsNull(Integer semilleroId, Integer estudianteId);
 }

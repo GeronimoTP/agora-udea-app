@@ -152,6 +152,9 @@ public class ConvocatoriaService {
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", id));
 
+        if ("Cancelada".equalsIgnoreCase(convocatoria.getEstado().getNombre())) {
+            throw new ErrorLogicaNegocioException("Una convocatoria cancelada no se puede editar.");
+        }
         // Las postulaciones pertenecen al semillero original: una convocatoria no cambia de semillero
         if (!convocatoria.getSemillero().getId().equals(request.getIdSemillero())) {
             throw new ErrorLogicaNegocioException("Una convocatoria no puede cambiar de semillero.");
@@ -209,7 +212,7 @@ public class ConvocatoriaService {
     }
 
     private Estado buscarEstado(String nombre) {
-        return estadoRepository.findByNombreIgnoreCase(nombre)
+        return estadoRepository.findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(CategoriasEstado.CONVOCATORIA, nombre)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", nombre));
     }
 

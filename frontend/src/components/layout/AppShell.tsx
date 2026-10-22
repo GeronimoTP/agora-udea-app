@@ -5,6 +5,7 @@ import {
   FileText,
   LayoutDashboard,
   Library,
+  Settings2,
   Target,
   type LucideIcon,
 } from "lucide-react";
@@ -61,6 +62,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const items = perfil
     ? navItems.filter(({ perfiles }) => perfiles.includes(perfil))
     : [];
+  // Acceso directo a la gestión cuando el usuario lidera exactamente un semillero;
+  // con varios, se entra desde "Semilleros que lideras" en el tablero
+  const liderados = sesion?.idSemillerosLiderados ?? [];
+  const gestion = liderados.length === 1 ? liderados[0] : null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,6 +106,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </Link>
               </li>
             ))}
+            {gestion !== null && (
+              <li>
+                <Link
+                  to="/gestion/$idSemillero"
+                  params={{ idSemillero: String(gestion) }}
+                  search={{ seccion: "informacion" }}
+                  className="flex items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-4 py-3 text-sm text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  activeProps={{
+                    className:
+                      "border-b-2 border-accent bg-sidebar-accent font-semibold text-sidebar-accent-foreground",
+                  }}
+                >
+                  <Settings2 className="size-4" strokeWidth={1.75} aria-hidden />
+                  Mi semillero
+                </Link>
+              </li>
+            )}
           </ul>
         </nav>
       </header>

@@ -146,7 +146,8 @@ public class PostulacionService {
         validarConvocatoriaDisponible(convocatoria, estudiante);
 
         // Obtener estado inicial (Pendiente)
-        Estado estado = estadoRepository.findByNombreIgnoreCase(ESTADO_PENDIENTE)
+        Estado estado = estadoRepository
+                .findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(CategoriasEstado.POSTULACION, ESTADO_PENDIENTE)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", ESTADO_PENDIENTE));
 
         // Crear postulación
@@ -323,8 +324,9 @@ public class PostulacionService {
         if (convocatoria.getSemillero().getEstudianteLider().getId().equals(estudiante.getId())) {
             throw new ErrorLogicaNegocioException("No puedes postularte a una convocatoria de un semillero que lideras.");
         }
-        if (estudianteSemilleroRepository.findBySemilleroIdAndEstudianteId(
-                convocatoria.getSemillero().getId(), estudiante.getId()).isPresent()) {
+        // Un integrante retirado (con fecha de salida) puede volver a postularse
+        if (estudianteSemilleroRepository.existsBySemilleroIdAndEstudianteIdAndFechaSalidaIsNull(
+                convocatoria.getSemillero().getId(), estudiante.getId())) {
             throw new ErrorLogicaNegocioException("Ya perteneces a este semillero.");
         }
     }

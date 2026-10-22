@@ -5,6 +5,7 @@ import com.udea.agora_backend.dto.request.PublicacionUsuarioRequestDTO;
 import com.udea.agora_backend.dto.response.PublicacionResponseDTO;
 import com.udea.agora_backend.dto.response.PublicacionUsuarioResponseDTO;
 import com.udea.agora_backend.exception.ConflictoException;
+import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.*;
 import com.udea.agora_backend.repository.*;
@@ -32,6 +33,8 @@ public class PublicacionService {
     private final RolAutorRepository rolAutorRepository;
     private final PublicacionUsuarioRepository publicacionUsuarioRepository;
     private final EstudianteRepository estudianteRepository;
+    private final EstudianteSemilleroRepository estudianteSemilleroRepository;
+    private final ProfesorSemilleroRepository profesorSemilleroRepository;
 
     /**
      * Obtiene todas las publicaciones
@@ -95,9 +98,13 @@ public class PublicacionService {
         Publicacion publicacion = publicacionRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Publicacion", id));
 
+        // Puede moverse a otro proyecto, pero solo dentro del mismo semillero
         if (!publicacion.getProyecto().getId().equals(request.getIdProyecto())) {
             Proyecto proyecto = proyectoRepository.findById(request.getIdProyecto())
                     .orElseThrow(() -> new RecursoNoEncontradoException("Proyecto", request.getIdProyecto()));
+            if (!proyecto.getSemillero().getId().equals(publicacion.getProyecto().getSemillero().getId())) {
+                throw new ErrorLogicaNegocioException("Una publicación no puede moverse a un proyecto de otro semillero.");
+            }
             publicacion.setProyecto(proyecto);
         }
 
@@ -115,6 +122,7 @@ public class PublicacionService {
     public void eliminar(Integer id) {
         Publicacion publicacion = publicacionRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Publicacion", id));
+        publicacionUsuarioRepository.deleteByPublicacionId(id);
         publicacionRepository.delete(publicacion);
     }
 
@@ -128,6 +136,11 @@ public class PublicacionService {
 
         Usuario usuario = usuarioRepository.findById(request.getIdUsuario())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", request.getIdUsuario()));
+
+        if (!perteneceAlSemillero(usuario, publicacion.getProyecto().getSemillero())) {
+            throw new ErrorLogicaNegocioException(
+                    "Solo el líder, los integrantes activos o los tutores del semillero pueden ser autores.");
+        }
 
         RolAutor rolAutor = rolAutorRepository.findById(request.getIdRolAutor())
                 .orElseThrow(() -> new RecursoNoEncontradoException("RolAutor", request.getIdRolAutor()));
@@ -148,6 +161,7 @@ public class PublicacionService {
         return PublicacionUsuarioResponseDTO.builder()
                 .id(guardada.getId())
                 .nombrePublicacion(publicacion.getTitulo())
+                .idUsuario(usuario.getId())
                 .nombreUsuario(usuario.getNombreCompleto())
                 .rolAutor(rolAutor.getNombre())
                 .fechaAsociacion(guardada.getFechaAsociacion())
@@ -160,6 +174,7 @@ public class PublicacionService {
                 .map(pu -> PublicacionUsuarioResponseDTO.builder()
                         .id(pu.getId())
                         .nombrePublicacion(pu.getPublicacion().getTitulo())
+                        .idUsuario(pu.getUsuario().getId())
                         .nombreUsuario(pu.getUsuario().getNombreCompleto())
                         .rolAutor(pu.getRolAutor().getNombre())
                         .fechaAsociacion(pu.getFechaAsociacion())
@@ -173,6 +188,17 @@ public class PublicacionService {
         publicacionUsuarioRepository.delete(asociacion);
     }
 
+    private boolean perteneceAlSemillero(Usuario usuario, Semillero semillero) {
+        Integer idUsuario = usuario.getId();
+        if (semillero.getEstudianteLider().getUsuario().getId().equals(idUsuario)) {
+            return true;
+        }
+        return estudianteSemilleroRepository.findBySemilleroIdAndFechaSalidaIsNull(semillero.getId()).stream()
+                        .anyMatch(es -> es.getEstudiante().getUsuario().getId().equals(idUsuario))
+                || profesorSemilleroRepository.findBySemilleroId(semillero.getId()).stream()
+                        .anyMatch(ps -> ps.getProfesor().getUsuario().getId().equals(idUsuario));
+    }
+
     /**
      * Mapea entidad Publicacion a ResponseDTO
      */
@@ -183,6 +209,7 @@ public class PublicacionService {
                 .collect(Collectors.toList());
         List<PublicacionResponseDTO.AutorDTO> autoresDetalle = autorias.stream()
                 .map(pu -> PublicacionResponseDTO.AutorDTO.builder()
+                        .idUsuario(pu.getUsuario().getId())
                         .nombre(pu.getUsuario().getNombreCompleto())
                         .rolAutoria(pu.getRolAutor().getNombre())
                         .esEstudiante(estudianteRepository.findByUsuarioId(pu.getUsuario().getId()).isPresent())
@@ -199,6 +226,7 @@ public class PublicacionService {
                 .titulo(publicacion.getTitulo())
                 .urlDocumento(publicacion.getUrlDocumento())
                 .fechaPublicacion(publicacion.getFechaPublicacion())
+                .idProyecto(publicacion.getProyecto() != null ? publicacion.getProyecto().getId() : null)
                 .nombreProyecto(nombreProyecto)
                 .nombreSemillero(nombreSemillero)
                 .autores(autores)

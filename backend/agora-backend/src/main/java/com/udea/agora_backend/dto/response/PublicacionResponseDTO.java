@@ -13,6 +13,7 @@ public class PublicacionResponseDTO {
     @Data
     @Builder
     public static class AutorDTO {
+        private Integer idUsuario;
         private String nombre;
         private String rolAutoria;
         private Boolean esEstudiante;
@@ -22,6 +23,7 @@ public class PublicacionResponseDTO {
     private String titulo;
     private String urlDocumento;
     private LocalDate fechaPublicacion;
+    private Integer idProyecto;
     private String nombreProyecto;
     private String nombreSemillero;
     private List<String> autores;

@@ -112,6 +112,30 @@ public class ConvocatoriaController {
 
     @Operation(summary = "Ejecutar manualmente el proceso de cierre de convocatorias expiradas y cancelación de ofertas vencidas")
     @ApiResponse(responseCode = "200", description = "Procesamiento de convocatorias expiradas ejecutado exitosamente")
+    @Operation(summary = "Cerrar anticipadamente una convocatoria abierta (solo líder)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Convocatoria cerrada"),
+            @ApiResponse(responseCode = "422", description = "La convocatoria no está abierta")
+    })
+    @PostMapping("/{id}/cerrar")
+    public ResponseEntity<Void> cerrar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarLiderConvocatoria(authentication.getName(), id);
+        gestorConvocatoriasService.cerrarConvocatoria(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Cancelar una convocatoria abierta (solo líder)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Convocatoria cancelada"),
+            @ApiResponse(responseCode = "422", description = "La convocatoria no está abierta")
+    })
+    @PostMapping("/{id}/cancelar")
+    public ResponseEntity<Void> cancelar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarLiderConvocatoria(authentication.getName(), id);
+        gestorConvocatoriasService.cancelarConvocatoria(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/procesar-expiradas")
     public ResponseEntity<String> procesarConvocatoriasExpiradas() {
         gestorConvocatoriasService.procesarConvocatoriasExpiradas();

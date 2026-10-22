@@ -10,5 +10,11 @@ import java.util.Optional;
 @Repository
 public interface EstadoRepository extends JpaRepository<Estado, Integer> {
     List<Estado> findByCategoriaEstadoId(Integer categoriaEstadoId);
-    Optional<Estado> findByNombreIgnoreCase(String nombre);
+
+    // Los nombres de estado no son únicos entre categorías: buscar siempre con la categoría
+    Optional<Estado> findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(String categoria, String nombre);
+
+    List<Estado> findByNombreIgnoreCase(String nombre);
+
+    List<Estado> findByCategoriaEstadoNombreIgnoreCase(String categoria);
 }

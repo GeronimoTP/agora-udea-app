@@ -4,6 +4,7 @@ import com.udea.agora_backend.dto.request.ProyectoRequestDTO;
 import com.udea.agora_backend.dto.request.VinculacionProyectoRequestDTO;
 import com.udea.agora_backend.dto.response.ProyectoResponseDTO;
 import com.udea.agora_backend.dto.response.VinculacionProyectoResponseDTO;
+import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.ProyectoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +27,7 @@ import java.util.List;
 public class ProyectoController {
 
     private final ProyectoService proyectoService;
+    private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todos los proyectos de investigación")
     @ApiResponse(responseCode = "200", description = "Lista de proyectos obtenida exitosamente")
@@ -57,7 +60,8 @@ public class ProyectoController {
             @ApiResponse(responseCode = "404", description = "Semillero no encontrado")
     })
     @PostMapping
-    public ResponseEntity<ProyectoResponseDTO> crear(@Valid @RequestBody ProyectoRequestDTO request) {
+    public ResponseEntity<ProyectoResponseDTO> crear(@Valid @RequestBody ProyectoRequestDTO request, Authentication authentication) {
+        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         ProyectoResponseDTO creado = proyectoService.crear(request);
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
     }
@@ -71,7 +75,9 @@ public class ProyectoController {
     @PutMapping("/{id}")
     public ResponseEntity<ProyectoResponseDTO> actualizar(
             @PathVariable Integer id,
-            @Valid @RequestBody ProyectoRequestDTO request) {
+            @Valid @RequestBody ProyectoRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarLiderProyecto(authentication.getName(), id);
         return ResponseEntity.ok(proyectoService.actualizar(id, request));
     }
 
@@ -83,7 +89,9 @@ public class ProyectoController {
     @PatchMapping("/{id}/estado/{idEstado}")
     public ResponseEntity<ProyectoResponseDTO> actualizarEstado(
             @PathVariable Integer id,
-            @PathVariable Integer idEstado) {
+            @PathVariable Integer idEstado,
+            Authentication authentication) {
+        autorizacionService.validarLiderProyecto(authentication.getName(), id);
         return ResponseEntity.ok(proyectoService.actualizarEstado(id, idEstado));
     }
 
@@ -93,7 +101,8 @@ public class ProyectoController {
             @ApiResponse(responseCode = "404", description = "Proyecto no encontrado")
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionService.validarLiderProyecto(authentication.getName(), id);
         proyectoService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -118,7 +127,9 @@ public class ProyectoController {
     })
     @PostMapping("/estudiantes")
     public ResponseEntity<VinculacionProyectoResponseDTO> vincularEstudiante(
-            @Valid @RequestBody VinculacionProyectoRequestDTO request) {
+            @Valid @RequestBody VinculacionProyectoRequestDTO request,
+            Authentication authentication) {
+        autorizacionService.validarLiderProyecto(authentication.getName(), request.getIdProyecto());
         VinculacionProyectoResponseDTO vinculacion = proyectoService.vincularEstudiante(request);
         return new ResponseEntity<>(vinculacion, HttpStatus.CREATED);
     }
@@ -131,7 +142,9 @@ public class ProyectoController {
     @DeleteMapping("/{idProyecto}/estudiantes/{idEstudiante}")
     public ResponseEntity<Void> desvincularEstudiante(
             @PathVariable Integer idProyecto,
-            @PathVariable Integer idEstudiante) {
+            @PathVariable Integer idEstudiante,
+            Authentication authentication) {
+        autorizacionService.validarLiderProyecto(authentication.getName(), idProyecto);
         proyectoService.desvincularEstudiante(idProyecto, idEstudiante);
         return ResponseEntity.noContent().build();
     }

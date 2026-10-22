@@ -29,7 +29,7 @@ public class AnaliticaService {
 
     private static final String ESTADO_ACEPTADA = "Aceptada";
     private static final String ESTADO_RECHAZADA_ESTUDIANTE = "Rechazada por Estudiante";
-    private static final String ESTADO_CANCELADA = "Cancelada";
+    private static final String ESTADO_CANCELADA = "Cancelada en cascada";
     private static final String ESTADO_EXPIRADA = "Expirada";
 
     private final ConvocatoriaRepository convocatoriaRepository;
