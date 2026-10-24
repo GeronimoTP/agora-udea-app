@@ -1,10 +1,11 @@
-import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   FileText,
   LayoutDashboard,
   Library,
+  LogOut,
   Settings2,
   Target,
   type LucideIcon,
@@ -58,6 +59,8 @@ const navItems: NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { data: sesion } = useQuery(usuarioSesionQuery());
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const perfil = tipoPerfil(sesion);
   const items = perfil
     ? navItems.filter(({ perfiles }) => perfiles.includes(perfil))
@@ -66,6 +69,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   // con varios, se entra desde "Semilleros que lideras" en el tablero
   const liderados = sesion?.idSemillerosLiderados ?? [];
   const gestion = liderados.length === 1 ? liderados[0] : null;
+
+  const cerrarSesion = () => {
+    window.localStorage.removeItem("access_token");
+    // Sin esto, el siguiente usuario vería en caché los datos del anterior
+    queryClient.clear();
+    navigate({ to: "/auth/login", replace: true });
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -79,13 +89,24 @@ export function AppShell({ children }: { children: ReactNode }) {
               Sistema de Gestión de Semilleros de Investigación
             </span>
           </Link>
-          <div className="text-right">
-            <p className="text-sm font-medium">
-              {sesion?.nombreCompleto ?? ""}
-            </p>
-            <p className="text-xs text-sidebar-foreground/75">
-              {sesion?.rol ?? ""}
-            </p>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm font-medium">
+                {sesion?.nombreCompleto ?? ""}
+              </p>
+              <p className="text-xs text-sidebar-foreground/75">
+                {sesion?.rol ?? ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={cerrarSesion}
+              title="Cerrar sesión"
+              className="flex items-center gap-2 rounded-sm border border-sidebar-border px-3 py-2 text-xs text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <LogOut className="size-4" strokeWidth={1.75} aria-hidden />
+              <span className="hidden sm:inline">Cerrar sesión</span>
+            </button>
           </div>
         </div>
         <nav className="border-t border-sidebar-border bg-sidebar">

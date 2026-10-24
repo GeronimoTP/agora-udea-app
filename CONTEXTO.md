@@ -74,6 +74,12 @@ En producción `spring.jpa.hibernate.ddl-auto=validate`: Hibernate valida el esq
 - En su primer login, si no existe usuario con ese `sub` pero sí un usuario `Administrador` con el mismo correo y Google marca `email_verified=true`, `OAuth2LoginSuccessHandler` reemplaza el `oauth_id` provisional por el `sub` real. Esta excepción aplica solo al rol `Administrador`; para el resto, `CustomOAuth2UserService` rechaza un correo asociado a otro `sub`.
 - Con perfil de rol `Administrador`, el login emite el JWT normal y el frontend lo envía a `/analitica`.
 
+### Login de pruebas y datos de prueba
+- `POST /api/auth/login-pruebas` (`{correo, clave}`) emite un JWT normal sin pasar por Google. `GET` del mismo endpoint devuelve `{habilitado}` y el formulario "Acceso de pruebas" de `/auth/login` solo aparece si está habilitado. Ambos son públicos en `SecurityConfig`.
+- `LoginPruebasService` lo habilita solo si `APP_LOGIN_PRUEBAS_CLAVE` (`app.login-pruebas.clave`) tiene al menos 16 caracteres; sin ella responde 404. Compara la clave en tiempo constante y solo acepta usuarios con `oauth_id` que empieza por `seed-`: una cuenta real creada por Google nunca entra por aquí. Vaciar la variable antes de la entrega.
+- `backend/agora-backend/db/seed/datos_prueba.sql` carga 1 administrador, 5 profesores, 5 estudiantes líderes, 25 estudiantes y 5 semilleros (`SEED-01`…`SEED-05`) con convocatorias, postulaciones en todos los estados, vinculaciones, proyectos, publicaciones y reconocimientos coherentes con las reglas, para que la analítica tenga datos. Los correos son `@seed.agora.test` (`admin@`, `profesor1..5@`, `lider1..5@`, `estudiante01..25@`). Usa los catálogos existentes por nombre (sin IDs fijos), las fechas son relativas al día de ejecución y no se puede ejecutar dos veces. `limpiar_datos_prueba.sql` lo deshace.
+- El menú (`AppShell`) tiene "Cerrar sesión": borra `access_token` y limpia la caché de React Query para que el siguiente usuario no vea datos del anterior.
+
 ### Experiencia por rol (frontend)
 La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `frontend/src/lib/api/queries.ts` (`ADMINISTRADOR`, `ESTUDIANTE`, `PROFESOR`):
 
@@ -246,6 +252,7 @@ Variables esperadas por el backend:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
 - `JWT_SECRET`
 - `APP_FRONTEND_URL`
+- `APP_LOGIN_PRUEBAS_CLAVE` (opcional, >= 16 caracteres): habilita el login de pruebas.
 
 Frontend:
 - `VITE_API_URL` debe apuntar al backend desplegado.

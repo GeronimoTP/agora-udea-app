@@ -37,7 +37,10 @@ public class SecurityConfig {
                     "/swagger-ui/**", 
                     "/swagger-ui.html"
                 ).permitAll()
-                
+
+                // Login de pruebas: público, pero apagado si no hay clave (ver LoginPruebasService)
+                .requestMatchers("/api/auth/login-pruebas").permitAll()
+
                 .requestMatchers("/api/analitica/**").hasRole("Administrador")
 
                 // Sesión propia: disponible para cualquier usuario autenticado

@@ -1,8 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type FormEvent } from "react";
+import { ArrowRight, FlaskConical, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { API_BASE_URL } from "@/lib/api/client";
+import { Input } from "@/components/ui/input";
+import { API_BASE_URL, ApiError, apiRequest } from "@/lib/api/client";
 
 export const Route = createFileRoute("/auth/login")({
   component: LoginPage,
@@ -52,8 +54,93 @@ function LoginPage() {
         <p className="mt-5 text-center text-xs leading-5 text-[#68756c]">
           Usa un correo institucional terminado en @udea.edu.co.
         </p>
+
+        <LoginPruebas />
       </section>
     </main>
+  );
+}
+
+// Solo aparece si el backend tiene APP_LOGIN_PRUEBAS_CLAVE configurada (usuarios precargados "seed-")
+function LoginPruebas() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [correo, setCorreo] = useState("");
+  const [clave, setClave] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: estado } = useQuery({
+    queryKey: ["login-pruebas"],
+    queryFn: () =>
+      apiRequest<{ habilitado: boolean }>("/api/auth/login-pruebas"),
+    retry: false,
+  });
+
+  if (!estado?.habilitado) return null;
+
+  const enviar = async (event: FormEvent) => {
+    event.preventDefault();
+    setEnviando(true);
+    setError(null);
+    try {
+      const { accessToken } = await apiRequest<{ accessToken: string }>(
+        "/api/auth/login-pruebas",
+        { method: "POST", body: { correo, clave } },
+      );
+      window.localStorage.setItem("access_token", accessToken);
+      // Evita mostrar datos en caché del usuario anterior
+      queryClient.clear();
+      navigate({ to: "/", replace: true });
+    } catch (err) {
+      setError(
+        err instanceof ApiError && err.status === 401
+          ? "Correo o clave de pruebas inválidos."
+          : err instanceof ApiError && err.status === 422
+            ? "El usuario de prueba no tiene perfil."
+            : "No se pudo iniciar sesión de prueba.",
+      );
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <form
+      onSubmit={enviar}
+      className="mt-8 space-y-3 border-t border-dashed border-[#d8ded8] pt-6"
+    >
+      <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#a06d12]">
+        <FlaskConical className="h-4 w-4" aria-hidden />
+        Acceso de pruebas
+      </p>
+      <Input
+        type="email"
+        placeholder="Correo del usuario de prueba"
+        autoComplete="username"
+        value={correo}
+        onChange={(e) => setCorreo(e.target.value)}
+        required
+      />
+      <Input
+        type="password"
+        placeholder="Clave de pruebas"
+        autoComplete="current-password"
+        value={clave}
+        onChange={(e) => setClave(e.target.value)}
+        required
+      />
+      {error && <p className="text-xs text-red-700">{error}</p>}
+      <Button
+        type="submit"
+        variant="outline"
+        className="h-10 w-full rounded-sm"
+        disabled={enviando}
+      >
+        {enviando && <Loader2 className="h-4 w-4 animate-spin" />}
+        Entrar como usuario de prueba
+      </Button>
+    </form>
   );
 }
 
