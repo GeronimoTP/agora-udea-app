@@ -86,6 +86,11 @@ export const profesoresService = {
   listar: () => apiRequest<Profesor[]>("/api/profesores"),
 };
 
+// Candidatos a estudiante líder cuando un profesor registra un semillero
+export const estudiantesResumenService = {
+  listar: () => apiRequest<EstudianteResumen[]>("/api/estudiantes"),
+};
+
 // ============================================
 // CONVOCATORIAS
 // ============================================
@@ -327,6 +332,16 @@ export interface Profesor {
   areasEspecialidad: string[];
 }
 
+// EstudianteResponseDTO del backend
+export interface EstudianteResumen {
+  id: number;
+  nombreCompleto: string;
+  email: string;
+  nombrePrograma: string | null;
+  semestre: number;
+  lineasInvestigacion: string[];
+}
+
 // Cuerpo esperado por SemilleroRequestDTO en el backend
 export interface NuevoSemillero {
   codigoIdentificador: string;
@@ -379,6 +394,7 @@ interface PostulacionApi {
 
 interface SemilleroApi {
   id: number;
+  idEstudianteLider: number;
   nombre: string;
   descripcion: string;
   estadoActual: string | null;
@@ -416,6 +432,7 @@ interface PublicacionApi {
 function mapearSemillero(semillero: SemilleroApi): Semillero {
   return {
     idSemillero: semillero.id,
+    idEstudianteLider: semillero.idEstudianteLider,
     nombre: semillero.nombre,
     descripcion: semillero.descripcion,
     lineasInvestigacion: semillero.lineasInvestigacion ?? [],

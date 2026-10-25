@@ -136,6 +136,7 @@ function TableroPage() {
   });
 
   const esEstudianteActual = sesion.idEstudiante !== null;
+  const esProfesorActual = sesion.idProfesor !== null;
   const ofertasPendientes = postulaciones.filter(
     (p) => p.estado === "PRE_APROBADA",
   );
@@ -195,7 +196,12 @@ function TableroPage() {
       </section>
 
       {sesion.idSemillerosLiderados.length > 0 ? (
-        <SemillerosLiderados idSemilleros={sesion.idSemillerosLiderados} />
+        <SemillerosLiderados
+          idSemilleros={sesion.idSemillerosLiderados}
+          puedeRegistrar={esProfesorActual}
+        />
+      ) : esProfesorActual ? (
+        <ProfesorSinSemilleros />
       ) : (
         esEstudianteActual && (
           <section
@@ -394,8 +400,56 @@ function TableroPage() {
   );
 }
 
+// Profesor aún sin semilleros: explica cómo vincularse en lugar de dejar el tablero vacío
+function ProfesorSinSemilleros() {
+  return (
+    <section
+      aria-labelledby="sin-semilleros"
+      className="panel mb-10 flex flex-wrap items-center justify-between gap-4 p-5"
+    >
+      <div className="max-w-2xl">
+        <h2
+          id="sin-semilleros"
+          className="font-display text-sm font-semibold text-foreground"
+        >
+          Aún no estás vinculado a ningún semillero
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Puedes registrar un semillero y elegir a su estudiante líder. También
+          puede incluirte como tutor un estudiante al registrar su semillero, o
+          el líder de un semillero existente desde su gestión. Cuando quedes
+          vinculado, aquí verás sus postulaciones, convocatorias y proyectos.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          to="/semilleros"
+          className="inline-flex items-center gap-1.5 rounded-sm border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+        >
+          <Library className="size-4" strokeWidth={1.75} aria-hidden />
+          Explorar semilleros
+        </Link>
+        <Link
+          to="/semilleros/nuevo"
+          className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
+        >
+          <Plus className="size-4" strokeWidth={1.75} aria-hidden />
+          Registrar semillero
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 // Vista de líder: estudiante líder o profesor tutor de uno o varios semilleros
-function SemillerosLiderados({ idSemilleros }: { idSemilleros: number[] }) {
+function SemillerosLiderados({
+  idSemilleros,
+  puedeRegistrar,
+}: {
+  idSemilleros: number[];
+  // Un profesor puede registrar más semilleros; un estudiante lidera solo uno
+  puedeRegistrar: boolean;
+}) {
   const { data: semilleros = [] } = useQuery(semillerosQuery());
   const { data: recibidas = [] } = useQuery(
     postulacionesRecibidasQuery(idSemilleros),
@@ -406,12 +460,23 @@ function SemillerosLiderados({ idSemilleros }: { idSemilleros: number[] }) {
 
   return (
     <section aria-labelledby="mis-semilleros" className="mb-10">
-      <h2
-        id="mis-semilleros"
-        className="mb-3 font-display text-sm font-semibold text-foreground"
-      >
-        Semilleros que lideras
-      </h2>
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <h2
+          id="mis-semilleros"
+          className="font-display text-sm font-semibold text-foreground"
+        >
+          Semilleros que lideras
+        </h2>
+        {puedeRegistrar && (
+          <Link
+            to="/semilleros/nuevo"
+            className="inline-flex items-center gap-1 text-sm font-medium text-accent underline-offset-4 hover:underline"
+          >
+            <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
+            Registrar otro semillero
+          </Link>
+        )}
+      </div>
       <ul className="grid gap-4 lg:grid-cols-2">
         {liderados.map((semillero) => {
           const porRevisar = recibidas.filter(

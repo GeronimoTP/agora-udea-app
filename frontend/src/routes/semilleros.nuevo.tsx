@@ -4,22 +4,34 @@ import {
   redirect,
   useNavigate,
 } from "@tanstack/react-router";
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { ArrowLeft, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
+import { BuscadorEstudiantes } from "@/components/gestion/BuscadorEstudiantes";
 import { BuscadorProfesores } from "@/components/gestion/BuscadorProfesores";
 import { claseCampo } from "@/components/gestion/comunes";
 import {
   catalogoSemilleroQuery,
   esEstudiante,
   esEstudianteLider,
+  esProfesor,
+  estudiantesQuery,
   profesoresQuery,
+  semillerosQuery,
 } from "@/lib/api/queries";
 import { ApiError, apiRequest } from "@/lib/api/client";
-import { semillerosService, type Profesor } from "@/lib/api/services";
+import {
+  semillerosService,
+  type EstudianteResumen,
+  type Profesor,
+} from "@/lib/api/services";
 import type { UsuarioSesion } from "@/types/api";
 
 export const Route = createFileRoute("/semilleros/nuevo")({
@@ -47,31 +59,57 @@ export const Route = createFileRoute("/semilleros/nuevo")({
       }
       throw error;
     }
-    // Solo un estudiante que todavía no lidera un semillero puede registrar uno
-    if (!esEstudiante(sesion) || esEstudianteLider(sesion)) {
+    // Un estudiante registra un solo semillero, del que queda como líder; un profesor puede
+    // registrar varios, elige al estudiante líder y queda como tutor
+    const profesor = esProfesor(sesion);
+    if (!profesor && (!esEstudiante(sesion) || esEstudianteLider(sesion))) {
       throw redirect({ to: "/" });
     }
-    const [estudiante] = await Promise.all([
-      apiRequest<{ nombrePrograma: string | null }>(
-        `/api/estudiantes/${sesion.idEstudiante}`,
-      ),
-      context.queryClient.ensureQueryData(catalogoSemilleroQuery()),
+    const [profesores] = await Promise.all([
       context.queryClient.ensureQueryData(profesoresQuery()),
+      context.queryClient.ensureQueryData(catalogoSemilleroQuery()),
+      ...(profesor
+        ? [
+            context.queryClient.ensureQueryData(estudiantesQuery()),
+            context.queryClient.ensureQueryData(semillerosQuery()),
+          ]
+        : []),
     ]);
-    return { sesion, programaEstudiante: estudiante.nombrePrograma };
+    const programaInicial = profesor
+      ? (profesores.find((p) => p.id === sesion.idProfesor)?.nombrePrograma ??
+        null)
+      : (
+          await apiRequest<{ nombrePrograma: string | null }>(
+            `/api/estudiantes/${sesion.idEstudiante}`,
+          )
+        ).nombrePrograma;
+    return { sesion, programaInicial };
   },
   component: NuevoSemilleroPage,
 });
 
 function NuevoSemilleroPage() {
-  const { sesion, programaEstudiante } = Route.useLoaderData();
+  const { sesion, programaInicial: nombreProgramaInicial } =
+    Route.useLoaderData();
   const { data: catalogo } = useSuspenseQuery(catalogoSemilleroQuery());
   const { data: profesores } = useSuspenseQuery(profesoresQuery());
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  const esProfesorActual = sesion.idProfesor !== null;
+  const { data: estudiantes = [] } = useQuery({
+    ...estudiantesQuery(),
+    enabled: esProfesorActual,
+  });
+  const { data: semilleros = [] } = useQuery({
+    ...semillerosQuery(),
+    enabled: esProfesorActual,
+  });
+  // Un estudiante lidera como máximo un semillero: no se ofrecen los que ya lideran uno
+  const lideresOcupados = semilleros.map((s) => s.idEstudianteLider);
+
   const programaInicial = catalogo.programas.find(
-    (p) => p.nombre === programaEstudiante,
+    (p) => p.nombre === nombreProgramaInicial,
   );
 
   const [codigo, setCodigo] = useState("");
@@ -82,6 +120,7 @@ function NuevoSemilleroPage() {
   );
   const [lineas, setLineas] = useState<number[]>([]);
   const [seleccionados, setSeleccionados] = useState<Profesor[]>([]);
+  const [lider, setLider] = useState<EstudianteResumen | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const estaSeleccionado = (id: number) =>
@@ -109,24 +148,30 @@ function NuevoSemilleroPage() {
     descripcion.trim().length > 0 &&
     idPrograma !== "" &&
     lineas.length > 0 &&
-    seleccionados.length > 0;
+    // El profesor que registra queda como tutor; el estudiante debe elegir al menos uno
+    (esProfesorActual ? lider !== null : seleccionados.length > 0);
 
   const enviar = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!formularioCompleto || sesion.idEstudiante === null) return;
+    const idEstudianteLider = esProfesorActual
+      ? lider?.id
+      : sesion.idEstudiante;
+    if (!formularioCompleto || idEstudianteLider == null) return;
     setEnviando(true);
     try {
       const creado = await semillerosService.crear({
         codigoIdentificador: codigo,
         nombre: nombre.trim(),
         descripcion: descripcion.trim(),
-        idEstudianteLider: sesion.idEstudiante,
+        idEstudianteLider,
         idPrograma: Number(idPrograma),
         idLineasInvestigacion: lineas,
         idProfesores: seleccionados.map((p) => p.id),
       });
       toast.success(
-        `Semillero "${creado.nombre}" registrado. Ahora eres su líder.`,
+        esProfesorActual
+          ? `Semillero "${creado.nombre}" registrado. Quedaste como profesor tutor.`
+          : `Semillero "${creado.nombre}" registrado. Ahora eres su líder.`,
       );
       // La sesión cambia: ahora tiene un semillero liderado y el tablero pasa a vista de líder
       await Promise.all([
@@ -158,7 +203,11 @@ function NuevoSemilleroPage() {
       <PageHeader
         eyebrow="Registro de semillero"
         title="Registrar un semillero de investigación"
-        description="Registra el semillero con los datos de su aval institucional. Al crearlo quedas como estudiante líder y el semillero debe tener al menos un profesor tutor registrado en Agora UdeA."
+        description={
+          esProfesorActual
+            ? "Registra el semillero con los datos de su aval institucional. Quedas vinculado como profesor tutor y eliges al estudiante líder, que debe estar registrado en Agora UdeA y no liderar otro semillero."
+            : "Registra el semillero con los datos de su aval institucional. Al crearlo quedas como estudiante líder y el semillero debe tener al menos un profesor tutor registrado en Agora UdeA."
+        }
       />
 
       <form onSubmit={enviar} className="grid gap-8 lg:grid-cols-2">
@@ -278,8 +327,10 @@ function NuevoSemilleroPage() {
               Profesores tutores
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Selecciona uno o varios profesores. Si un profesor no aparece,
-              debe registrarse primero en Agora UdeA.
+              {esProfesorActual
+                ? "Quedas vinculado como tutor. Si quieres, agrega otros profesores."
+                : "Selecciona uno o varios profesores."}{" "}
+              Si un profesor no aparece, debe registrarse primero en Agora UdeA.
             </p>
           </div>
 
@@ -289,7 +340,9 @@ function NuevoSemilleroPage() {
             </p>
             {seleccionados.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Aún no has seleccionado profesores.
+                {esProfesorActual
+                  ? "Solo tú como tutor."
+                  : "Aún no has seleccionado profesores."}
               </p>
             ) : (
               <ul className="flex flex-wrap gap-2">
@@ -315,6 +368,7 @@ function NuevoSemilleroPage() {
             programas={catalogo.programas}
             facultades={catalogo.facultades}
             areas={catalogo.areas}
+            excluir={sesion.idProfesor !== null ? [sesion.idProfesor] : []}
             renderAccion={(p) => (
               <input
                 type="checkbox"
@@ -327,6 +381,54 @@ function NuevoSemilleroPage() {
           />
         </section>
 
+        {esProfesorActual && (
+          <section
+            aria-labelledby="lider"
+            className="panel space-y-4 p-6 lg:col-span-2"
+          >
+            <div>
+              <h2
+                id="lider"
+                className="font-display text-sm font-semibold text-foreground"
+              >
+                Estudiante líder
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El estudiante líder gestiona el semillero contigo. No aparecen
+                los estudiantes que ya lideran otro semillero; si un estudiante
+                no aparece, debe registrarse primero en Agora UdeA.
+              </p>
+            </div>
+            <p className="text-sm">
+              <span className="label-caps mr-2">Seleccionado</span>
+              {lider ? (
+                <span className="text-foreground">
+                  {lider.nombreCompleto} · {lider.email}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Aún no has elegido al estudiante líder.
+                </span>
+              )}
+            </p>
+            <BuscadorEstudiantes
+              estudiantes={estudiantes}
+              programas={catalogo.programas}
+              excluir={lideresOcupados}
+              renderAccion={(e) => (
+                <input
+                  type="radio"
+                  name="lider"
+                  checked={lider?.id === e.id}
+                  onChange={() => setLider(e)}
+                  aria-label={`Elegir a ${e.nombreCompleto} como líder`}
+                  className="mt-1 size-4"
+                />
+              )}
+            />
+          </section>
+        )}
+
         <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
           <button
             type="submit"
@@ -337,8 +439,9 @@ function NuevoSemilleroPage() {
           </button>
           {!formularioCompleto && (
             <p className="text-xs text-muted-foreground">
-              Completa los datos, al menos una línea de investigación y un
-              profesor tutor.
+              {esProfesorActual
+                ? "Completa los datos, al menos una línea de investigación y elige al estudiante líder."
+                : "Completa los datos, al menos una línea de investigación y un profesor tutor."}
             </p>
           )}
         </div>

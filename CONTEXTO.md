@@ -85,8 +85,8 @@ La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `
 
 | Ruta | Estudiante | Profesor | Administrador |
 | --- | --- | --- | --- |
-| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes y recomendaciones. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" | Redirige a `/analitica` |
-| `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Redirige a `/` | Redirige a `/` |
+| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes y recomendaciones. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
+| `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Registrar semillero eligiendo al estudiante líder; queda como tutor (puede registrar varios) | Redirige a `/` |
 | `/gestion/$idSemillero` | Gestión completa si es el estudiante líder | Gestión completa si es tutor | Redirige a `/` |
 | `/semilleros` y detalle | Ver y postularse | Solo ver | Solo ver |
 | `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas": pre-aprobar/rechazar | Redirige a `/` |
@@ -152,6 +152,8 @@ El token se transporta actualmente como query parameter del callback y se guarda
   - Un estudiante lidera como máximo un semillero (también al cambiar de líder en la edición).
   - Nace en estado `Activo` (categoría "Estado Semillero"), sin aprobación del administrador por ahora.
   - El formulario `/semilleros/nuevo` lista los profesores de `GET /api/profesores` y los filtra en el cliente por nombre/correo, facultad, programa y área de especialidad.
+  - Si lo usa un profesor, además elige al estudiante líder entre `GET /api/estudiantes` (sin los que ya lideran un semillero, según `idEstudianteLider` de `/api/semilleros`); los demás tutores son opcionales porque él queda vinculado. Un profesor puede tutorar varios semilleros sin límite.
+  - La vinculación de un profesor como tutor no requiere su aceptación: lo incluye quien registra el semillero o un líder desde la gestión.
 - Un semillero debe conservar al menos un profesor tutor y al menos una línea de investigación.
 - El líder estudiantil solo cambia con `POST /api/semilleros/{id}/transferir-liderazgo/{idEstudiante}`: el nuevo líder debe ser integrante activo y no liderar otro semillero; el saliente queda como integrante activo. El `PUT` del semillero rechaza un cambio de líder.
 - No se puede pausar ni inactivar un semillero con convocatorias `Abierta`.

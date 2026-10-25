@@ -67,6 +67,7 @@ export interface Profesor {
 
 export interface Semillero {
   idSemillero: number;
+  idEstudianteLider: number;
   nombre: string;
   descripcion: string;
   lineasInvestigacion: string[];

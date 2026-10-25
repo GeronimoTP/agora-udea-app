@@ -3,6 +3,7 @@ import {
   analiticaService,
   catalogoService,
   convocatoriasService,
+  estudiantesResumenService,
   matchingService,
   postulacionesService,
   profesoresService,
@@ -118,6 +119,12 @@ export const profesoresQuery = () =>
   queryOptions({
     queryKey: ["profesores"],
     queryFn: () => profesoresService.listar(),
+  });
+
+export const estudiantesQuery = () =>
+  queryOptions({
+    queryKey: ["estudiantes"],
+    queryFn: () => estudiantesResumenService.listar(),
   });
 
 export const catalogoSemilleroQuery = () =>
