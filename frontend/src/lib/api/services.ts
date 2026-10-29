@@ -374,6 +374,7 @@ export interface EstudianteResumen {
   nombrePrograma: string | null;
   semestre: number;
   lineasInvestigacion: string[];
+  habilidades: string[];
 }
 
 // Cuerpos de EstudianteRequestDTO y ProfesorRequestDTO (idUsuario es obligatorio y no cambia)
@@ -382,6 +383,7 @@ export interface PerfilEstudiante {
   idPrograma: number;
   semestre: number;
   idLineasInvestigacion: number[];
+  idHabilidades: number[];
 }
 
 export interface PerfilProfesor {

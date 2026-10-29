@@ -53,6 +53,7 @@ DELETE FROM tbl_semillero_x_linea_investigacion WHERE id_semillero IN (SELECT id
 DELETE FROM tbl_semilleros WHERE id IN (SELECT id FROM seed_semilleros);
 
 DELETE FROM tbl_estudiante_x_linea_investigacion WHERE id_estudiante IN (SELECT id FROM seed_estudiantes);
+DELETE FROM tbl_estudiante_x_habilidad WHERE id_estudiante IN (SELECT id FROM seed_estudiantes);
 DELETE FROM tbl_profesor_x_area_especialidad WHERE id_profesor IN (SELECT id FROM seed_profesores);
 DELETE FROM tbl_estudiantes WHERE id IN (SELECT id FROM seed_estudiantes);
 DELETE FROM tbl_profesores WHERE id IN (SELECT id FROM seed_profesores);

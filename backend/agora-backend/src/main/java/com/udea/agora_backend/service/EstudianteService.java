@@ -32,6 +32,8 @@ public class EstudianteService {
         private final LineaInvestigacionRepository lineaInvestigacionRepository;
         private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
         private final RolRepository rolRepository;
+        private final HabilidadRepository habilidadRepository;
+        private final EstudianteHabilidadRepository estudianteHabilidadRepository;
 
         /**
          * Obtiene todos los estudiantes
@@ -104,6 +106,8 @@ public class EstudianteService {
                                 estudianteLineaRepository.save(eli);
                         }
                 }
+
+                reemplazarHabilidades(estudianteGuardado, request.getIdHabilidades());
 
                 return mapeoAResponseDTO(estudianteGuardado);
         }
@@ -262,6 +266,10 @@ public class EstudianteService {
                         }
                 }
 
+                if (request.getIdHabilidades() != null) {
+                        reemplazarHabilidades(estudianteActualizado, request.getIdHabilidades());
+                }
+
                 return mapeoAResponseDTO(estudianteActualizado);
         }
 
@@ -271,6 +279,9 @@ public class EstudianteService {
         public void eliminar(Integer id) {
                 Estudiante estudiante = estudianteRepository.findById(id)
                                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
+                // Las asociaciones del perfil no tienen borrado en cascada en la BD
+                estudianteHabilidadRepository.deleteAll(estudianteHabilidadRepository.findByEstudianteId(id));
+                estudianteLineaRepository.deleteAll(estudianteLineaRepository.findByEstudianteId(id));
                 estudianteRepository.delete(estudiante);
         }
 
@@ -330,6 +341,29 @@ public class EstudianteService {
         /**
          * Mapea entidad Estudiante a ResponseDTO
          */
+        /**
+         * Reemplaza las habilidades del perfil del estudiante. Las usa el motor de
+         * recomendación desde el registro, sin esperar a la primera postulación.
+         */
+        public void reemplazarHabilidades(Estudiante estudiante, List<Integer> idHabilidades) {
+                // Solo se borran las que salen y se insertan las nuevas: Hibernate ejecuta los
+                // INSERT antes que los DELETE y la tabla tiene UNIQUE (estudiante, habilidad)
+                java.util.Set<Integer> nuevas = new java.util.LinkedHashSet<>(idHabilidades);
+                List<EstudianteHabilidad> actuales = estudianteHabilidadRepository.findByEstudianteId(estudiante.getId());
+                estudianteHabilidadRepository.deleteAll(actuales.stream()
+                                .filter(eh -> !nuevas.contains(eh.getHabilidad().getId()))
+                                .toList());
+                actuales.forEach(eh -> nuevas.remove(eh.getHabilidad().getId()));
+                for (Integer idHabilidad : nuevas) {
+                        Habilidad habilidad = habilidadRepository.findById(idHabilidad)
+                                        .orElseThrow(() -> new RecursoNoEncontradoException("Habilidad", idHabilidad));
+                        estudianteHabilidadRepository.save(EstudianteHabilidad.builder()
+                                        .estudiante(estudiante)
+                                        .habilidad(habilidad)
+                                        .build());
+                }
+        }
+
         private EstudianteResponseDTO mapeoAResponseDTO(Estudiante estudiante) {
                 List<String> lineas = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
                                 .stream()
@@ -346,6 +380,10 @@ public class EstudianteService {
                                                 : null)
                                 .semestre(estudiante.getSemestre())
                                 .lineasInvestigacion(lineas)
+                                .habilidades(estudianteHabilidadRepository.findByEstudianteId(estudiante.getId())
+                                                .stream()
+                                                .map(eh -> eh.getHabilidad().getNombre())
+                                                .collect(Collectors.toList()))
                                 .createdAt(estudiante.getCreatedAt())
                                 .build();
         }

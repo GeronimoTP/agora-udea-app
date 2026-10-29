@@ -11,6 +11,7 @@ import {
 } from "@/components/gestion/comunes";
 import {
   catalogoSemilleroQuery,
+  habilidadesQuery,
   esAdministrador,
   perfilEstudianteQuery,
   perfilProfesorQuery,
@@ -51,6 +52,7 @@ export const Route = createFileRoute("/perfil")({
     const { queryClient } = context;
     await Promise.all([
       queryClient.ensureQueryData(catalogoSemilleroQuery()),
+      queryClient.ensureQueryData(habilidadesQuery()),
       sesion.idEstudiante !== null
         ? queryClient.ensureQueryData(
             perfilEstudianteQuery(sesion.idEstudiante),
@@ -98,6 +100,7 @@ function PerfilEstudiante({
   idUsuario: number;
 }) {
   const { data: catalogo } = useSuspenseQuery(catalogoSemilleroQuery());
+  const { data: catalogoHabilidades } = useSuspenseQuery(habilidadesQuery());
   const { data: perfil } = useSuspenseQuery(
     perfilEstudianteQuery(idEstudiante),
   );
@@ -114,9 +117,16 @@ function PerfilEstudiante({
   const [lineas, setLineas] = useState<number[]>(
     idsPorNombre(catalogo.lineas, perfil.lineasInvestigacion),
   );
+  const [habilidades, setHabilidades] = useState<number[]>(
+    idsPorNombre(catalogoHabilidades, perfil.habilidades),
+  );
   const [guardando, setGuardando] = useState(false);
 
-  const valido = idPrograma !== "" && semestre >= 1 && lineas.length > 0;
+  const valido =
+    idPrograma !== "" &&
+    semestre >= 1 &&
+    lineas.length > 0 &&
+    habilidades.length > 0;
 
   async function guardar(event: React.FormEvent) {
     event.preventDefault();
@@ -128,9 +138,10 @@ function PerfilEstudiante({
         idPrograma: Number(idPrograma),
         semestre,
         idLineasInvestigacion: lineas,
+        idHabilidades: habilidades,
       });
       toast.success("Perfil actualizado.");
-      // Las recomendaciones dependen del programa y las líneas del estudiante
+      // Las recomendaciones dependen del programa, las líneas y las habilidades del estudiante
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["perfil"] }),
         queryClient.invalidateQueries({ queryKey: ["matching"] }),
@@ -189,6 +200,18 @@ function PerfilEstudiante({
         seleccionadas={lineas}
         onCambio={setLineas}
       />
+      <SelectorChips
+        leyenda="Habilidades (mínimo 1)"
+        opciones={catalogoHabilidades}
+        seleccionadas={habilidades}
+        onCambio={setHabilidades}
+      />
+      {perfil.habilidades.length === 0 && (
+        <p className="text-xs text-warning">
+          Aún no registras habilidades: elígelas para que las recomendaciones de
+          semilleros reflejen tu perfil.
+        </p>
+      )}
       <button
         type="submit"
         disabled={!valido || guardando}

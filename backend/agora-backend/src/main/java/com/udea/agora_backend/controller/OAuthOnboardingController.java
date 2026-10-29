@@ -37,7 +37,7 @@ public class OAuthOnboardingController {
         Integer id = onboardingService.completarEstudiante(
             jwtService.extraerCorreo(token), jwtService.extraerOAuthId(token),
             jwtService.extraerNombreCompleto(token), request.getIdPrograma(), request.getSemestre(),
-                request.getIdLineasInvestigacion());
+                request.getIdLineasInvestigacion(), request.getIdHabilidades());
         return ResponseEntity.ok(Map.of(
             "idEstudiante", id,
             "rol", "Estudiante",
@@ -80,6 +80,9 @@ public class OAuthOnboardingController {
 
         @NotEmpty
         private List<Integer> idLineasInvestigacion;
+
+        @NotEmpty
+        private List<Integer> idHabilidades;
     }
 
     @Data

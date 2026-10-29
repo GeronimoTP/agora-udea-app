@@ -26,11 +26,12 @@ public class OAuthOnboardingService {
     private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
     private final AreaEspecialidadRepository areaEspecialidadRepository;
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
+    private final EstudianteService estudianteService;
 
     @Transactional
         public Integer completarEstudiante(String email, String oauthId, String nombreCompleto,
                                                                            Integer idPrograma, Integer semestre,
-                                       List<Integer> idLineasInvestigacion) {
+                                       List<Integer> idLineasInvestigacion, List<Integer> idHabilidades) {
                 OauthProveedor proveedor = obtenerProveedorGoogle();
         Rol rol = obtenerRol("Estudiante");
         ProgramaAcademico programa = programaRepository.findById(idPrograma)
@@ -52,6 +53,9 @@ public class OAuthOnboardingService {
                     .lineaInvestigacion(linea)
                     .build());
         }
+
+        // Habilidades del perfil: el motor de recomendación las usa desde el primer día
+        estudianteService.reemplazarHabilidades(estudiante, idHabilidades);
 
         return estudiante.getId();
     }

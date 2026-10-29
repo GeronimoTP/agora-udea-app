@@ -15,4 +15,5 @@ public class EstudianteResponseDTO {
     private Integer semestre;
     private ZonedDateTime createdAt;
     private List<String> lineasInvestigacion;
+    private List<String> habilidades;
 }

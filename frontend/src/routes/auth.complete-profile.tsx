@@ -32,6 +32,11 @@ interface AreaEspecialidad {
   nombre: string;
 }
 
+interface Habilidad {
+  id: number;
+  nombre: string;
+}
+
 function CompleteProfilePage() {
   const navigate = useNavigate();
   const { role } = Route.useSearch();
@@ -40,6 +45,7 @@ function CompleteProfilePage() {
   const [programas, setProgramas] = useState<Programa[]>([]);
   const [lineas, setLineas] = useState<LineaInvestigacion[]>([]);
   const [areas, setAreas] = useState<AreaEspecialidad[]>([]);
+  const [habilidades, setHabilidades] = useState<Habilidad[]>([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Form state
@@ -47,6 +53,7 @@ function CompleteProfilePage() {
     idPrograma: "",
     semestre: "1", // Solo estudiantes
     lineasInvestigacion: [] as number[], // Solo estudiantes
+    habilidades: [] as number[], // Solo estudiantes
     areasEspecialidad: [] as number[], // Solo profesores
   });
 
@@ -64,15 +71,18 @@ function CompleteProfilePage() {
 
     const loadData = async () => {
       try {
-        const [programasRes, lineasRes, areasRes] = await Promise.all([
-          apiRequest<Programa[]>("/api/catalogos/programas-academicos"),
-          apiRequest<LineaInvestigacion[]>("/api/lineas-investigacion"),
-          apiRequest<AreaEspecialidad[]>("/api/areas-especialidad"),
-        ]);
+        const [programasRes, lineasRes, areasRes, habilidadesRes] =
+          await Promise.all([
+            apiRequest<Programa[]>("/api/catalogos/programas-academicos"),
+            apiRequest<LineaInvestigacion[]>("/api/lineas-investigacion"),
+            apiRequest<AreaEspecialidad[]>("/api/areas-especialidad"),
+            apiRequest<Habilidad[]>("/api/habilidades"),
+          ]);
 
         setProgramas(programasRes || []);
         setLineas(lineasRes || []);
         setAreas(areasRes || []);
+        setHabilidades(habilidadesRes || []);
       } catch (err) {
         setError(
           err instanceof Error
@@ -106,6 +116,8 @@ function CompleteProfilePage() {
               idPrograma: parseInt(formData.idPrograma),
               semestre: parseInt(formData.semestre),
               idLineasInvestigacion: formData.lineasInvestigacion,
+              // El motor de recomendación las usa desde el primer día
+              idHabilidades: formData.habilidades,
             },
           },
         );
@@ -256,6 +268,43 @@ function CompleteProfilePage() {
               </div>
             )}
 
+            {/* Estudiante: Habilidades */}
+            {isEstudiante && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Habilidades (selecciona mínimo 1)
+                </label>
+                <p className="mt-1 text-xs text-gray-500">
+                  Se usan para recomendarte semilleros afines desde hoy.
+                </p>
+                <div className="mt-2 max-h-48 overflow-y-auto space-y-2 rounded-md border border-gray-300 p-3">
+                  {habilidades.map((habilidad) => (
+                    <label key={habilidad.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.habilidades.includes(habilidad.id)}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            habilidades: e.target.checked
+                              ? [...formData.habilidades, habilidad.id]
+                              : formData.habilidades.filter(
+                                  (id) => id !== habilidad.id,
+                                ),
+                          })
+                        }
+                        disabled={loading}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">
+                        {habilidad.nombre}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Profesor: Áreas de Especialidad */}
             {!isEstudiante && (
               <div>
@@ -312,7 +361,9 @@ function CompleteProfilePage() {
               disabled={
                 loading ||
                 !formData.idPrograma ||
-                (isEstudiante && formData.lineasInvestigacion.length === 0) ||
+                (isEstudiante &&
+                  (formData.lineasInvestigacion.length === 0 ||
+                    formData.habilidades.length === 0)) ||
                 (!isEstudiante && formData.areasEspecialidad.length === 0)
               }
             >

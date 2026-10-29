@@ -21,4 +21,7 @@ public class EstudianteRequestDTO {
 
     @NotEmpty(message = "Debe seleccionar al menos una línea de investigación de interés")
     private List<Integer> idLineasInvestigacion;
+
+    @NotEmpty(message = "Debe seleccionar al menos una habilidad")
+    private List<Integer> idHabilidades;
 }

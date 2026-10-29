@@ -5,7 +5,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -14,6 +14,7 @@ import { DataTable, type Columna } from "@/components/common/DataTable";
 import {
   convocatoriasSemilleroQuery,
   habilidadesQuery,
+  perfilEstudianteQuery,
   usuarioSesionQuery,
   proyectosQuery,
   publicacionesQuery,
@@ -196,6 +197,22 @@ function ConvocatoriaItem({
     ...habilidadesQuery(),
     enabled: abierto,
   });
+  const { data: perfil } = useQuery({
+    ...perfilEstudianteQuery(idEstudiante ?? 0),
+    enabled: abierto && idEstudiante !== null,
+  });
+  const [prellenado, setPrellenado] = useState(false);
+
+  // Al abrir el formulario se proponen las habilidades del perfil; el estudiante las ajusta
+  useEffect(() => {
+    if (!abierto || prellenado || !perfil || habilidades.length === 0) return;
+    setIdHabilidades(
+      habilidades
+        .filter((h) => perfil.habilidades.includes(h.nombre))
+        .map((h) => h.id),
+    );
+    setPrellenado(true);
+  }, [abierto, prellenado, perfil, habilidades]);
   const abiertaConCupos =
     convocatoria.estado === "ABIERTA" && convocatoria.cuposDisponibles > 0;
   const disponible =

@@ -27,13 +27,13 @@ Las entidades JPA se mapean a tablas `tbl_*`. Los grupos principales son:
 - Personas y oferta académica: `tbl_estudiantes`, `tbl_profesores`, `tbl_facultades`, `tbl_programas_academicos`.
 - Investigación: `tbl_semilleros`, `tbl_proyectos`, `tbl_convocatorias`, `tbl_postulaciones`, `tbl_publicaciones`, `tbl_reconocimientos_semilleros`.
 - Catálogos: `tbl_estados`, `tbl_categorias_estado`, `tbl_areas_especialidad`, `tbl_linea_investigacion`, `tbl_habilidades`, `tbl_entidades_otorgantes`, `tbl_tipos_reconocimiento`.
-- Asociaciones: líneas de investigación de estudiantes/semilleros, profesores de semilleros, estudiantes de semilleros/proyectos, habilidades de postulaciones y usuarios de publicaciones.
+- Asociaciones: líneas de investigación y habilidades de estudiantes (`tbl_estudiante_x_habilidad`, migración V3), líneas de semilleros, profesores de semilleros, estudiantes de semilleros/proyectos, habilidades de postulaciones y usuarios de publicaciones.
 - Roles de autoría: `tbl_roles_autor`. Roles de estudiante en proyectos: `tbl_roles_estudiante_proyecto`. Estos no son roles de cuenta.
 
 Relaciones centrales:
 - `Usuario` tiene proveedor OAuth, `oauthId` único, rol y fecha de creación obligatorios.
 - `Estudiante` y `Profesor` tienen relación uno-a-uno con `Usuario`; ambos requieren programa académico.
-- Un estudiante requiere semestre. Las asociaciones a líneas de investigación se guardan en su tabla de vínculo.
+- Un estudiante requiere semestre. Sus líneas de investigación y sus habilidades se guardan en tablas de vínculo (`tbl_estudiante_x_habilidad` tiene UNIQUE (estudiante, habilidad)).
 - Un semillero tiene estudiante líder, programa y estado; sus líneas y profesores se asocian mediante tablas de vínculo.
 - Una convocatoria pertenece a un semillero y tiene cupos totales/disponibles, fechas y estado.
 - Una postulación enlaza estudiante y convocatoria; sus habilidades son asociaciones aparte.
@@ -62,13 +62,15 @@ Las reglas de cada servicio están en "Recomendaciones", "Postulaciones y cupos"
 - No existe rol de cuenta `Pendiente`. No lo agregues ni lo uses para controlar onboarding.
 - El estado `Pendiente` sí existe como estado de una postulación; no confundirlo con un rol de usuario.
 - El login con Google **no** guarda nada en `tbl_usuarios`. La cuenta se persiste solo cuando se completa el formulario de perfil, junto con su rol definitivo.
-- Un estudiante debe elegir programa, semestre >= 1 y al menos una línea de investigación.
+- Un estudiante debe elegir programa, semestre >= 1, al menos una línea de investigación y al menos una habilidad (de `/api/habilidades`).
 - Un profesor debe elegir programa y al menos un área de especialidad.
 - El usuario, el perfil y sus asociaciones se crean en una transacción.
 - Un usuario solo puede tener un perfil de estudiante o uno de profesor. Evita crear filas duplicadas.
 - El backend obtiene email, `oauthId` y nombre de claims firmados del token temporal; no confía en esos datos recibidos en el body.
-- Página `/perfil` (estudiante y profesor; el administrador no tiene perfil): el estudiante cambia programa, semestre (>= 1) y líneas de investigación (mínimo 1); el profesor, programa y áreas de especialidad (mínimo 1). Usa `PUT /api/estudiantes/{id}` y `PUT /api/profesores/{id}`, que reemplazan líneas/áreas en una sola transacción, y solo el dueño del perfil puede editarlo. El correo y el nombre vienen de Google y no se editan. Se llega desde "Mi perfil" en el encabezado (`AppShell`).
-- El semestre debe actualizarse cada periodo: el motor de recomendación y la priorización de candidatos usan el programa y las líneas del perfil.
+- Página `/perfil` (estudiante y profesor; el administrador no tiene perfil): el estudiante cambia programa, semestre (>= 1), líneas de investigación (mínimo 1) y habilidades (mínimo 1); el profesor, programa y áreas de especialidad (mínimo 1). Usa `PUT /api/estudiantes/{id}` y `PUT /api/profesores/{id}`, que reemplazan líneas/áreas en una sola transacción, y solo el dueño del perfil puede editarlo. El correo y el nombre vienen de Google y no se editan. Se llega desde "Mi perfil" en el encabezado (`AppShell`).
+- El semestre debe actualizarse cada periodo: el motor de recomendación y la priorización de candidatos usan el programa, las líneas y las habilidades del perfil.
+- Habilidades del perfil (`EstudianteService.reemplazarHabilidades`): se reemplazan como diferencia (borra las que salen, inserta las nuevas) porque Hibernate ejecuta los INSERT antes que los DELETE y la tabla tiene UNIQUE. Al eliminar un estudiante se borran antes sus habilidades y líneas.
+- El formulario de postulación propone las habilidades del perfil; el estudiante puede ajustarlas para cada convocatoria (las de la postulación son las que usa la priorización de candidatos).
 
 ### Cuenta administrador
 - El administrador no tiene perfil de estudiante ni de profesor y no pasa por onboarding.
@@ -159,7 +161,8 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
    - `GET /api/catalogos/programas-academicos`
    - `GET /api/lineas-investigacion`
    - `GET /api/areas-especialidad`
-   - `POST /api/auth/onboarding/estudiante`
+   - `GET /api/habilidades`
+   - `POST /api/auth/onboarding/estudiante` (con `idHabilidades`, mínimo 1)
    - `POST /api/auth/onboarding/profesor`
 
 `jwt.expiration` es el tiempo de vida del JWT normal (producción: 86.400.000 ms). El token de onboarding tiene `jwt.onboarding.expiration`, con 1.800.000 ms por defecto. `JwtService` espera `JWT_SECRET` en Base64 y firma HS256.
@@ -229,6 +232,7 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
 
 La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para el líder ("Tiene otra oferta vigente en …", "Ya integra N semillero(s)", "Sin historial de ofertas anteriores"). El frontend la combina con las postulaciones recibidas: muestra posición, puntaje, desglose y observaciones, y ordena primero las que siguen en proceso. El puntaje orienta la decisión; el líder sigue decidiendo.
 
+- La tabla `tbl_estudiante_x_habilidad` se crea con `backend/agora-backend/db/migrations/V3__habilidades_estudiante.sql` (idempotente), que además copia al perfil las habilidades que cada estudiante ya declaró en sus postulaciones. Debe ejecutarse antes de desplegar el backend que la usa (con `validate`, Hibernate no arranca sin la tabla) y antes de `datos_prueba.sql`.
 - La columna `tbl_postulaciones.fecha_pre_aprobacion` se crea con `backend/agora-backend/db/migrations/V2__oferta_y_cancelacion_postulaciones.sql`, que debe ejecutarse antes de desplegar.
 
 ### Recomendaciones
@@ -238,7 +242,7 @@ La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para 
 - Disponibilidad: 20%. Tiene una convocatoria `Abierta`, ya iniciada, no vencida y con cupos.
 - Proximidad temática y de programa: 15%. Internamente es 75% coincidencia de líneas de investigación y 25% mismo programa académico.
 
-El puntaje se limita a 0–100. Las habilidades del estudiante salen de sus postulaciones previas, porque el perfil no las guarda. Si el semillero no tiene historial de postulaciones, o el estudiante aún no se ha postulado a nada, el factor de habilidades usa un valor neutral de 50 en lugar de penalizar.
+El puntaje se limita a 0–100. Las habilidades del estudiante son las de su perfil (declaradas desde el registro) unidas a las que declaró en sus postulaciones, así que la compatibilidad funciona desde que se crea el perfil. El factor compara contra las habilidades de las postulaciones aceptadas del semillero (o, si no hay, de todas las recibidas). Usa un valor neutral de 50 solo si el semillero no tiene historial de postulaciones o si el estudiante no tiene ninguna habilidad (perfiles anteriores a la migración V3 sin postulaciones).
 
 ### Analítica
 - Tiempo de respuesta del estudiante: va de `fechaPreAprobacion` a `fechaDecisionEstudiante`, solo en postulaciones `Aceptada` o `Rechazada por Estudiante`.

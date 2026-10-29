@@ -37,6 +37,7 @@ public class MotorRecomendacionService {
     private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
+    private final EstudianteHabilidadRepository estudianteHabilidadRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
     private final ProfesorSemilleroRepository profesorSemilleroRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
@@ -132,7 +133,8 @@ public class MotorRecomendacionService {
 /**
      * FACTOR 1 (40%): Calcula coincidencia de habilidades
      * Compara habilidades del estudiante con las que históricamente ha requerido el semillero.
-     * El perfil del estudiante no guarda habilidades: se toman de sus postulaciones previas.
+     * Las del estudiante son las de su perfil (tbl_estudiante_x_habilidad, desde el registro)
+     * más las que declaró en sus postulaciones.
      *
      * Estrategia de tres niveles (ajuste de código, sin cambios de esquema):
      *   1. Señal fuerte: habilidades de postulaciones ya ACEPTADAS al semillero (lo que
@@ -162,13 +164,16 @@ public class MotorRecomendacionService {
                 return FACTOR_NEUTRAL_SIN_HISTORIAL; // Semillero sin ninguna postulación aún: sin señal
             }
 
+            // Habilidades declaradas en el perfil (desde el registro) más las que ha declarado
+            // en sus postulaciones
             Set<Integer> idsEstudiante = new HashSet<>(
-                    postulacionHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId())
+                    estudianteHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId())
             );
+            idsEstudiante.addAll(postulacionHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId()));
 
             if (idsEstudiante.isEmpty()) {
-                // El estudiante aún no se ha postulado a nada: no hay con qué comparar, así que
-                // no se le penaliza (mismo criterio que un semillero sin historial)
+                // Perfil anterior a la migración V3 sin habilidades ni postulaciones: no hay con
+                // qué comparar, así que no se le penaliza (mismo criterio que un semillero sin historial)
                 return FACTOR_NEUTRAL_SIN_HISTORIAL;
             }
 

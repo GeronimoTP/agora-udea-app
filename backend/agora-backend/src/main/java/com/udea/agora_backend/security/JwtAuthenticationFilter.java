@@ -102,6 +102,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return "GET".equals(method) && (
                 "/api/catalogos/programas-academicos".equals(path)
                         || "/api/lineas-investigacion".equals(path)
+                        || "/api/habilidades".equals(path)
                         || "/api/areas-especialidad".equals(path));
     }
 }

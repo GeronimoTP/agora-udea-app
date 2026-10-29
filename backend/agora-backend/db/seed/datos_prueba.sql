@@ -14,6 +14,7 @@
 --   roles de autor y roles de proyecto si esas tablas están vacías.
 -- * No toca los usuarios reales. Se deshace con limpiar_datos_prueba.sql.
 --
+-- Requiere la migración V3 (tbl_estudiante_x_habilidad).
 -- Ejecutar completo en el editor SQL de Supabase. Si algo falla, no queda nada a medias.
 -- =====================================================================
 
@@ -463,6 +464,24 @@ BEGIN
                 hoy - 90, 'https://example.org/certificados/seed-' || s || '-2.pdf', (hoy - 89)::timestamptz);
         END IF;
     END LOOP;
+
+    -- Habilidades del perfil (migración V3): dos propias por estudiante más las que
+    -- declaró en sus postulaciones
+    FOR i IN 1..25 LOOP
+        INSERT INTO tbl_estudiante_x_habilidad (id_estudiante, id_habilidad)
+        SELECT est[i], h FROM (SELECT DISTINCT unnest(ARRAY[
+            pg_temp.elegir(habilidades, i), pg_temp.elegir(habilidades, i + 4)]) AS h) t;
+    END LOOP;
+    FOR i IN 1..5 LOOP
+        INSERT INTO tbl_estudiante_x_habilidad (id_estudiante, id_habilidad)
+        SELECT lider[i], h FROM (SELECT DISTINCT unnest(ARRAY[
+            pg_temp.elegir(habilidades, i + 1), pg_temp.elegir(habilidades, i + 5)]) AS h) t;
+    END LOOP;
+    INSERT INTO tbl_estudiante_x_habilidad (id_estudiante, id_habilidad)
+    SELECT DISTINCT p.id_estudiante, ph.id_habilidad
+    FROM tbl_postulacion_x_habilidad ph JOIN tbl_postulaciones p ON p.id = ph.id_postulacion
+    WHERE p.id_estudiante = ANY (est)
+    ON CONFLICT (id_estudiante, id_habilidad) DO NOTHING;
 
     RAISE NOTICE 'Datos de prueba creados: 1 admin, 5 profesores, 30 estudiantes, 5 semilleros';
 END;
