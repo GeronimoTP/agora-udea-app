@@ -35,6 +35,12 @@ import java.util.Optional;
  * 4. Gestión Dinámica de Cupos: decrementa cupos solo con la confirmación del estudiante
  * 5. Cierre Automático: marca la convocatoria como cerrada cuando los cupos llegan a 0
  * 6. Expiración de Ofertas: cron diario que cierra convocatorias vencidas y expira lo que quedó sin resolver
+ * 7. Límite de ofertas: las ofertas vigentes de una convocatoria nunca superan sus cupos disponibles,
+ *    así toda oferta que el estudiante acepte a tiempo tiene cupo garantizado
+ * 8. Plazo de respuesta: una oferta vence a los N días de emitida (PlazoOfertasService); un cron
+ *    la marca como Expirada y libera el espacio para otro aspirante
+ *
+ * La priorización de candidatos (PriorizacionCandidatosService) completa este servicio.
  */
 @Service
 @RequiredArgsConstructor
@@ -58,6 +64,7 @@ public class GestorConvocatoriasService {
     private final ConvocatoriaRepository convocatoriaRepository;
     private final EstadoRepository estadoRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
+    private final PlazoOfertasService plazoOfertasService;
 
     /**
      * PASO 1 DEL FLUJO DOBLE VÍA (acción del líder): pre-aprueba una postulación.
@@ -71,10 +78,27 @@ public class GestorConvocatoriasService {
 
         validarEstadoPostulacion(postulacion, ESTADO_PENDIENTE,
                 "Solo se pueden pre-aprobar postulaciones en estado 'Pendiente'.");
-        validarConvocatoriaVigente(postulacion.getConvocatoria());
+
+        // Bloquea la convocatoria: dos pre-aprobaciones simultáneas no pueden exceder los cupos
+        Convocatoria convocatoria = convocatoriaRepository
+                .findByIdParaActualizarCupos(postulacion.getConvocatoria().getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", postulacion.getConvocatoria().getId()));
+        validarConvocatoriaVigente(convocatoria);
+
+        ZonedDateTime ahora = ZonedDateTime.now();
+        // Las ofertas vencidas que el cron aún no procesó no deben ocupar espacio
+        expirarOfertasVencidas(postulacionRepository.findOfertasVencidasDeConvocatoria(
+                convocatoria.getId(), ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora)));
+        long ofertasVigentes = postulacionRepository.contarOfertasVigentes(
+                convocatoria.getId(), ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora));
+        if (ofertasVigentes >= convocatoria.getCuposDisponibles()) {
+            throw new ErrorLogicaNegocioException(
+                    "Ya hay " + ofertasVigentes + " oferta(s) vigente(s) para " + convocatoria.getCuposDisponibles()
+                            + " cupo(s) disponible(s). Espera a que los estudiantes respondan o a que venza su plazo.");
+        }
 
         postulacion.setEstado(buscarEstado(CategoriasEstado.POSTULACION, ESTADO_PRE_APROBADA));
-        postulacion.setFechaPreAprobacion(ZonedDateTime.now());
+        postulacion.setFechaPreAprobacion(ahora);
         postulacionRepository.save(postulacion);
 
         log.info("Postulación {} pre-aprobada. Esperando confirmación del estudiante.", idPostulacion);
@@ -110,6 +134,7 @@ public class GestorConvocatoriasService {
 
         validarEstadoPostulacion(postulacion, ESTADO_PRE_APROBADA,
                 "Solo se puede rechazar una oferta en estado 'Pre-aprobada'.");
+        validarOfertaEnPlazo(postulacion);
 
         postulacion.setEstado(buscarEstado(CategoriasEstado.POSTULACION, ESTADO_RECHAZADA_ESTUDIANTE));
         postulacion.setFechaDecisionEstudiante(ZonedDateTime.now());
@@ -131,6 +156,7 @@ public class GestorConvocatoriasService {
 
         validarEstadoPostulacion(postulacion, ESTADO_PRE_APROBADA,
                 "Solo se puede confirmar la aceptación de una oferta en estado 'Pre-aprobada'.");
+        validarOfertaEnPlazo(postulacion);
 
         // Bloquea la fila de la convocatoria hasta el commit: dos aceptaciones simultáneas
         // no pueden leer el mismo cupo disponible
@@ -271,6 +297,42 @@ public class GestorConvocatoriasService {
         return sinResolver.size();
     }
 
+    // Una oferta vencida no se puede aceptar ni declinar; el cron la marcará como Expirada
+    private void validarOfertaEnPlazo(Postulacion postulacion) {
+        if (plazoOfertasService.estaVencida(postulacion, ZonedDateTime.now())) {
+            throw new ErrorLogicaNegocioException(
+                    "El plazo de " + plazoOfertasService.getDiasRespuesta()
+                            + " día(s) para responder esta oferta ya venció.");
+        }
+    }
+
+    private int expirarOfertasVencidas(List<Postulacion> vencidas) {
+        if (vencidas.isEmpty()) {
+            return 0;
+        }
+        Estado estadoExpirada = buscarEstado(CategoriasEstado.POSTULACION, ESTADO_EXPIRADA);
+        for (Postulacion oferta : vencidas) {
+            log.info("Oferta {} expirada: el estudiante no respondió en el plazo", oferta.getId());
+            oferta.setEstado(estadoExpirada);
+            postulacionRepository.save(oferta);
+        }
+        return vencidas.size();
+    }
+
+    /**
+     * Cron (por defecto cada hora, app.scheduler.ofertas-vencidas.cron) que expira las ofertas
+     * cuyo plazo de respuesta venció. Conserva fechaPreAprobacion: cuenta como oferta expirada
+     * en la analítica de retención.
+     */
+    @Scheduled(cron = "${app.scheduler.ofertas-vencidas.cron:0 0 * * * *}")
+    public void procesarOfertasVencidas() {
+        int expiradas = expirarOfertasVencidas(postulacionRepository.findOfertasVencidas(
+                ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ZonedDateTime.now())));
+        if (expiradas > 0) {
+            log.info("{} ofertas expiradas por vencimiento del plazo de respuesta", expiradas);
+        }
+    }
+
     private void validarConvocatoriaVigente(Convocatoria convocatoria) {
         if (!ESTADO_ABIERTA.equalsIgnoreCase(convocatoria.getEstado().getNombre())
                 || convocatoria.getFechaCierre().isBefore(LocalDate.now())) {
@@ -289,6 +351,7 @@ public class GestorConvocatoriasService {
     @Scheduled(cron = "${app.scheduler.convocatorias-expiradas.cron:0 0 1 * * *}")
     public void procesarConvocatoriasExpiradas() {
         log.info("=== INICIANDO PROCESAMIENTO DE CONVOCATORIAS EXPIRADAS ===");
+        procesarOfertasVencidas();
 
         List<Convocatoria> convocatoriasExpiradas = convocatoriaRepository.findConvocatoriasExpiradas();
 

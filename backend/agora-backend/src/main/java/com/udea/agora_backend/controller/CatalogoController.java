@@ -14,7 +14,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/catalogos")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Catálogos Generales", description = "Endpoints de consulta de diccionarios normalizados y catálogos institucionales")
 public class CatalogoController {
 

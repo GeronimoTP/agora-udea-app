@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnaliticaRouteImport } from './routes/analitica'
 import { Route as CompatibilidadRouteImport } from './routes/compatibilidad'
+import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as PostulacionesRouteImport } from './routes/postulaciones'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth.complete-profile'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
@@ -35,6 +36,11 @@ const AnaliticaRoute = AnaliticaRouteImport.update({
 const CompatibilidadRoute = CompatibilidadRouteImport.update({
   id: '/compatibilidad',
   path: '/compatibilidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerfilRoute = PerfilRouteImport.update({
+  id: '/perfil',
+  path: '/perfil',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PostulacionesRoute = PostulacionesRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
+  '/perfil': typeof PerfilRoute
   '/postulaciones': typeof PostulacionesRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
+  '/perfil': typeof PerfilRoute
   '/postulaciones': typeof PostulacionesRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
+  '/perfil': typeof PerfilRoute
   '/postulaciones': typeof PostulacionesRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analitica'
     | '/compatibilidad'
+    | '/perfil'
     | '/postulaciones'
     | '/auth/complete-profile'
     | '/auth/login'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analitica'
     | '/compatibilidad'
+    | '/perfil'
     | '/postulaciones'
     | '/auth/complete-profile'
     | '/auth/login'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/analitica'
     | '/compatibilidad'
+    | '/perfil'
     | '/postulaciones'
     | '/auth/complete-profile'
     | '/auth/login'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnaliticaRoute: typeof AnaliticaRoute
   CompatibilidadRoute: typeof CompatibilidadRoute
+  PerfilRoute: typeof PerfilRoute
   PostulacionesRoute: typeof PostulacionesRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
   AuthLoginRoute: typeof AuthLoginRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/compatibilidad'
       fullPath: '/compatibilidad'
       preLoaderRoute: typeof CompatibilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/perfil': {
+      id: '/perfil'
+      path: '/perfil'
+      fullPath: '/perfil'
+      preLoaderRoute: typeof PerfilRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/postulaciones': {
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnaliticaRoute: AnaliticaRoute,
   CompatibilidadRoute: CompatibilidadRoute,
+  PerfilRoute: PerfilRoute,
   PostulacionesRoute: PostulacionesRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
   AuthLoginRoute: AuthLoginRoute,

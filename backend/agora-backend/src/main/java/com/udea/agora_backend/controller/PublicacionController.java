@@ -22,7 +22,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/publicaciones")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Publicaciones", description = "Endpoints para el registro de producción científica, papers, enlaces DOI y autorías normalizadas")
 public class PublicacionController {
 

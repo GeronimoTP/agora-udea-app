@@ -22,7 +22,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/proyectos")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Proyectos", description = "Endpoints para la gestión de proyectos de investigación y vinculación de estudiantes con roles específicos")
 public class ProyectoController {
 

@@ -20,7 +20,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/reconocimientos")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Reconocimientos", description = "Endpoints para el registro y trazabilidad de premios, galardones y logros de semilleros")
 public class ReconocimientoController {
 

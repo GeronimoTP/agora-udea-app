@@ -21,7 +21,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/convocatorias")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Convocatorias", description = "Endpoints para la gestión del ciclo de vida de las convocatorias de semilleros")
 public class ConvocatoriaController {
 

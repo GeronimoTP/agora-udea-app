@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/recomendaciones")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Motor de Recomendación", description = "Servicio 1: Algoritmo de afinidad inteligente y matchmaking de semilleros (0% - 100%)")
 public class RecomendacionController {
 

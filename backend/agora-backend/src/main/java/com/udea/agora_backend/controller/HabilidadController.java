@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/habilidades")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Habilidades", description = "Endpoints para el catálogo vivo de habilidades técnicas y blandas (Folksonomía)")
 public class HabilidadController {
 

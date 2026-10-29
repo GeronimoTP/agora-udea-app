@@ -10,6 +10,7 @@ import type {
   EstadoPostulacion,
   FiltroSemilleros,
   Postulacion,
+  PriorizacionCandidato,
   Proyecto,
   Publicacion,
   ResultadoMatch,
@@ -183,6 +184,39 @@ export const postulacionesService = {
         method: "POST",
       },
     ),
+
+  // Servicio 2: candidatos en proceso ordenados por puntaje dentro de cada convocatoria
+  priorizacion: async (idSemillero: number) =>
+    (
+      await apiRequest<CandidatoPriorizadoApi[]>(
+        `/api/postulaciones/semillero/${idSemillero}/priorizacion`,
+      )
+    ).map(mapearPriorizacion),
+};
+
+// ============================================
+// PERFIL (estudiante y profesor)
+// ============================================
+
+export const perfilService = {
+  estudiante: (idEstudiante: number) =>
+    apiRequest<EstudianteResumen>(`/api/estudiantes/${idEstudiante}`),
+
+  // PUT reemplaza programa, semestre y líneas en una sola transacción
+  actualizarEstudiante: (idEstudiante: number, payload: PerfilEstudiante) =>
+    apiRequest<EstudianteResumen>(`/api/estudiantes/${idEstudiante}`, {
+      method: "PUT",
+      body: payload,
+    }),
+
+  profesor: (idProfesor: number) =>
+    apiRequest<Profesor>(`/api/profesores/${idProfesor}`),
+
+  actualizarProfesor: (idProfesor: number, payload: PerfilProfesor) =>
+    apiRequest<Profesor>(`/api/profesores/${idProfesor}`, {
+      method: "PUT",
+      body: payload,
+    }),
 };
 
 // ============================================
@@ -342,6 +376,20 @@ export interface EstudianteResumen {
   lineasInvestigacion: string[];
 }
 
+// Cuerpos de EstudianteRequestDTO y ProfesorRequestDTO (idUsuario es obligatorio y no cambia)
+export interface PerfilEstudiante {
+  idUsuario: number;
+  idPrograma: number;
+  semestre: number;
+  idLineasInvestigacion: number[];
+}
+
+export interface PerfilProfesor {
+  idUsuario: number;
+  idPrograma: number;
+  idAreasEspecialidad: number[];
+}
+
 // Cuerpo esperado por SemilleroRequestDTO en el backend
 export interface NuevoSemillero {
   codigoIdentificador: string;
@@ -388,8 +436,25 @@ interface PostulacionApi {
   fechaPostulacion: string;
   fechaPreAprobacion: string | null;
   fechaDecisionEstudiante: string | null;
+  fechaLimiteRespuesta: string | null;
+  disponibilidadHorasSemana: number;
   estadoPostulacion: string;
   habilidades: string[];
+}
+
+// PriorizacionCandidatosService.CandidatoPriorizadoDTO
+interface CandidatoPriorizadoApi {
+  idPostulacion: number;
+  idConvocatoria: number;
+  posicion: number;
+  cuposDisponibles: number;
+  ofertasVigentes: number;
+  puntaje: number;
+  afinidadTematica: number;
+  habilidades: number;
+  disponibilidad: number;
+  compromiso: number;
+  observaciones: string[];
 }
 
 interface SemilleroApi {
@@ -476,8 +541,29 @@ function mapearPostulacion(postulacion: PostulacionApi): Postulacion {
     fechaPostulacion: postulacion.fechaPostulacion,
     fechaPreAprobacion: postulacion.fechaPreAprobacion,
     fechaDecisionEstudiante: postulacion.fechaDecisionEstudiante,
+    fechaLimiteRespuesta: postulacion.fechaLimiteRespuesta,
+    disponibilidadHorasSemana: postulacion.disponibilidadHorasSemana,
     habilidades: postulacion.habilidades ?? [],
     cartaMotivacion: postulacion.respuestaMotivacion,
+  };
+}
+
+function mapearPriorizacion(
+  candidato: CandidatoPriorizadoApi,
+): PriorizacionCandidato & { idPostulacion: number } {
+  return {
+    idPostulacion: candidato.idPostulacion,
+    posicion: candidato.posicion,
+    puntaje: candidato.puntaje,
+    cuposDisponibles: candidato.cuposDisponibles,
+    ofertasVigentes: candidato.ofertasVigentes,
+    desglose: {
+      afinidadTematica: candidato.afinidadTematica,
+      habilidades: candidato.habilidades,
+      disponibilidad: candidato.disponibilidad,
+      compromiso: candidato.compromiso,
+    },
+    observaciones: candidato.observaciones ?? [],
   };
 }
 

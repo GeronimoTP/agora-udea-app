@@ -42,6 +42,17 @@ Relaciones centrales:
 
 En producción `spring.jpa.hibernate.ddl-auto=validate`: Hibernate valida el esquema, no lo crea ni lo migra. Cambios de esquema requieren SQL/migración controlada. Verifica que las FK de perfiles apunten desde `tbl_estudiantes.id_usuario` y `tbl_profesores.id_usuario` hacia `tbl_usuarios.id`, no al revés.
 
+## Servicios del sistema
+El proyecto se organiza en tres servicios de procesamiento: cada uno toma datos del sistema y produce información nueva que no existe guardada en la BD.
+
+| Servicio | Clases | Toma | Produce |
+| --- | --- | --- | --- |
+| 1. Motor de recomendación | `MotorRecomendacionService`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores y convocatorias vigentes | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante |
+| 2. Gestor de convocatorias | `GestorConvocatoriasService`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cascada, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria |
+| 3. Analítica institucional | `AnaliticaService`, `AnaliticaController` | Todas las postulaciones, proyectos, publicaciones, reconocimientos y vinculaciones | 8 indicadores: demanda, tiempo de respuesta, retención de ofertas, conversión proyecto-publicación, participación estudiantil, reconocimientos, habilidades emergentes e interdisciplinariedad |
+
+Las reglas de cada servicio están en "Recomendaciones", "Postulaciones y cupos" (incluida "Priorización de candidatos") y "Analítica".
+
 ## Reglas de Negocio
 
 ### Cuentas y perfiles
@@ -56,6 +67,8 @@ En producción `spring.jpa.hibernate.ddl-auto=validate`: Hibernate valida el esq
 - El usuario, el perfil y sus asociaciones se crean en una transacción.
 - Un usuario solo puede tener un perfil de estudiante o uno de profesor. Evita crear filas duplicadas.
 - El backend obtiene email, `oauthId` y nombre de claims firmados del token temporal; no confía en esos datos recibidos en el body.
+- Página `/perfil` (estudiante y profesor; el administrador no tiene perfil): el estudiante cambia programa, semestre (>= 1) y líneas de investigación (mínimo 1); el profesor, programa y áreas de especialidad (mínimo 1). Usa `PUT /api/estudiantes/{id}` y `PUT /api/profesores/{id}`, que reemplazan líneas/áreas en una sola transacción, y solo el dueño del perfil puede editarlo. El correo y el nombre vienen de Google y no se editan. Se llega desde "Mi perfil" en el encabezado (`AppShell`).
+- El semestre debe actualizarse cada periodo: el motor de recomendación y la priorización de candidatos usan el programa y las líneas del perfil.
 
 ### Cuenta administrador
 - El administrador no tiene perfil de estudiante ni de profesor y no pasa por onboarding.
@@ -79,17 +92,19 @@ En producción `spring.jpa.hibernate.ddl-auto=validate`: Hibernate valida el esq
 - `LoginPruebasService` lo habilita solo si `APP_LOGIN_PRUEBAS_CLAVE` (`app.login-pruebas.clave`) tiene al menos 16 caracteres; sin ella responde 404. Compara la clave en tiempo constante y solo acepta usuarios con `oauth_id` que empieza por `seed-`: una cuenta real creada por Google nunca entra por aquí. Vaciar la variable antes de la entrega.
 - `backend/agora-backend/db/seed/datos_prueba.sql` carga 1 administrador, 5 profesores, 5 estudiantes líderes, 25 estudiantes y 5 semilleros (`SEED-01`…`SEED-05`) con convocatorias, postulaciones en todos los estados, vinculaciones, proyectos, publicaciones y reconocimientos coherentes con las reglas, para que la analítica tenga datos. Los correos son `@seed.agora.test` (`admin@`, `profesor1..5@`, `lider1..5@`, `estudiante01..25@`). Usa los catálogos existentes por nombre (sin IDs fijos), las fechas son relativas al día de ejecución y no se puede ejecutar dos veces. `limpiar_datos_prueba.sql` lo deshace.
 - El menú (`AppShell`) tiene "Cerrar sesión": borra `access_token` y limpia la caché de React Query para que el siguiente usuario no vea datos del anterior.
+- Los datos de prueba crean ofertas `Pre-aprobada` con fecha relativa al día de carga: con el plazo de respuesta (3 días por defecto) expiran poco después. Para probar ofertas, pre-aprueba desde la app como líder.
 
 ### Experiencia por rol (frontend)
 La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `frontend/src/lib/api/queries.ts` (`ADMINISTRADOR`, `ESTUDIANTE`, `PROFESOR`):
 
 | Ruta | Estudiante | Profesor | Administrador |
 | --- | --- | --- | --- |
-| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes y recomendaciones. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
+| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes con su fecha límite y recomendaciones. "Semilleros en los que participas" si integra uno o varios. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
 | `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Registrar semillero eligiendo al estudiante líder; queda como tutor (puede registrar varios) | Redirige a `/` |
 | `/gestion/$idSemillero` | Gestión completa si es el estudiante líder | Gestión completa si es tutor | Redirige a `/` |
-| `/semilleros` y detalle | Ver y postularse | Solo ver | Solo ver |
-| `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas": pre-aprobar/rechazar | Redirige a `/` |
+| `/semilleros` y detalle | Ver y postularse. En un semillero que integra ve "Eres integrante" y en uno que lidera no puede postularse (el detalle explica el motivo) | Solo ver | Solo ver |
+| `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas antes de su fecha límite. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas" ordenadas por la priorización del Servicio 2 (posición, puntaje, desglose y observaciones); pre-aprobar se desactiva cuando las ofertas vigentes igualan los cupos | Redirige a `/` |
+| `/perfil` | Editar programa, semestre y líneas | Editar programa y áreas | Redirige a `/` |
 | `/compatibilidad` | Ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
 | `/analitica` | Redirige a `/` | Redirige a `/` | KPIs institucionales |
 
@@ -104,8 +119,9 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
   - `POST /api/postulaciones`, `POST /api/postulaciones/*/confirmar-aceptacion`, `POST /api/postulaciones/*/rechazar-estudiante`, `/api/recomendaciones/**` → `Estudiante`.
   - `POST /api/postulaciones/*/pre-aprobar`, `POST /api/postulaciones/*/rechazar-lider` → `Estudiante` o `Profesor`, y además el usuario debe ser líder del semillero de la postulación (ver abajo).
   - `POST /api/semilleros`, `POST /api/convocatorias` → `Estudiante` o `Profesor`.
-  - Solo `Administrador`: `/api/usuarios/**` (excepto `GET /api/usuarios/me`), `/api/auth/register/**` (registro heredado), `POST /api/estudiantes`, `POST /api/profesores` (los perfiles se crean por onboarding), `GET /api/postulaciones` (listado global) y `POST /api/convocatorias/procesar-expiradas`.
+  - Solo `Administrador`: `/api/usuarios/**` (excepto `GET /api/usuarios/me`), `POST /api/estudiantes`, `POST /api/profesores` (los perfiles se crean por onboarding), `GET /api/postulaciones` (listado global) y `POST /api/convocatorias/procesar-expiradas` (también expira ofertas vencidas).
   - Resto de rutas no públicas → autenticación, más las reglas de propiedad de `AutorizacionService`.
+  - Sin token, o con un token inválido o vencido, `/api/**` responde 401 (no redirige a Google).
 - Líderes de semillero: `LiderazgoSemilleroService` considera líder al estudiante `estudianteLider` del semillero y a los profesores vinculados en `tbl_profesor_x_semillero`. `GET /api/usuarios/me` devuelve en `idSemillerosLiderados` la unión de ambos casos.
 - `AutorizacionService` concentra las reglas de propiedad (403 si no se cumplen):
 
@@ -117,7 +133,7 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 | Crear, editar o eliminar publicaciones y gestionar sus autores | Líder del semillero del proyecto de la publicación |
 | Crear, editar o eliminar reconocimientos | Líder del semillero |
 | Retirar integrantes y transferir el liderazgo | Líder del semillero |
-| Ver postulaciones de un semillero o convocatoria; pre-aprobar o rechazar | Líder del semillero |
+| Ver postulaciones de un semillero o convocatoria, y su priorización de candidatos; pre-aprobar o rechazar | Líder del semillero |
 | Crear, editar, retirar una postulación y sus habilidades; aceptar o declinar una oferta | El estudiante postulado |
 | Ver una postulación concreta | El estudiante postulado, un líder del semillero o el administrador |
 | Ver postulaciones o recomendaciones de un estudiante | Ese estudiante |
@@ -133,7 +149,9 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 3. `OAuth2LoginSuccessHandler` determina si la cuenta está completa (perfil de estudiante/profesor, o rol `Administrador`):
    - Cuenta completa: emite JWT normal.
    - Perfil ausente: emite token `token_type=onboarding` y redirige a `/oauth2/redirect` con `onboarding=true`.
-4. El frontend guarda el token y dirige al usuario a selección de rol (`/auth/select-role`) y completar perfil (`/auth/complete-profile`).
+   - En ambos casos el token va en el **fragmento** de la URL (`/oauth2/redirect#token=...&onboarding=...`) y la sesión HTTP del intercambio con Google se invalida.
+   - Si Google o las reglas rechazan la cuenta, `OAuth2LoginFailureHandler` redirige a `/auth/login?error=<código>` (`invalid_google_account`, `account_conflict` o `login_fallido`) y el login muestra el mensaje.
+4. El frontend lee el token del fragmento, lo borra de la barra de direcciones (`history.replaceState`), lo guarda y dirige al usuario a selección de rol (`/auth/select-role`) y completar perfil (`/auth/complete-profile`).
 5. Los endpoints de onboarding verifican el token temporal, crean el perfil y devuelven `accessToken` normal. El frontend reemplaza el token temporal por ese JWT y carga la página principal.
 6. El filtro JWT limita el token de onboarding a:
    - `GET /api/catalogos/programas-academicos`
@@ -144,7 +162,7 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 
 `jwt.expiration` es el tiempo de vida del JWT normal (producción: 86.400.000 ms). El token de onboarding tiene `jwt.onboarding.expiration`, con 1.800.000 ms por defecto. `JwtService` espera `JWT_SECRET` en Base64 y firma HS256.
 
-El token se transporta actualmente como query parameter del callback y se guarda en `localStorage`; no compartas URLs que lo incluyan ni lo escribas en logs.
+El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Referer`, así que el token no queda en logs de acceso de Vercel ni de terceros. Se guarda en `localStorage`; no lo escribas en logs. Si la API responde 401 a una petición con token, `apiRequest` lo borra y redirige a `/auth/login?error=sesion_expirada` (excepto en `/api/auth/*`, que manejan su propio 401).
 
 ### Semilleros y estados
 - Crear un semillero (`POST /api/semilleros`, `SemilleroRequestDTO`):
@@ -158,6 +176,7 @@ El token se transporta actualmente como query parameter del callback y se guarda
 - El líder estudiantil solo cambia con `POST /api/semilleros/{id}/transferir-liderazgo/{idEstudiante}`: el nuevo líder debe ser integrante activo y no liderar otro semillero; el saliente queda como integrante activo. El `PUT` del semillero rechaza un cambio de líder.
 - No se puede pausar ni inactivar un semillero con convocatorias `Abierta`.
 - Eliminar un semillero solo es posible sin convocatorias, proyectos, integrantes ni reconocimientos; si tiene historial se inactiva.
+- Un estudiante puede ser integrante activo de **varios semilleros a la vez**. `GET /api/usuarios/me` devuelve sus membresías activas en `idSemillerosIntegrante`; el tablero las lista y el detalle del semillero muestra "Eres integrante". Solo no puede postularse a un semillero que ya integra o que lidera. Aceptar una oferta sigue cancelando en cascada sus demás postulaciones en proceso.
 - Integrantes (`tbl_estudiante_x_semillero`): activo = `fecha_salida` nula. `POST /api/semilleros/{id}/estudiantes/{idEstudiante}/retirar` pone fecha de salida hoy y estado `Inactivo` (categoría "Estado Usuario"). Un retirado puede volver a postularse y, si acepta una oferta, su vinculación se reactiva. `totalIntegrantes`, el chequeo "ya perteneces" y las recomendaciones solo cuentan integrantes activos.
 - Proyectos: `fechaFin` >= `fechaInicio`; no cambian de semillero; solo el estudiante líder o integrantes activos se vinculan a ellos; no se eliminan si tienen publicaciones (al eliminar se borran sus vínculos con estudiantes).
 - Publicaciones: solo se mueven a otro proyecto del mismo semillero; los autores deben ser el líder, un integrante activo o un tutor del semillero; al eliminar se borran sus autorías.
@@ -180,7 +199,7 @@ El token se transporta actualmente como query parameter del callback y se guarda
 ### Postulaciones y cupos
 - No se permite más de una postulación del mismo estudiante a la misma convocatoria.
 - Se permiten postulaciones activas simultáneas a distintas convocatorias.
-- Para postularse, `PostulacionService.crear` exige que la convocatoria esté en estado `Abierta`, tenga cupos disponibles, que la fecha actual esté entre `fechaInicio` y `fechaCierre`, que el estudiante no sea el líder del semillero y que no pertenezca ya a él. Si no se cumple, lanza `ErrorLogicaNegocioException` (422).
+- Para postularse, `PostulacionService.crear` exige que la convocatoria esté en estado `Abierta`, tenga cupos disponibles, que la fecha actual esté entre `fechaInicio` y `fechaCierre`, que el estudiante no sea el líder del semillero y que no sea ya integrante activo de él (sí puede integrar otros). Si no se cumple, lanza `ErrorLogicaNegocioException` (422).
 - Una postulación solo se edita o retira (incluidas sus habilidades) mientras está `Pendiente`; así retirarla nunca altera cupos.
 - El estudiante decide libremente sobre una oferta `Pre-aprobada`: puede aceptarla o rechazarla (por ejemplo, si prefiere otra oferta).
 - Crear una postulación (`POST /api/postulaciones`, `PostulacionRequestDTO`) requiere `idConvocatoria`, `idEstudiante`, `respuestaMotivacion`, `disponibilidadHorasSemana` (>= 2), `experienciaPrevia` e `idHabilidades` (al menos una, de `/api/habilidades`). El formulario del detalle de semillero envía exactamente esos campos.
@@ -188,6 +207,8 @@ El token se transporta actualmente como query parameter del callback y se guarda
   - `Pendiente` → el líder (estudiante líder o profesor del semillero) puede pre-aprobar (`/{id}/pre-aprobar` → `Pre-aprobada`) o rechazar (`/{id}/rechazar-lider` → `Rechazada`).
   - `Pre-aprobada` → el estudiante confirma (`/{id}/confirmar-aceptacion` → `Aceptada`) o rechaza (`/{id}/rechazar-estudiante` → `Rechazada por Estudiante`).
 - Pre-aprobar exige que la convocatoria siga `Abierta` y vigente, y registra `fechaPreAprobacion` (momento de la oferta). Pre-aprobar o rechazar no descuenta cupos.
+- **Límite de ofertas**: las ofertas vigentes (`Pre-aprobada` dentro de su plazo) de una convocatoria no pueden superar sus cupos disponibles. Pre-aprobar bloquea la convocatoria (`PESSIMISTIC_WRITE`), expira primero las ofertas vencidas de esa convocatoria y responde 422 si ya hay tantas ofertas vigentes como cupos. Así, toda oferta aceptada a tiempo tiene cupo. Si el líder reduce los cupos al editar la convocatoria, las ofertas ya emitidas se conservan pero no se emiten nuevas hasta que haya espacio.
+- **Plazo de respuesta**: el estudiante tiene `app.ofertas.dias-respuesta` días (por defecto 3, variable `APP_OFERTAS_DIAS_RESPUESTA`) desde `fechaPreAprobacion` para aceptar o declinar. `PostulacionResponseDTO.fechaLimiteRespuesta` lo expone y el frontend lo muestra. Una oferta vencida no se acepta ni se declina (422); el cron `app.scheduler.ofertas-vencidas.cron` (por defecto cada hora) la pasa a `Expirada` conservando `fechaPreAprobacion`, y libera el espacio para otro aspirante. El cierre de la convocatoria también expira las ofertas pendientes aunque no haya vencido su plazo.
 - Confirmar aceptación, en una sola transacción:
   1. Bloquea la fila de la convocatoria (`findByIdParaActualizarCupos`, `PESSIMISTIC_WRITE`) para que dos aceptaciones simultáneas no consuman el mismo cupo.
   2. Exige que la convocatoria siga vigente y con cupos, y descuenta uno.
@@ -197,6 +218,15 @@ El token se transporta actualmente como query parameter del callback y se guarda
 - `fechaDecisionEstudiante` solo se registra cuando el estudiante acepta o declina; los rechazos del líder, la cascada y las expiraciones no la tocan.
 - Un cron diario, configurable con `app.scheduler.convocatorias-expiradas.cron` (por defecto 01:00), cierra convocatorias expiradas y marca como `Expirada` lo que quedó sin resolver, también en convocatorias que ya estaban `Cerradas`.
 - Estados de postulación (categoría "Estado Postulación" en `tbl_estados`): `Pendiente`, `Pre-aprobada`, `Aceptada`, `Rechazada`, `Rechazada por Estudiante`, `Cancelada en cascada`, `Expirada`. El frontend los refleja 1:1 (`PENDIENTE`, `PRE_APROBADA`, ..., `CANCELADA`).
+### Priorización de candidatos (Servicio 2)
+`GET /api/postulaciones/semillero/{idSemillero}/priorizacion` (solo líderes del semillero) puntúa de 0 a 100 cada postulación en proceso (`Pendiente` o `Pre-aprobada`) y la ordena dentro de su convocatoria (`posicion` 1 = mejor; empates por orden de llegada):
+- Afinidad temática, 35%: líneas del estudiante que coinciden con las del semillero, sobre el total de líneas del semillero.
+- Habilidades, 25%: habilidades declaradas en la postulación que el semillero ya usa (las de sus postulaciones `Aceptada`). Sin ese historial, valor neutral 50.
+- Disponibilidad, 20%: horas semanales declaradas; 12 h o más dan el 100.
+- Compromiso, 20%: promedio de cómo respondió el estudiante a ofertas anteriores (aceptó 100, aceptó otra y esta se canceló en cascada 75, declinó 50, la dejó expirar 0). Sin historial, valor neutral 50.
+
+La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para el líder ("Tiene otra oferta vigente en …", "Ya integra N semillero(s)", "Sin historial de ofertas anteriores"). El frontend la combina con las postulaciones recibidas: muestra posición, puntaje, desglose y observaciones, y ordena primero las que siguen en proceso. El puntaje orienta la decisión; el líder sigue decidiendo.
+
 - La columna `tbl_postulaciones.fecha_pre_aprobacion` se crea con `backend/agora-backend/db/migrations/V2__oferta_y_cancelacion_postulaciones.sql`, que debe ejecutarse antes de desplegar.
 
 ### Recomendaciones
@@ -216,21 +246,33 @@ El puntaje se limita a 0–100. Las habilidades del estudiante salen de sus post
   - Expiradas: con oferta previa.
   - Las postulaciones que nunca recibieron oferta no cuentan.
 - Interdisciplinariedad: se calcula sobre `tbl_estudiante_x_semillero`, que ahora se llena al aceptar una oferta.
+- Una oferta que expira por plazo de respuesta cuenta como "Expirada con oferta previa" en la retención; no entra en el tiempo de respuesta, porque el estudiante no decidió.
 - Las convocatorias no tienen habilidades requeridas en el modelo; el frontend oculta esa sección si la lista viene vacía.
 
 ## API Principal
 - OAuth/onboarding: `/oauth2/authorization/google`, `/api/auth/onboarding/estudiante`, `/api/auth/onboarding/profesor`.
-- Sesión: `GET /api/usuarios/me` (incluye `rol`, `idEstudiante`, `idProfesor` e `idSemillerosLiderados`).
+- Sesión: `GET /api/usuarios/me` (incluye `rol`, `idEstudiante`, `idProfesor`, `idSemillerosLiderados` e `idSemillerosIntegrante`).
 - Catálogos: `/api/catalogos/*`, `/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades`, `/api/estados`.
 - Perfiles: `/api/estudiantes`, `/api/profesores`.
 - Semilleros: `/api/semilleros`. El DTO incluye `nombreFacultad`, `totalProyectos`, `totalPublicaciones`, `totalIntegrantes` y `convocatoriaAbierta`.
 - Proyectos y publicaciones de un semillero: `/api/proyectos/semillero/{id}`, `/api/publicaciones/semillero/{id}`.
 - Convocatorias: `/api/convocatorias`, `/api/convocatorias/activas`, `/api/convocatorias/semillero/{id}`.
-- Postulaciones: `/api/postulaciones`, `/api/postulaciones/estudiante/{id}`, `/api/postulaciones/semillero/{id}` y las acciones del flujo de doble vía.
+- Postulaciones: `/api/postulaciones`, `/api/postulaciones/estudiante/{id}`, `/api/postulaciones/semillero/{id}`, `/api/postulaciones/semillero/{id}/priorizacion` y las acciones del flujo de doble vía. El DTO incluye `fechaLimiteRespuesta`.
 - Recomendaciones (solo estudiante): `/api/recomendaciones/estudiante/{id}`.
 - Analítica (solo administrador): `/api/analitica/dashboard` y KPIs bajo `/api/analitica/*`.
 
-Los servicios frontend adaptan los DTO del backend a tipos de vista con funciones `mapear*` en `services.ts`. Toda respuesta debe pasar por un mapeador: no tipar la respuesta cruda del backend con un tipo de vista. Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). `AuthController` conserva rutas antiguas de registro por email. No las reutilices en el flujo OAuth: el onboarding vigente usa los endpoints dedicados y una identidad firmada.
+Los servicios frontend adaptan los DTO del backend a tipos de vista con funciones `mapear*` en `services.ts`. Toda respuesta debe pasar por un mapeador: no tipar la respuesta cruda del backend con un tipo de vista. Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). El registro heredado por email (`AuthController`, `/api/auth/register/**`, `/api/auth/check-email`) se eliminó: el único alta de cuentas es el onboarding OAuth con identidad firmada.
+
+## Seguridad
+- **CORS**: configuración única en `SecurityConfig.corsConfigurationSource`, solo para `/api/**` y solo para los orígenes de `app.cors.allowed-origins` (`APP_CORS_ORIGINS`, separados por coma; por defecto `APP_FRONTEND_URL`). Sin cookies entre orígenes (`allowCredentials=false`). Los controladores ya no usan `@CrossOrigin`; no lo vuelvas a agregar. Si el frontend se abre desde otro dominio (por ejemplo, una URL de vista previa de Vercel), agrégalo a `APP_CORS_ORIGINS`.
+- **Token fuera de la URL visible**: el callback OAuth entrega el JWT en el fragmento y el frontend lo borra de la barra de direcciones; la sesión HTTP del login con Google se invalida.
+- **401 en la API**: `/api/**` responde 401 en lugar de redirigir a Google; el frontend cierra la sesión vencida y vuelve al login.
+- **Errores de login**: `OAuth2LoginFailureHandler` devuelve al frontend solo códigos conocidos, nunca el detalle de la excepción.
+- **Errores 500**: el cliente recibe un mensaje genérico; el detalle se registra en el log del servidor (sin `printStackTrace`).
+- **Swagger**: apagado en producción (`springdoc.*.enabled`) salvo `APP_SWAGGER_HABILITADO=true`.
+- **Actuator** (si se agrega la dependencia): solo `health`, sin detalles.
+- **Registro heredado eliminado**: no hay endpoints que creen cuentas sin la metadata OAuth.
+- Pendiente conocido: el JWT vive en `localStorage` (accesible a JavaScript). La defensa es no introducir XSS: no usar `dangerouslySetInnerHTML` con datos de usuarios.
 
 ## Convenciones Técnicas para Agentes
 - Backend: seguir controller → service → repository → entity; validar requests con Jakarta Validation y usar DTOs para la API.
@@ -245,8 +287,8 @@ Los servicios frontend adaptan los DTO del backend a tipos de vista con funcione
 - No relajar restricciones de DB para ocultar datos obligatorios ausentes. Mantener relaciones y completar entidades correctamente.
 - No subir secretos, tokens, correos de prueba ni URLs que incluyan JWT.
 - El esquema productivo es externo. No cambiar `ddl-auto` a `update`/`create` en producción.
-- Los controladores usan `@CrossOrigin("*")`; esto es amplio. Restringirlo a los dominios autorizados antes de endurecer el despliegue.
-- Revisar los endpoints heredados antes de extenderlos: algunos contratos anteriores de registro pueden crear usuarios sin la metadata OAuth obligatoria.
+- CORS se configura solo en `SecurityConfig`; no uses `@CrossOrigin` en controladores.
+- Un endpoint nuevo bajo `/api/**` necesita su regla en `SecurityConfig` o en `AutorizacionService`; por defecto exige autenticación.
 
 ## Configuración y Comandos
 Variables esperadas por el backend:
@@ -255,6 +297,9 @@ Variables esperadas por el backend:
 - `JWT_SECRET`
 - `APP_FRONTEND_URL`
 - `APP_LOGIN_PRUEBAS_CLAVE` (opcional, >= 16 caracteres): habilita el login de pruebas.
+- `APP_CORS_ORIGINS` (opcional): orígenes permitidos separados por coma; por defecto `APP_FRONTEND_URL`.
+- `APP_OFERTAS_DIAS_RESPUESTA` (opcional, por defecto 3): plazo para responder una oferta.
+- `APP_SWAGGER_HABILITADO` (opcional, por defecto `false` en producción): expone Swagger.
 
 Frontend:
 - `VITE_API_URL` debe apuntar al backend desplegado.

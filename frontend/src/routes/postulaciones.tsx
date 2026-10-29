@@ -97,13 +97,29 @@ function PostulacionesPage() {
     try {
       await accion();
       toast.success(mensaje);
-      await queryClient.invalidateQueries({ queryKey: ["postulaciones"] });
-    } catch {
+    } catch (error) {
+      // Reglas del backend: límite de ofertas, plazo vencido, convocatoria cerrada...
       toast.error(
-        "La operación no pudo completarse. Verifica la conexión con el servidor.",
+        error instanceof Error && error.message
+          ? error.message
+          : "La operación no pudo completarse. Verifica la conexión con el servidor.",
       );
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ["postulaciones"] });
     }
   }
+
+  // En proceso primero, agrupadas por convocatoria y en el orden de la priorización
+  const recibidasOrdenadas = [...recibidas].sort((a, b) => {
+    if (!!a.priorizacion !== !!b.priorizacion) return a.priorizacion ? -1 : 1;
+    if (a.priorizacion && b.priorizacion) {
+      return (
+        a.idConvocatoria - b.idConvocatoria ||
+        a.priorizacion.posicion - b.priorizacion.posicion
+      );
+    }
+    return b.fechaPostulacion.localeCompare(a.fechaPostulacion);
+  });
 
   const columnasEstudiante: Columna<Postulacion>[] = [
     {
@@ -127,13 +143,14 @@ function PostulacionesPage() {
       cell: (row) => formatearFecha(row.fechaPreAprobacion),
     },
     {
-      header: "Afinidad",
-      width: "9rem",
+      header: "Responder antes de",
       cell: (row) =>
-        row.porcentajeMatch === undefined ? (
-          <span className="text-muted-foreground">No calculada</span>
+        row.estado === "PRE_APROBADA" && row.fechaLimiteRespuesta ? (
+          <span className="font-medium text-foreground">
+            {formatearFechaHora(row.fechaLimiteRespuesta)}
+          </span>
         ) : (
-          <MatchScore porcentaje={row.porcentajeMatch} compact />
+          <span className="text-muted-foreground">—</span>
         ),
     },
     {
@@ -177,17 +194,62 @@ function PostulacionesPage() {
 
   const columnasLider: Columna<Postulacion>[] = [
     {
+      header: "Prioridad",
+      width: "11rem",
+      cell: (row) =>
+        row.priorizacion ? (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-display text-sm font-semibold tabular-nums text-foreground">
+                #{row.priorizacion.posicion}
+              </span>
+              <MatchScore
+                porcentaje={row.priorizacion.puntaje}
+                compact
+                className="flex-1"
+              />
+            </div>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              Temática {Math.round(row.priorizacion.desglose.afinidadTematica)}{" "}
+              · Habilidades {Math.round(row.priorizacion.desglose.habilidades)}{" "}
+              · Horas {Math.round(row.priorizacion.desglose.disponibilidad)} ·
+              Compromiso {Math.round(row.priorizacion.desglose.compromiso)}
+            </p>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">Resuelta</span>
+        ),
+    },
+    {
       header: "Aspirante",
       cell: (row) => (
         <div>
           <p className="font-medium">{row.nombreEstudiante}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {row.programaEstudiante}
+            {row.programaEstudiante} · {row.disponibilidadHorasSemana} h/semana
           </p>
+          {row.priorizacion?.observaciones.map((observacion) => (
+            <p key={observacion} className="mt-0.5 text-xs text-warning">
+              {observacion}
+            </p>
+          ))}
         </div>
       ),
     },
-    { header: "Convocatoria", cell: (row) => row.tituloConvocatoria },
+    {
+      header: "Convocatoria",
+      cell: (row) => (
+        <div>
+          <p>{row.tituloConvocatoria}</p>
+          {row.priorizacion && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Ofertas vigentes: {row.priorizacion.ofertasVigentes} de{" "}
+              {row.priorizacion.cuposDisponibles} cupos
+            </p>
+          )}
+        </div>
+      ),
+    },
     {
       header: "Habilidades",
       cell: (row) => (
@@ -204,16 +266,18 @@ function PostulacionesPage() {
       ),
     },
     {
-      header: "Afinidad",
-      width: "9rem",
-      cell: (row) =>
-        row.porcentajeMatch === undefined ? (
-          <span className="text-muted-foreground">No calculada</span>
-        ) : (
-          <MatchScore porcentaje={row.porcentajeMatch} compact />
-        ),
+      header: "Estado",
+      cell: (row) => (
+        <div>
+          <EstadoBadge estado={row.estado} />
+          {row.estado === "PRE_APROBADA" && row.fechaLimiteRespuesta && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Responde hasta {formatearFechaHora(row.fechaLimiteRespuesta)}
+            </p>
+          )}
+        </div>
+      ),
     },
-    { header: "Estado", cell: (row) => <EstadoBadge estado={row.estado} /> },
     {
       header: "Evaluación",
       align: "right",
@@ -222,13 +286,19 @@ function PostulacionesPage() {
           <div className="flex justify-end gap-2">
             <button
               type="button"
+              disabled={sinEspacioParaOfertas(row)}
+              title={
+                sinEspacioParaOfertas(row)
+                  ? "Las ofertas vigentes ya igualan los cupos disponibles"
+                  : undefined
+              }
               onClick={() =>
                 ejecutar(
                   () => postulacionesService.preAprobar(row.idPostulacion),
                   "Postulación pre-aprobada. El estudiante debe confirmar su aceptación.",
                 )
               }
-              className="rounded-sm bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-primary"
+              className="rounded-sm bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               Pre-aprobar
             </button>
@@ -260,8 +330,8 @@ function PostulacionesPage() {
         title={etiquetasVista[vista]}
         description={
           vistaEstudiante
-            ? "Cuando el líder pre-apruebe una postulación, confirma o declina la oferta. Al aceptar, el sistema descuenta el cupo y cancela automáticamente tus demás postulaciones activas."
-            : "Revisa a los aspirantes de las convocatorias de los semilleros que lideras. Pre-aprobar no descuenta cupos: el cupo se asigna cuando el estudiante confirma la oferta."
+            ? "Cuando el líder pre-apruebe una postulación, confirma o declina la oferta antes de su fecha límite; si no respondes, la oferta expira. Al aceptar, el sistema descuenta el cupo y cancela automáticamente tus demás postulaciones activas."
+            : "Los aspirantes en proceso aparecen ordenados por prioridad dentro de cada convocatoria (afinidad temática, habilidades, horas disponibles y compromiso con ofertas anteriores). Puedes emitir tantas ofertas vigentes como cupos disponibles: el cupo se asigna cuando el estudiante confirma."
         }
       />
 
@@ -299,7 +369,7 @@ function PostulacionesPage() {
         />
       ) : (
         <DataTable<Postulacion>
-          rows={recibidas}
+          rows={recibidasOrdenadas}
           getRowKey={(row) => row.idPostulacion}
           columns={columnasLider}
           emptyMessage="No hay postulaciones recibidas en las convocatorias de tus semilleros."
@@ -307,6 +377,23 @@ function PostulacionesPage() {
       )}
     </AppShell>
   );
+}
+
+// Regla del Servicio 2: las ofertas vigentes no pueden superar los cupos disponibles
+function sinEspacioParaOfertas(row: Postulacion) {
+  return (
+    !!row.priorizacion &&
+    row.priorizacion.ofertasVigentes >= row.priorizacion.cuposDisponibles
+  );
+}
+
+function formatearFechaHora(valor: string) {
+  return new Date(valor).toLocaleString("es-CO", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatearFecha(valor?: string | null) {

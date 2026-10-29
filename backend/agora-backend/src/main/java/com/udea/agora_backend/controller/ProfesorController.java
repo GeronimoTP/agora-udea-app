@@ -22,7 +22,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/profesores")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Profesores", description = "Endpoints para la gestión de perfiles de profesores y sus áreas de especialidad")
 public class ProfesorController {
 

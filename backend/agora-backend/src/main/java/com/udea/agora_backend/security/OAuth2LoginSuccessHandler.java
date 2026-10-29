@@ -3,6 +3,7 @@ package com.udea.agora_backend.security;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -51,10 +52,17 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             ? jwtService.generarTokenOnboarding(email, oauthId, nombre == null ? email : nombre)
             : jwtService.generarToken(email);
 
+        // El token va en el fragmento (#): el navegador no lo envía a ningún servidor, no queda en
+        // logs de acceso ni en el header Referer. El frontend lo lee y lo borra de la barra de direcciones.
         String targetUrl = frontendUrl.replaceAll("/+$", "")
-            + "/oauth2/redirect?token="
+            + "/oauth2/redirect#token="
             + URLEncoder.encode(token, StandardCharsets.UTF_8)
             + "&onboarding=" + onboarding;
+        // La sesión HTTP solo sirve para el intercambio con Google; la API usa el JWT
+        HttpSession sesion = request.getSession(false);
+        if (sesion != null) {
+            sesion.invalidate();
+        }
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 

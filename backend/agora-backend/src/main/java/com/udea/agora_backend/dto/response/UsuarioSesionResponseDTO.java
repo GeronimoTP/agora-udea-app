@@ -14,4 +14,6 @@ public class UsuarioSesionResponseDTO {
     private Integer idEstudiante;
     private Integer idProfesor;
     private List<Integer> idSemillerosLiderados;
+    // Semilleros en los que el estudiante es integrante activo (puede ser más de uno)
+    private List<Integer> idSemillerosIntegrante;
 }

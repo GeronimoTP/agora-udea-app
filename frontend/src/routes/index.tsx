@@ -231,6 +231,10 @@ function TableroPage() {
         )
       )}
 
+      {sesion.idSemillerosIntegrante.length > 0 && (
+        <SemillerosIntegrante idSemilleros={sesion.idSemillerosIntegrante} />
+      )}
+
       <div className="grid gap-8 lg:grid-cols-3">
         <section aria-labelledby="convocatorias" className="lg:col-span-2">
           <div className="mb-3 flex items-end justify-between">
@@ -319,6 +323,12 @@ function TableroPage() {
                           Pre-aprobada el{" "}
                           {formatearFecha(postulacion.fechaPreAprobacion)}
                         </p>
+                        {postulacion.fechaLimiteRespuesta && (
+                          <p className="mt-0.5 text-xs font-medium text-warning">
+                            Responde antes del{" "}
+                            {formatearFecha(postulacion.fechaLimiteRespuesta)}
+                          </p>
+                        )}
                         <Link
                           to="/postulaciones"
                           className="mt-2 inline-flex text-sm font-medium text-accent underline-offset-4 hover:underline"
@@ -397,6 +407,48 @@ function TableroPage() {
         </div>
       </section>
     </AppShell>
+  );
+}
+
+// Un estudiante puede integrar varios semilleros a la vez: se listan todos
+function SemillerosIntegrante({ idSemilleros }: { idSemilleros: number[] }) {
+  const { data: semilleros = [] } = useQuery(semillerosQuery());
+  const integrados = semilleros.filter((s) =>
+    idSemilleros.includes(s.idSemillero),
+  );
+
+  return (
+    <section aria-labelledby="participas" className="mb-10">
+      <h2
+        id="participas"
+        className="mb-3 font-display text-sm font-semibold text-foreground"
+      >
+        {idSemilleros.length === 1
+          ? "Semillero en el que participas"
+          : `Semilleros en los que participas (${idSemilleros.length})`}
+      </h2>
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {integrados.map((semillero) => (
+          <li key={semillero.idSemillero}>
+            <Link
+              to="/semilleros/$idSemillero"
+              params={{ idSemillero: String(semillero.idSemillero) }}
+              className="panel block p-5 transition-colors hover:bg-secondary/50"
+            >
+              <p className="label-caps">{semillero.facultad}</p>
+              <p className="mt-1 font-display text-sm font-semibold text-foreground">
+                {semillero.nombre}
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {semillero.totalIntegrantes} integrantes ·{" "}
+                {semillero.totalProyectos} proyectos ·{" "}
+                {semillero.totalPublicaciones} publicaciones
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

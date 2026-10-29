@@ -4,6 +4,7 @@ import {
   catalogoService,
   convocatoriasService,
   estudiantesResumenService,
+  perfilService,
   matchingService,
   postulacionesService,
   profesoresService,
@@ -86,13 +87,35 @@ export const misPostulacionesQuery = (idEstudiante: number) =>
     queryFn: () => postulacionesService.misPostulaciones(idEstudiante),
   });
 
+// Postulaciones recibidas con la priorización del Servicio 2 en las que siguen en proceso
 export const postulacionesRecibidasQuery = (idSemilleros: number[]) =>
   queryOptions({
     queryKey: ["postulaciones", "semilleros", idSemilleros],
     queryFn: async () =>
       (
         await Promise.all(
-          idSemilleros.map((id) => postulacionesService.recibidas(id)),
+          idSemilleros.map(async (id) => {
+            const [recibidas, priorizacion] = await Promise.all([
+              postulacionesService.recibidas(id),
+              postulacionesService.priorizacion(id),
+            ]);
+            const porPostulacion = new Map(
+              priorizacion.map(({ idPostulacion, ...resto }) => [
+                idPostulacion,
+                resto,
+              ]),
+            );
+            return recibidas.map((postulacion) => {
+              const priorizada = porPostulacion.get(postulacion.idPostulacion);
+              return priorizada
+                ? {
+                    ...postulacion,
+                    priorizacion: priorizada,
+                    porcentajeMatch: priorizada.puntaje,
+                  }
+                : postulacion;
+            });
+          }),
         )
       ).flat(),
   });
@@ -119,6 +142,18 @@ export const profesoresQuery = () =>
   queryOptions({
     queryKey: ["profesores"],
     queryFn: () => profesoresService.listar(),
+  });
+
+export const perfilEstudianteQuery = (idEstudiante: number) =>
+  queryOptions({
+    queryKey: ["perfil", "estudiante", idEstudiante],
+    queryFn: () => perfilService.estudiante(idEstudiante),
+  });
+
+export const perfilProfesorQuery = (idProfesor: number) =>
+  queryOptions({
+    queryKey: ["perfil", "profesor", idProfesor],
+    queryFn: () => perfilService.profesor(idProfesor),
   });
 
 export const estudiantesQuery = () =>

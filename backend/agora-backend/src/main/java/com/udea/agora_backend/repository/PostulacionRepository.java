@@ -30,6 +30,17 @@ public interface PostulacionRepository extends JpaRepository<Postulacion, Intege
     @Query("SELECT p FROM Postulacion p WHERE p.convocatoria.estado.nombre = ?1 AND p.estado.nombre IN (?2)")
     List<Postulacion> findPostulacionesEnConvocatoriasConEstado(String estadoConvocatoria, String... estadoNombres);
     
+    // Ofertas (Pre-aprobada) que siguen vigentes en una convocatoria: no pueden superar los cupos disponibles
+    @Query("SELECT COUNT(p) FROM Postulacion p WHERE p.convocatoria.id = ?1 AND p.estado.nombre = ?2 AND p.fechaPreAprobacion >= ?3")
+    long contarOfertasVigentes(Integer convocatoriaId, String estadoPreAprobada, java.time.ZonedDateTime desde);
+
+    // Ofertas cuyo plazo de respuesta venció (emitidas antes de `limite`)
+    @Query("SELECT p FROM Postulacion p WHERE p.estado.nombre = ?1 AND p.fechaPreAprobacion < ?2")
+    List<Postulacion> findOfertasVencidas(String estadoPreAprobada, java.time.ZonedDateTime limite);
+
+    @Query("SELECT p FROM Postulacion p WHERE p.convocatoria.id = ?1 AND p.estado.nombre = ?2 AND p.fechaPreAprobacion < ?3")
+    List<Postulacion> findOfertasVencidasDeConvocatoria(Integer convocatoriaId, String estadoPreAprobada, java.time.ZonedDateTime limite);
+
     // Búsqueda única: Estudiante en Convocatoria
     Optional<Postulacion> findByConvocatoriaIdAndEstudianteId(Integer convocatoriaId, Integer estudianteId);
     

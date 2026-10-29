@@ -28,7 +28,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/semilleros")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Semilleros", description = "Endpoints para administración de semilleros, líneas, co-tutoría docente y vinculación estudiantil")
 public class SemilleroController {
 

@@ -16,7 +16,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/areas-especialidad")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Áreas de Especialidad", description = "Endpoints para el catálogo de áreas de especialidad docente")
 public class AreaEspecialidadController {
 

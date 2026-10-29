@@ -47,6 +47,8 @@ export interface UsuarioSesion {
   idEstudiante: number | null;
   idProfesor: number | null;
   idSemillerosLiderados: number[];
+  // Un estudiante puede ser integrante activo de varios semilleros a la vez
+  idSemillerosIntegrante: number[];
 }
 
 export interface Estudiante {
@@ -107,9 +109,29 @@ export interface Postulacion {
   fechaPostulacion: string;
   fechaPreAprobacion?: string | null;
   fechaDecisionEstudiante?: string | null;
+  // Plazo para responder una oferta pre-aprobada; vencido, la oferta expira
+  fechaLimiteRespuesta?: string | null;
+  disponibilidadHorasSemana: number;
   porcentajeMatch?: number;
+  // Servicio 2: solo en postulaciones recibidas que siguen en proceso
+  priorizacion?: PriorizacionCandidato;
   habilidades: string[];
   cartaMotivacion?: string;
+}
+
+/** Servicio 2: priorización de un candidato dentro de su convocatoria (0-100). */
+export interface PriorizacionCandidato {
+  posicion: number;
+  puntaje: number;
+  cuposDisponibles: number;
+  ofertasVigentes: number;
+  desglose: {
+    afinidadTematica: number;
+    habilidades: number;
+    disponibilidad: number;
+    compromiso: number;
+  };
+  observaciones: string[];
 }
 
 export interface Proyecto {

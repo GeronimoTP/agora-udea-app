@@ -174,7 +174,8 @@ public class ManejadorExcepcionesGlobal extends ResponseEntityExceptionHandler {
                 .timestamp(ZonedDateTime.now())
                 .build();
 
-        ex.printStackTrace();  // Log en consola
+        // Se registra en el log del servidor; al cliente solo le llega el mensaje genérico
+        logger.error("Error no controlado en " + errorResponse.getPath(), ex);
 
         return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
     }

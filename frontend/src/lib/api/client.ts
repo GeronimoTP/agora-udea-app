@@ -116,7 +116,11 @@ export async function apiRequest<T>(
         errorData = await response.json();
         if (typeof errorData === "object" && errorData !== null) {
           const err = errorData as Record<string, unknown>;
-          errorMessage = (err["message"] as string) || errorMessage;
+          // ApiErrorResponseDTO usa "message"; los ResponseStatusException usan "detail"
+          errorMessage =
+            (err["message"] as string) ||
+            (err["detail"] as string) ||
+            errorMessage;
         }
       } catch {
         // Si no se puede parsear, usar el mensaje genérico
@@ -124,6 +128,18 @@ export async function apiRequest<T>(
 
       if (DEBUG_API) {
         console.error(`[API ERROR] ${errorMessage}`, errorData);
+      }
+
+      // Token vencido o inválido: se descarta y se vuelve al login. Los endpoints de
+      // autenticación manejan su propio 401 (por ejemplo, credenciales de prueba inválidas).
+      if (
+        response.status === 401 &&
+        !path.startsWith("/api/auth/") &&
+        typeof window !== "undefined" &&
+        window.localStorage.getItem("access_token")
+      ) {
+        window.localStorage.removeItem("access_token");
+        window.location.assign("/auth/login?error=sesion_expirada");
       }
 
       throw new ApiError(errorMessage, response.status, path);

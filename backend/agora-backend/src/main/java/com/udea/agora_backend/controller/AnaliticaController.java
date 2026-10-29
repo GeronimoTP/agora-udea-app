@@ -13,7 +13,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/analitica")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Analítica y KPIs", description = "Servicio 3: Tableros de datos, métricas institucionales y KPIs de rendimiento para la administración")
 public class AnaliticaController {
 

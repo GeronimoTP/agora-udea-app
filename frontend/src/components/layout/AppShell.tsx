@@ -8,6 +8,7 @@ import {
   LogOut,
   Settings2,
   Target,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -98,6 +99,20 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {sesion?.rol ?? ""}
               </p>
             </div>
+            {/* El administrador no tiene perfil de estudiante ni de profesor */}
+            {(perfil === "ESTUDIANTE" || perfil === "PROFESOR") && (
+              <Link
+                to="/perfil"
+                title="Mi perfil"
+                className="flex items-center gap-2 rounded-sm border border-sidebar-border px-3 py-2 text-xs text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                activeProps={{
+                  className: "bg-sidebar-accent text-sidebar-accent-foreground",
+                }}
+              >
+                <UserRound className="size-4" strokeWidth={1.75} aria-hidden />
+                <span className="hidden sm:inline">Mi perfil</span>
+              </Link>
+            )}
             <button
               type="button"
               onClick={cerrarSesion}
@@ -139,7 +154,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                       "border-b-2 border-accent bg-sidebar-accent font-semibold text-sidebar-accent-foreground",
                   }}
                 >
-                  <Settings2 className="size-4" strokeWidth={1.75} aria-hidden />
+                  <Settings2
+                    className="size-4"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                   Mi semillero
                 </Link>
               </li>

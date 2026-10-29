@@ -36,6 +36,7 @@ public class PostulacionService {
     private final HabilidadRepository habilidadRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
+    private final PlazoOfertasService plazoOfertasService;
 
     private static final String ESTADO_PENDIENTE = "Pendiente";
 
@@ -302,6 +303,7 @@ public class PostulacionService {
                 .experienciaPrevia(postulacion.getExperienciaPrevia())
                 .fechaPostulacion(postulacion.getFechaPostulacion())
                 .fechaPreAprobacion(postulacion.getFechaPreAprobacion())
+                .fechaLimiteRespuesta(plazoOfertasService.calcularFechaLimite(postulacion))
                 .fechaDecisionEstudiante(postulacion.getFechaDecisionEstudiante())
                 .estadoPostulacion(postulacion.getEstado() != null ? postulacion.getEstado().getNombre() : null)
                 .habilidades(habilidades)

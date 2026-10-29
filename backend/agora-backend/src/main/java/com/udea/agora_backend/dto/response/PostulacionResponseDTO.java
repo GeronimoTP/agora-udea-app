@@ -21,6 +21,8 @@ public class PostulacionResponseDTO {
     private String experienciaPrevia;
     private LocalDate fechaPostulacion;
     private ZonedDateTime fechaPreAprobacion;
+    // Hasta cuándo puede responder el estudiante una oferta (fechaPreAprobacion + plazo configurado)
+    private ZonedDateTime fechaLimiteRespuesta;
     private ZonedDateTime fechaDecisionEstudiante;
     private String estadoPostulacion;
     private List<String> habilidades;

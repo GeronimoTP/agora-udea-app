@@ -61,6 +61,16 @@ function SemilleroDetallePage() {
   // Solo los estudiantes pueden postularse a convocatorias
   const { data: sesion } = useQuery(usuarioSesionQuery());
   const idEstudiante = sesion?.idEstudiante ?? null;
+  // Un estudiante puede integrar varios semilleros, pero no postularse al que ya integra o lidera
+  const esIntegrante = sesion?.idSemillerosIntegrante.includes(id) ?? false;
+  const motivoSinPostulacion =
+    idEstudiante === null
+      ? null
+      : sesion?.idSemillerosLiderados.includes(id)
+        ? "Lideras este semillero, así que no puedes postularte a sus convocatorias."
+        : esIntegrante
+          ? "Ya eres integrante de este semillero."
+          : null;
 
   return (
     <AppShell>
@@ -79,6 +89,11 @@ function SemilleroDetallePage() {
         actions={
           <div className="flex items-center gap-3">
             <EstadoBadge estado={semillero.estado} />
+            {esIntegrante && (
+              <span className="rounded-sm border border-primary bg-primary/10 px-2.5 py-1 text-xs font-medium text-foreground">
+                Eres integrante
+              </span>
+            )}
             {sesion?.idSemillerosLiderados.includes(id) && (
               <Link
                 to="/gestion/$idSemillero"
@@ -127,6 +142,7 @@ function SemilleroDetallePage() {
                 key={convocatoria.idConvocatoria}
                 convocatoria={convocatoria}
                 idEstudiante={idEstudiante}
+                motivoSinPostulacion={motivoSinPostulacion}
               />
             ))}
           </ul>
@@ -161,9 +177,11 @@ function SemilleroDetallePage() {
 function ConvocatoriaItem({
   convocatoria,
   idEstudiante,
+  motivoSinPostulacion,
 }: {
   convocatoria: Convocatoria;
   idEstudiante: number | null;
+  motivoSinPostulacion: string | null;
 }) {
   const queryClient = useQueryClient();
   const [motivacion, setMotivacion] = useState("");
@@ -176,10 +194,10 @@ function ConvocatoriaItem({
     ...habilidadesQuery(),
     enabled: abierto,
   });
+  const abiertaConCupos =
+    convocatoria.estado === "ABIERTA" && convocatoria.cuposDisponibles > 0;
   const disponible =
-    idEstudiante !== null &&
-    convocatoria.estado === "ABIERTA" &&
-    convocatoria.cuposDisponibles > 0;
+    idEstudiante !== null && abiertaConCupos && motivoSinPostulacion === null;
   const formularioValido =
     motivacion.trim().length >= 20 &&
     experiencia.trim().length > 0 &&
@@ -374,6 +392,10 @@ function ConvocatoriaItem({
             </button>
           )}
         </div>
+      ) : idEstudiante !== null && abiertaConCupos && motivoSinPostulacion ? (
+        <p className="mt-5 border-t border-border pt-4 text-sm text-muted-foreground">
+          {motivoSinPostulacion}
+        </p>
       ) : null}
     </li>
   );

@@ -22,7 +22,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/estudiantes")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Estudiantes", description = "Endpoints para la gestión de estudiantes y sus líneas de investigación de interés")
 public class EstudianteController {
 

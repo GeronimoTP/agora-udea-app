@@ -8,6 +8,7 @@ import com.udea.agora_backend.service.LiderazgoSemilleroService;
 import com.udea.agora_backend.service.UsuarioService;
 import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,7 +27,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/usuarios")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Usuarios", description = "Endpoints para la gestión de usuarios del sistema")
 public class UsuarioController {
 
@@ -35,22 +35,32 @@ public class UsuarioController {
     private final EstudianteRepository estudianteRepository;
     private final ProfesorRepository profesorRepository;
     private final LiderazgoSemilleroService liderazgoSemilleroService;
+    private final EstudianteSemilleroRepository estudianteSemilleroRepository;
 
     @GetMapping("/me")
     public ResponseEntity<UsuarioSesionResponseDTO> obtenerSesion(Authentication authentication) {
     Usuario usuario = usuarioRepository.findWithRolByEmail(authentication.getName())
         .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", "email", authentication.getName()));
 
+    Integer idEstudiante = estudianteRepository.findByUsuarioId(usuario.getId())
+        .map(estudiante -> estudiante.getId()).orElse(null);
+    // Un estudiante puede integrar varios semilleros a la vez (vinculaciones sin fecha de salida)
+    List<Integer> idSemillerosIntegrante = idEstudiante == null
+        ? List.of()
+        : estudianteSemilleroRepository.findByEstudianteIdAndFechaSalidaIsNull(idEstudiante).stream()
+            .map(vinculacion -> vinculacion.getSemillero().getId())
+            .toList();
+
     return ResponseEntity.ok(UsuarioSesionResponseDTO.builder()
         .idUsuario(usuario.getId())
         .nombreCompleto(usuario.getNombreCompleto())
         .email(usuario.getEmail())
         .rol(usuario.getRol().getNombre())
-        .idEstudiante(estudianteRepository.findByUsuarioId(usuario.getId())
-            .map(estudiante -> estudiante.getId()).orElse(null))
+        .idEstudiante(idEstudiante)
         .idProfesor(profesorRepository.findByUsuarioId(usuario.getId())
             .map(profesor -> profesor.getId()).orElse(null))
         .idSemillerosLiderados(liderazgoSemilleroService.obtenerSemillerosLiderados(usuario))
+        .idSemillerosIntegrante(idSemillerosIntegrante)
         .build());
     }
 

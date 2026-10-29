@@ -7,6 +7,7 @@ import com.udea.agora_backend.dto.response.PostulacionResponseDTO;
 import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.GestorConvocatoriasService;
 import com.udea.agora_backend.service.PostulacionService;
+import com.udea.agora_backend.service.PriorizacionCandidatosService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -23,13 +24,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/postulaciones")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "Postulaciones", description = "Endpoints para el motor de postulaciones concurrentes, habilidades y flujo de selección de doble vía")
 public class PostulacionController {
 
     private final PostulacionService postulacionService;
     private final GestorConvocatoriasService gestorConvocatoriasService;
     private final AutorizacionService autorizacionService;
+    private final PriorizacionCandidatosService priorizacionCandidatosService;
 
     @Operation(summary = "Obtener todas las postulaciones")
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones obtenida exitosamente")
@@ -63,6 +64,15 @@ public class PostulacionController {
     public ResponseEntity<List<PostulacionResponseDTO>> obtenerPorSemillero(@PathVariable Integer idSemillero, Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(postulacionService.obtenerPorSemillero(idSemillero));
+    }
+
+    @Operation(summary = "Priorizar los candidatos en proceso de las convocatorias de un semillero (Servicio 2)")
+    @ApiResponse(responseCode = "200", description = "Candidatos ordenados por puntaje dentro de cada convocatoria")
+    @GetMapping("/semillero/{idSemillero}/priorizacion")
+    public ResponseEntity<List<PriorizacionCandidatosService.CandidatoPriorizadoDTO>> priorizarCandidatos(
+            @PathVariable Integer idSemillero, Authentication authentication) {
+        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        return ResponseEntity.ok(priorizacionCandidatosService.priorizarPorSemillero(idSemillero));
     }
 
     @Operation(summary = "Obtener postulaciones activas de un estudiante (Pendiente o Pre-aprobada)")

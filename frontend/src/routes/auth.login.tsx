@@ -6,12 +6,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { API_BASE_URL, ApiError, apiRequest } from "@/lib/api/client";
 
+// Códigos que envían el backend (OAuth2LoginFailureHandler) y el cliente HTTP (sesión vencida)
+const mensajesError: Record<string, string> = {
+  invalid_google_account:
+    "Debes ingresar con una cuenta Google institucional @udea.edu.co.",
+  account_conflict:
+    "Este correo ya está asociado a otra cuenta de Google. Contacta al administrador.",
+  login_fallido: "No se pudo completar el inicio de sesión con Google.",
+  sesion_expirada: "Tu sesión expiró. Vuelve a ingresar.",
+};
+
 export const Route = createFileRoute("/auth/login")({
+  validateSearch: (search: Record<string, unknown>): { error?: string } =>
+    typeof search["error"] === "string" ? { error: search["error"] } : {},
   component: LoginPage,
 });
 
 function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const { error } = Route.useSearch();
+  const mensajeError = error
+    ? (mensajesError[error] ?? mensajesError["login_fallido"])
+    : null;
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f3f5f1] px-5 py-12 text-[#18221d]">
@@ -28,6 +44,15 @@ function LoginPage() {
           Ingresa con tu cuenta institucional para explorar y gestionar
           semilleros de investigación.
         </p>
+
+        {mensajeError && (
+          <p
+            role="alert"
+            className="mt-6 rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+          >
+            {mensajeError}
+          </p>
+        )}
 
         <Button
           type="button"
