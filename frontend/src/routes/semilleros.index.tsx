@@ -8,6 +8,8 @@ import { SemilleroCard } from "@/components/semilleros/SemilleroCard";
 import { semillerosQuery } from "@/lib/api/queries";
 
 export const Route = createFileRoute("/semilleros/")({
+  // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Semilleros de investigación | Agora UdeA" },
@@ -125,7 +127,7 @@ function SemillerosPage() {
         {resultados.length === 1 ? "" : "s"}
       </p>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {resultados.map((semillero) => (
           <SemilleroCard key={semillero.idSemillero} semillero={semillero} />
         ))}

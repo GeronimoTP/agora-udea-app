@@ -23,6 +23,8 @@ import { postulacionesService } from "@/lib/api/services";
 import type { Convocatoria, Proyecto, Publicacion } from "@/types/api";
 
 export const Route = createFileRoute("/semilleros/$idSemillero")({
+  // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Detalle del semillero | Agora UdeA" },

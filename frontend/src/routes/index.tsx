@@ -235,8 +235,11 @@ function TableroPage() {
         <SemillerosIntegrante idSemilleros={sesion.idSemillerosIntegrante} />
       )}
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        <section aria-labelledby="convocatorias" className="lg:col-span-2">
+      <div className="grid gap-8 lg:grid-cols-3 2xl:grid-cols-4">
+        <section
+          aria-labelledby="convocatorias"
+          className="lg:col-span-2 2xl:col-span-3"
+        >
           <div className="mb-3 flex items-end justify-between">
             <h2
               id="convocatorias"
@@ -251,10 +254,14 @@ function TableroPage() {
               Ver todos los semilleros
             </Link>
           </div>
-          <ul className="space-y-3">
+          <ul className="grid gap-3 xl:grid-cols-2">
             {convocatorias.map((convocatoria) => (
-              <li key={convocatoria.idConvocatoria} className="panel p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+              <li
+                key={convocatoria.idConvocatoria}
+                className="panel flex flex-col p-5"
+              >
+                {/* mb-4 separa el pie de la tarjeta; mt-auto lo alinea abajo entre columnas */}
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                   <div className="max-w-2xl">
                     <p className="label-caps">{convocatoria.nombreSemillero}</p>
                     <h3 className="mt-1 font-display text-base font-semibold text-foreground">
@@ -266,7 +273,7 @@ function TableroPage() {
                   </div>
                   <EstadoBadge estado={convocatoria.estado} />
                 </div>
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4 text-sm">
+                <div className="mt-auto flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4 text-sm">
                   <p className="text-muted-foreground">
                     Cierra el{" "}
                     <span className="font-medium text-foreground">
@@ -427,7 +434,7 @@ function SemillerosIntegrante({ idSemilleros }: { idSemilleros: number[] }) {
           ? "Semillero en el que participas"
           : `Semilleros en los que participas (${idSemilleros.length})`}
       </h2>
-      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {integrados.map((semillero) => (
           <li key={semillero.idSemillero}>
             <Link
@@ -529,7 +536,7 @@ function SemillerosLiderados({
           </Link>
         )}
       </div>
-      <ul className="grid gap-4 lg:grid-cols-2">
+      <ul className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {liderados.map((semillero) => {
           const porRevisar = recibidas.filter(
             (p) =>

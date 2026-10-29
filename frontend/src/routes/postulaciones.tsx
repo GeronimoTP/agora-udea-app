@@ -18,6 +18,8 @@ import { postulacionesService } from "@/lib/api/services";
 import type { Postulacion } from "@/types/api";
 
 export const Route = createFileRoute("/postulaciones")({
+  // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Postulaciones y selección de doble vía | Agora UdeA" },

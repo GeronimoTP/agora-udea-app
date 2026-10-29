@@ -95,6 +95,8 @@ Las reglas de cada servicio están en "Recomendaciones", "Postulaciones y cupos"
 - Los datos de prueba crean ofertas `Pre-aprobada` con fecha relativa al día de carga: con el plazo de respuesta (3 días por defecto) expiran poco después. Para probar ofertas, pre-aprueba desde la app como líder.
 
 ### Experiencia por rol (frontend)
+`AppShell` es un menú lateral fijo a la izquierda (desde `lg`; en pantallas pequeñas se abre con un botón en la barra superior) con la navegación, "Mi semillero", el nombre y rol del usuario, "Mi perfil" y "Cerrar sesión". El contenido ocupa el resto del ancho hasta 1600 px (`max-w-[1600px]`), y las cuadrículas agregan columnas en `xl`/`2xl`. El login (`/auth/login`) divide la pantalla: panel institucional verde a la izquierda (oculto en pantallas pequeñas) y formulario a la derecha.
+
 La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `frontend/src/lib/api/queries.ts` (`ADMINISTRADOR`, `ESTUDIANTE`, `PROFESOR`):
 
 | Ruta | Estudiante | Profesor | Administrador |
@@ -281,7 +283,7 @@ Los servicios frontend adaptan los DTO del backend a tipos de vista con funcione
 - Mantener nombres de dominio en español y respetar nombres/capitalización de catálogos, estados y roles.
 - No añadir acceso a datos demo ni IDs fijos. El usuario actual se obtiene con `/api/usuarios/me`.
 - Frontend: rutas file-based en `frontend/src/routes`; `index.tsx` es `/`; `__root.tsx` es el único root layout. No editar `routeTree.gen.ts`.
-- La ruta raíz usa `ssr: false` porque autenticación y consultas leen `localStorage` del navegador.
+- Toda ruta cuyo `loader` consulte la API usa `ssr: false`: el token vive en `localStorage` y en el servidor no existe, así que una carga directa (recargar o abrir un enlace) fallaría. Aplica a `/`, `/semilleros`, `/semilleros/$idSemillero`, `/postulaciones`, `/compatibilidad`, `/gestion/$idSemillero`, `/semilleros/nuevo`, `/perfil`, `/analitica` y `/oauth2/redirect`.
 - Mantener `apiRequest` para llamadas HTTP: añade Bearer token, no envía cookies y usa timeout configurable.
 - Para mostrar u ocultar funcionalidades por rol, usar `tipoPerfil`, `esAdministrador`, `esEstudiante` y `esProfesor` de `queries.ts`, y añadir la regla equivalente en `SecurityConfig`.
 - No relajar restricciones de DB para ocultar datos obligatorios ausentes. Mantener relaciones y completar entidades correctamente.

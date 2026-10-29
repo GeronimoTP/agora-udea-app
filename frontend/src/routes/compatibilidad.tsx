@@ -13,6 +13,8 @@ import {
 import type { ResultadoMatch } from "@/types/api";
 
 export const Route = createFileRoute("/compatibilidad")({
+  // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Compatibilidad con semilleros | Agora UdeA" },

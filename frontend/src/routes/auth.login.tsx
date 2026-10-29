@@ -1,7 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { ArrowRight, FlaskConical, Loader2 } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  FlaskConical,
+  Library,
+  Loader2,
+  Target,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { API_BASE_URL, ApiError, apiRequest } from "@/lib/api/client";
@@ -15,6 +22,25 @@ const mensajesError: Record<string, string> = {
   login_fallido: "No se pudo completar el inicio de sesión con Google.",
   sesion_expirada: "Tu sesión expiró. Vuelve a ingresar.",
 };
+
+const beneficios = [
+  {
+    icon: Library,
+    titulo: "Explora semilleros",
+    detalle:
+      "Líneas de investigación, proyectos y publicaciones de cada semillero.",
+  },
+  {
+    icon: CalendarClock,
+    titulo: "Postúlate a convocatorias",
+    detalle: "Sigue tus postulaciones y responde las ofertas de admisión.",
+  },
+  {
+    icon: Target,
+    titulo: "Recomendaciones a tu medida",
+    detalle: "Semilleros afines a tu perfil según tus intereses y habilidades.",
+  },
+];
 
 export const Route = createFileRoute("/auth/login")({
   validateSearch: (search: Record<string, unknown>): { error?: string } =>
@@ -30,57 +56,109 @@ function LoginPage() {
     : null;
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#f3f5f1] px-5 py-12 text-[#18221d]">
-      <div className="absolute inset-x-0 top-0 h-2 bg-[#e0a12e]" />
-      <div className="absolute -right-28 -top-32 h-96 w-96 rounded-full border-[48px] border-[#dce8dd] opacity-70" />
-      <section className="relative w-full max-w-lg border border-[#d8ded8] bg-white p-8 shadow-[0_24px_80px_-48px_rgba(24,34,29,0.45)] sm:p-12">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#52665a]">
+    <main className="grid min-h-screen bg-[#f3f5f1] text-[#18221d] lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      {/* Panel institucional: solo en pantallas grandes */}
+      <aside className="relative hidden overflow-hidden bg-[#173c2e] px-12 py-14 text-white lg:flex lg:flex-col lg:justify-between xl:px-20">
+        <div className="absolute inset-x-0 top-0 h-2 bg-[#e0a12e]" />
+        <div className="absolute -bottom-40 -right-40 h-[28rem] w-[28rem] rounded-full border-[64px] border-white/5" />
+        <div className="absolute -left-24 top-1/3 h-64 w-64 rounded-full border-[40px] border-white/5" />
+
+        <p className="relative text-xs font-semibold uppercase tracking-[0.18em] text-[#e0a12e]">
           Universidad de Antioquia
         </p>
-        <h1 className="mt-5 font-display text-4xl font-semibold leading-tight text-[#173c2e]">
-          Agora UdeA
-        </h1>
-        <p className="mt-3 max-w-sm text-base leading-7 text-[#5a665e]">
-          Ingresa con tu cuenta institucional para explorar y gestionar
-          semilleros de investigación.
-        </p>
 
-        {mensajeError && (
-          <p
-            role="alert"
-            className="mt-6 rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
-          >
-            {mensajeError}
+        <div className="relative max-w-lg">
+          <h1 className="font-display text-5xl font-semibold leading-tight">
+            Agora UdeA
+          </h1>
+          <p className="mt-4 text-lg leading-8 text-white/80">
+            La plataforma para encontrar, gestionar y hacer crecer los
+            semilleros de investigación de la universidad.
           </p>
-        )}
+          <ul className="mt-10 space-y-6">
+            {beneficios.map(({ icon: Icon, titulo, detalle }) => (
+              <li key={titulo} className="flex gap-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm bg-white/10">
+                  <Icon
+                    className="h-5 w-5 text-[#e0a12e]"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                </span>
+                <div>
+                  <p className="font-semibold">{titulo}</p>
+                  <p className="mt-1 text-sm leading-6 text-white/70">
+                    {detalle}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        <Button
-          type="button"
-          className="mt-9 h-12 w-full justify-between rounded-sm bg-[#173c2e] px-5 text-white hover:bg-[#245641]"
-          disabled={loading}
-          onClick={() => {
-            setLoading(true);
-            window.location.assign(
-              `${API_BASE_URL}/oauth2/authorization/google`,
-            );
-          }}
-        >
-          <span className="flex items-center gap-3">
-            {loading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <GoogleMark />
-            )}
-            Continuar con Google
-          </span>
-          <ArrowRight className="h-4 w-4" />
-        </Button>
-
-        <p className="mt-5 text-center text-xs leading-5 text-[#68756c]">
-          Usa un correo institucional terminado en @udea.edu.co.
+        <p className="relative text-xs text-white/60">
+          Vicerrectoría de Investigación · Sistema de Gestión de Semilleros
         </p>
+      </aside>
 
-        <LoginPruebas />
+      <section className="relative flex items-center justify-center px-5 py-12 sm:px-10">
+        <div className="absolute inset-x-0 top-0 h-2 bg-[#e0a12e] lg:hidden" />
+        <div className="w-full max-w-md">
+          {/* En pantallas pequeñas no hay panel institucional: la marca va aquí */}
+          <div className="lg:hidden">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#52665a]">
+              Universidad de Antioquia
+            </p>
+            <p className="mt-4 font-display text-4xl font-semibold leading-tight text-[#173c2e]">
+              Agora UdeA
+            </p>
+          </div>
+
+          <h2 className="mt-8 font-display text-2xl font-semibold text-[#173c2e] lg:mt-0">
+            Ingresa a tu cuenta
+          </h2>
+          <p className="mt-2 text-base leading-7 text-[#5a665e]">
+            Usa tu cuenta institucional para explorar y gestionar semilleros de
+            investigación.
+          </p>
+
+          {mensajeError && (
+            <p
+              role="alert"
+              className="mt-6 rounded-sm border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+            >
+              {mensajeError}
+            </p>
+          )}
+
+          <Button
+            type="button"
+            className="mt-8 h-12 w-full justify-between rounded-sm bg-[#173c2e] px-5 text-white hover:bg-[#245641]"
+            disabled={loading}
+            onClick={() => {
+              setLoading(true);
+              window.location.assign(
+                `${API_BASE_URL}/oauth2/authorization/google`,
+              );
+            }}
+          >
+            <span className="flex items-center gap-3">
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <GoogleMark />
+              )}
+              Continuar con Google
+            </span>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+
+          <p className="mt-5 text-center text-xs leading-5 text-[#68756c]">
+            Usa un correo institucional terminado en @udea.edu.co.
+          </p>
+
+          <LoginPruebas />
+        </div>
       </section>
     </main>
   );
