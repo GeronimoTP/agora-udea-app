@@ -106,7 +106,7 @@ La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `
 | `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes con su fecha límite y recomendaciones. "Semilleros en los que participas" si integra uno o varios. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
 | `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Registrar semillero eligiendo al estudiante líder; queda como tutor (puede registrar varios) | Redirige a `/` |
 | `/gestion/$idSemillero` | Gestión completa si es el estudiante líder | Gestión completa si es tutor | Redirige a `/` |
-| `/semilleros` y detalle | Ver y postularse. En un semillero que integra ve "Eres integrante" y en uno que lidera no puede postularse (el detalle explica el motivo) | Solo ver | Solo ver |
+| `/semilleros` y detalle | Ver y postularse. En un semillero que integra ve "Eres integrante" y la sección "Equipo del semillero" (tutores e integrantes activos con nombre, programa, semestre y correo); en uno que lidera no puede postularse (el detalle explica el motivo) | Solo ver | Solo ver |
 | `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas antes de su fecha límite. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas" ordenadas por la priorización del Servicio 2 (posición, puntaje, desglose y observaciones); pre-aprobar se desactiva cuando las ofertas vigentes igualan los cupos | Redirige a `/` |
 | `/perfil` | Editar programa, semestre y líneas | Editar programa y áreas | Redirige a `/` |
 | `/compatibilidad` | Ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
@@ -137,6 +137,7 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 | Crear, editar o eliminar publicaciones y gestionar sus autores | Líder del semillero del proyecto de la publicación |
 | Crear, editar o eliminar reconocimientos | Líder del semillero |
 | Retirar integrantes y transferir el liderazgo | Líder del semillero |
+| Ver los integrantes del semillero (`GET /api/semilleros/{id}/estudiantes`, incluye correos) | Líder, tutor o administrador (activos y retirados); un integrante activo solo ve a los activos; cualquier otro recibe 403 |
 | Ver postulaciones de un semillero o convocatoria, y su priorización de candidatos; pre-aprobar o rechazar | Líder del semillero |
 | Crear, editar, retirar una postulación y sus habilidades; aceptar o declinar una oferta | El estudiante postulado |
 | Ver una postulación concreta | El estudiante postulado, un líder del semillero o el administrador |
@@ -181,6 +182,7 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
 - El líder estudiantil solo cambia con `POST /api/semilleros/{id}/transferir-liderazgo/{idEstudiante}`: el nuevo líder debe ser integrante activo y no liderar otro semillero; el saliente queda como integrante activo. El `PUT` del semillero rechaza un cambio de líder.
 - No se puede pausar ni inactivar un semillero con convocatorias `Abierta`.
 - Eliminar un semillero solo es posible sin convocatorias, proyectos, integrantes ni reconocimientos; si tiene historial se inactiva.
+- "Equipo del semillero" en el detalle: solo la ven integrantes activos, el estudiante líder y los tutores. Muestra el líder estudiantil, los tutores (nombre y correo) y los integrantes activos (nombre, programa, semestre y correo, con enlace `mailto:`), para que puedan comunicarse; no muestra fechas de ingreso ni retirados. Los retirados solo los ven los líderes en la gestión.
 - Un estudiante puede ser integrante activo de **varios semilleros a la vez**. `GET /api/usuarios/me` devuelve sus membresías activas en `idSemillerosIntegrante`; el tablero las lista y el detalle del semillero muestra "Eres integrante". Solo no puede postularse a un semillero que ya integra o que lidera. Aceptar una oferta sigue cancelando en cascada sus demás postulaciones en proceso.
 - Integrantes (`tbl_estudiante_x_semillero`): activo = `fecha_salida` nula. `POST /api/semilleros/{id}/estudiantes/{idEstudiante}/retirar` pone fecha de salida hoy y estado `Inactivo` (categoría "Estado Usuario"). Un retirado puede volver a postularse y, si acepta una oferta, su vinculación se reactiva. `totalIntegrantes`, el chequeo "ya perteneces" y las recomendaciones solo cuentan integrantes activos.
 - Proyectos: `fechaFin` >= `fechaInicio`; no cambian de semillero; solo el estudiante líder o integrantes activos se vinculan a ellos; no se eliminan si tienen publicaciones (al eliminar se borran sus vínculos con estudiantes).

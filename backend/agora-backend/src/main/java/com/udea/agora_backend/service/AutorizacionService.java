@@ -9,6 +9,7 @@ import com.udea.agora_backend.model.ReconocimientoSemillero;
 import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.ConvocatoriaRepository;
 import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.PostulacionRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
 import com.udea.agora_backend.repository.ProyectoRepository;
@@ -47,6 +48,7 @@ public class AutorizacionService {
     private final PublicacionRepository publicacionRepository;
     private final ReconocimientoSemilleroRepository reconocimientoRepository;
     private final LiderazgoSemilleroService liderazgoSemilleroService;
+    private final EstudianteSemilleroRepository estudianteSemilleroRepository;
 
     // ==========================================
     // PERFILES
@@ -79,6 +81,24 @@ public class AutorizacionService {
     public void validarLiderSemillero(String email, Integer idSemillero) {
         if (!liderazgoSemilleroService.obtenerSemillerosLiderados(usuarioActual(email)).contains(idSemillero)) {
             throw new AccessDeniedException("Solo un líder del semillero puede realizar esta acción");
+        }
+    }
+
+    /** Líderes del semillero (estudiante líder o tutores) y el administrador ven el historial completo de integrantes. */
+    public boolean esLiderOAdministrador(String email, Integer idSemillero) {
+        Usuario usuario = usuarioActual(email);
+        return esAdministrador(usuario)
+                || liderazgoSemilleroService.obtenerSemillerosLiderados(usuario).contains(idSemillero);
+    }
+
+    /** Un integrante activo puede ver a sus compañeros (no a los retirados). */
+    public void validarIntegranteActivo(String email, Integer idSemillero) {
+        boolean integrante = obtenerIdEstudiante(email)
+                .map(idEstudiante -> estudianteSemilleroRepository
+                        .existsBySemilleroIdAndEstudianteIdAndFechaSalidaIsNull(idSemillero, idEstudiante))
+                .orElse(false);
+        if (!integrante) {
+            throw new AccessDeniedException("Solo los integrantes y líderes del semillero pueden ver sus integrantes");
         }
     }
 

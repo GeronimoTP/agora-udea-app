@@ -70,6 +70,7 @@ export interface Profesor {
 export interface Semillero {
   idSemillero: number;
   idEstudianteLider: number;
+  nombreLider: string;
   nombre: string;
   descripcion: string;
   lineasInvestigacion: string[];
@@ -81,6 +82,21 @@ export interface Semillero {
   totalPublicaciones: number;
   totalIntegrantes: number;
   convocatoriaAbierta: boolean;
+}
+
+/** Equipo visible solo para quienes pertenecen al semillero (incluye correos). */
+export interface IntegranteSemillero {
+  idEstudiante: number;
+  nombre: string;
+  email: string;
+  programa: string;
+  semestre: number;
+}
+
+export interface TutorSemillero {
+  idProfesor: number;
+  nombre: string;
+  email: string;
 }
 
 export interface Convocatoria {

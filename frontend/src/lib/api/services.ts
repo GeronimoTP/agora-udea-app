@@ -9,12 +9,14 @@ import type {
   Estudiante,
   EstadoPostulacion,
   FiltroSemilleros,
+  IntegranteSemillero,
   Postulacion,
   PriorizacionCandidato,
   Proyecto,
   Publicacion,
   ResultadoMatch,
   Semillero,
+  TutorSemillero,
 } from "@/types/api";
 
 // ============================================
@@ -68,6 +70,32 @@ export const semillerosService = {
         `/api/publicaciones/semillero/${idSemillero}`,
       )
     ).map((publicacion) => mapearPublicacion(publicacion, idSemillero)),
+
+  // Solo integrantes activos: los retirados se gestionan desde /gestion. El backend
+  // solo responde a líderes, tutores e integrantes activos del semillero
+  integrantes: async (idSemillero: number) =>
+    (
+      await apiRequest<IntegranteApi[]>(
+        `/api/semilleros/${idSemillero}/estudiantes`,
+      )
+    )
+      .filter((integrante) => integrante.fechaSalida === null)
+      .map((integrante): IntegranteSemillero => ({
+        idEstudiante: integrante.idEstudiante,
+        nombre: integrante.nombreEstudiante,
+        email: integrante.email,
+        programa: integrante.nombrePrograma ?? "",
+        semestre: integrante.semestre,
+      })),
+
+  tutores: async (idSemillero: number) =>
+    (
+      await apiRequest<TutorApi[]>(`/api/semilleros/${idSemillero}/profesores`)
+    ).map((tutor): TutorSemillero => ({
+      idProfesor: tutor.idProfesor,
+      nombre: tutor.nombreProfesor,
+      email: tutor.email,
+    })),
 
   // El backend asigna el estudiante líder y vincula los profesores tutores
   crear: async (payload: NuevoSemillero) =>
@@ -323,7 +351,8 @@ export const catalogoService = {
   programas: () =>
     apiRequest<ProgramaCatalogo[]>("/api/catalogos/programas-academicos"),
   facultades: () => apiRequest<ItemCatalogo[]>("/api/catalogos/facultades"),
-  areasEspecialidad: () => apiRequest<ItemCatalogo[]>("/api/areas-especialidad"),
+  areasEspecialidad: () =>
+    apiRequest<ItemCatalogo[]>("/api/areas-especialidad"),
   lineasInvestigacion: () =>
     apiRequest<ItemCatalogo[]>("/api/lineas-investigacion"),
   habilidades: () => apiRequest<Habilidad[]>("/api/habilidades"),
@@ -462,6 +491,7 @@ interface CandidatoPriorizadoApi {
 interface SemilleroApi {
   id: number;
   idEstudianteLider: number;
+  nombreEstudianteLider: string;
   nombre: string;
   descripcion: string;
   estadoActual: string | null;
@@ -471,6 +501,23 @@ interface SemilleroApi {
   totalPublicaciones: number;
   totalIntegrantes: number;
   convocatoriaAbierta: boolean;
+}
+
+// EstudianteSemilleroResponseDTO
+interface IntegranteApi {
+  idEstudiante: number;
+  nombreEstudiante: string;
+  email: string;
+  nombrePrograma: string | null;
+  semestre: number;
+  fechaSalida: string | null;
+}
+
+// ProfesorSemilleroResponseDTO
+interface TutorApi {
+  idProfesor: number;
+  nombreProfesor: string;
+  email: string;
 }
 
 interface ProyectoApi {
@@ -500,6 +547,7 @@ function mapearSemillero(semillero: SemilleroApi): Semillero {
   return {
     idSemillero: semillero.id,
     idEstudianteLider: semillero.idEstudianteLider,
+    nombreLider: semillero.nombreEstudianteLider,
     nombre: semillero.nombre,
     descripcion: semillero.descripcion,
     lineasInvestigacion: semillero.lineasInvestigacion ?? [],

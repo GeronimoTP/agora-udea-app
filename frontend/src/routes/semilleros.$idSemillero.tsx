@@ -4,7 +4,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
@@ -14,6 +14,8 @@ import { DataTable, type Columna } from "@/components/common/DataTable";
 import {
   convocatoriasSemilleroQuery,
   habilidadesQuery,
+  integrantesSemilleroQuery,
+  tutoresSemilleroQuery,
   perfilEstudianteQuery,
   usuarioSesionQuery,
   proyectosQuery,
@@ -66,6 +68,9 @@ function SemilleroDetallePage() {
   const idEstudiante = sesion?.idEstudiante ?? null;
   // Un estudiante puede integrar varios semilleros, pero no postularse al que ya integra o lidera
   const esIntegrante = sesion?.idSemillerosIntegrante.includes(id) ?? false;
+  // El equipo (con correos) solo lo ven integrantes activos, el líder y los tutores
+  const perteneceAlEquipo =
+    esIntegrante || (sesion?.idSemillerosLiderados.includes(id) ?? false);
   const motivoSinPostulacion =
     idEstudiante === null
       ? null
@@ -127,6 +132,10 @@ function SemilleroDetallePage() {
         </ul>
       </section>
 
+      {perteneceAlEquipo && (
+        <EquipoSemillero idSemillero={id} nombreLider={semillero.nombreLider} />
+      )}
+
       <section aria-labelledby="convocatorias-semillero" className="mb-10">
         <h2
           id="convocatorias-semillero"
@@ -174,6 +183,97 @@ function SemilleroDetallePage() {
         />
       </section>
     </AppShell>
+  );
+}
+
+function EquipoSemillero({
+  idSemillero,
+  nombreLider,
+}: {
+  idSemillero: number;
+  nombreLider: string;
+}) {
+  const { data: integrantes = [], isLoading } = useQuery(
+    integrantesSemilleroQuery(idSemillero),
+  );
+  const { data: tutores = [] } = useQuery(tutoresSemilleroQuery(idSemillero));
+
+  return (
+    <section aria-labelledby="equipo" className="mb-10">
+      <h2
+        id="equipo"
+        className="mb-1 font-display text-sm font-semibold text-foreground"
+      >
+        Equipo del semillero
+      </h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Solo lo ven los integrantes, el líder y los tutores. Líder estudiantil:{" "}
+        <span className="font-medium text-foreground">{nombreLider}</span>.
+      </p>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <div className="panel p-5">
+          <p className="label-caps mb-3">Tutores ({tutores.length})</p>
+          <ul className="space-y-3">
+            {tutores.map((tutor) => (
+              <Persona
+                key={tutor.idProfesor}
+                nombre={tutor.nombre}
+                email={tutor.email}
+              />
+            ))}
+          </ul>
+        </div>
+        <div className="panel p-5">
+          <p className="label-caps mb-3">
+            Integrantes activos ({integrantes.length})
+          </p>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : integrantes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aún no hay integrantes vinculados.
+            </p>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+              {integrantes.map((integrante) => (
+                <Persona
+                  key={integrante.idEstudiante}
+                  nombre={integrante.nombre}
+                  detalle={`${integrante.programa} · Semestre ${integrante.semestre}`}
+                  email={integrante.email}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Persona({
+  nombre,
+  detalle,
+  email,
+}: {
+  nombre: string;
+  detalle?: string;
+  email: string;
+}) {
+  return (
+    <li className="min-w-0">
+      <p className="truncate text-sm font-medium text-foreground">{nombre}</p>
+      {detalle && (
+        <p className="truncate text-xs text-muted-foreground">{detalle}</p>
+      )}
+      <a
+        href={`mailto:${email}`}
+        className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-accent underline-offset-4 hover:underline"
+      >
+        <Mail className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+        <span className="truncate">{email}</span>
+      </a>
+    </li>
   );
 }
 

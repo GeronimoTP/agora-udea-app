@@ -223,11 +223,23 @@ public class SemilleroController {
     // VINCULACIÓN DE ESTUDIANTES AL SEMILLERO
     // ==========================================
 
-    @Operation(summary = "Obtener los estudiantes vinculados a un semillero")
-    @ApiResponse(responseCode = "200", description = "Lista de estudiantes vinculados obtenida exitosamente")
+    @Operation(summary = "Obtener los estudiantes vinculados a un semillero",
+            description = "Líderes, tutores y administrador ven activos y retirados; un integrante activo solo ve a los activos.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista de estudiantes vinculados obtenida exitosamente"),
+            @ApiResponse(responseCode = "403", description = "No es líder, tutor ni integrante activo del semillero")
+    })
     @GetMapping("/{id}/estudiantes")
-    public ResponseEntity<List<EstudianteSemilleroResponseDTO>> obtenerEstudiantes(@PathVariable Integer id) {
-        return ResponseEntity.ok(semilleroService.obtenerEstudiantes(id));
+    public ResponseEntity<List<EstudianteSemilleroResponseDTO>> obtenerEstudiantes(
+            @PathVariable Integer id, Authentication authentication) {
+        // Incluye correos: solo lo ven quienes pertenecen al semillero
+        if (autorizacionService.esLiderOAdministrador(authentication.getName(), id)) {
+            return ResponseEntity.ok(semilleroService.obtenerEstudiantes(id));
+        }
+        autorizacionService.validarIntegranteActivo(authentication.getName(), id);
+        return ResponseEntity.ok(semilleroService.obtenerEstudiantes(id).stream()
+                .filter(vinculacion -> vinculacion.getFechaSalida() == null)
+                .toList());
     }
 
     @Operation(summary = "Vincular un estudiante a un semillero")

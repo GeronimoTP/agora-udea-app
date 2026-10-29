@@ -57,6 +57,18 @@ export const semilleroQuery = (idSemillero: number) =>
     queryFn: () => semillerosService.obtener(idSemillero),
   });
 
+export const integrantesSemilleroQuery = (idSemillero: number) =>
+  queryOptions({
+    queryKey: ["semillero", idSemillero, "integrantes"],
+    queryFn: () => semillerosService.integrantes(idSemillero),
+  });
+
+export const tutoresSemilleroQuery = (idSemillero: number) =>
+  queryOptions({
+    queryKey: ["semillero", idSemillero, "tutores"],
+    queryFn: () => semillerosService.tutores(idSemillero),
+  });
+
 export const proyectosQuery = (idSemillero: number) =>
   queryOptions({
     queryKey: ["proyectos", idSemillero],
