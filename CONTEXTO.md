@@ -47,11 +47,11 @@ El proyecto se organiza en tres servicios de procesamiento: cada uno toma datos 
 
 | Servicio | Clases | Toma | Produce |
 | --- | --- | --- | --- |
-| 1. Motor de recomendación | `MotorRecomendacionService`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores y convocatorias vigentes | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante |
+| 1. Motor de recomendación | `MotorRecomendacionService`, `SemillerosSimilaresService`, `IndiceSemillerosKdService`, `estructuras/KdTree`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores, convocatorias vigentes e historial de semilleros del estudiante | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante; **semilleros similares a los suyos** (vecinos más cercanos en un árbol KD) |
 | 2. Gestor de convocatorias | `GestorConvocatoriasService`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cascada, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria |
 | 3. Analítica institucional | `AnaliticaService`, `AnaliticaController` | Todas las postulaciones, proyectos, publicaciones, reconocimientos y vinculaciones | 8 indicadores: demanda, tiempo de respuesta, retención de ofertas, conversión proyecto-publicación, participación estudiantil, reconocimientos, habilidades emergentes e interdisciplinariedad |
 
-Las reglas de cada servicio están en "Recomendaciones", "Postulaciones y cupos" (incluida "Priorización de candidatos") y "Analítica".
+Las reglas de cada servicio están en "Recomendaciones", "Semilleros similares a los tuyos (árbol KD)", "Postulaciones y cupos" (incluida "Priorización de candidatos") y "Analítica".
 
 ## Reglas de Negocio
 
@@ -103,13 +103,13 @@ La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `
 
 | Ruta | Estudiante | Profesor | Administrador |
 | --- | --- | --- | --- |
-| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes con su fecha límite y recomendaciones. "Semilleros en los que participas" si integra uno o varios. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
+| `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes con su fecha límite, recomendaciones y los 3 primeros "Semilleros similares a los tuyos". "Semilleros en los que participas" si integra uno o varios. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
 | `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Registrar semillero eligiendo al estudiante líder; queda como tutor (puede registrar varios) | Redirige a `/` |
 | `/gestion/$idSemillero` | Gestión completa si es el estudiante líder | Gestión completa si es tutor | Redirige a `/` |
 | `/semilleros` y detalle | Ver y postularse. En un semillero que integra ve "Eres integrante" y la sección "Equipo del semillero" (tutores e integrantes activos con nombre, programa, semestre y correo); en uno que lidera no puede postularse (el detalle explica el motivo) | Solo ver | Solo ver |
 | `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas antes de su fecha límite. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas" ordenadas por la priorización del Servicio 2 (posición, puntaje, desglose y observaciones); pre-aprobar se desactiva cuando las ofertas vigentes igualan los cupos | Redirige a `/` |
 | `/perfil` | Editar programa, semestre y líneas | Editar programa y áreas | Redirige a `/` |
-| `/compatibilidad` | Ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
+| `/compatibilidad` | "Semilleros similares a los tuyos" (árbol KD: similitud, áreas y líneas en común, "Parecido a…", datos de la búsqueda) y ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
 | `/analitica` | Redirige a `/` | Redirige a `/` | KPIs institucionales |
 
 La gestión (`/gestion/$idSemillero?seccion=...`) tiene pestañas: Información (datos, líneas, estado, transferir liderazgo, eliminar), Convocatorias (crear, editar, cerrar, cancelar, eliminar), Integrantes y tutores (retirar integrantes, agregar/quitar tutores), Proyectos (CRUD, estado, integrantes con rol), Publicaciones (CRUD y autores) y Reconocimientos (CRUD). Se entra desde "Semilleros que lideras" en el tablero, el ítem "Mi semillero" del menú (si lidera exactamente uno) o el botón "Gestionar" del detalle público. Usa los DTOs del backend sin mapear (`frontend/src/lib/api/gestion.ts`) y todas sus consultas cuelgan de la clave `["gestion", id]`.
@@ -246,6 +246,41 @@ La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para 
 
 El puntaje se limita a 0–100. Las habilidades del estudiante son las de su perfil (declaradas desde el registro) unidas a las que declaró en sus postulaciones, así que la compatibilidad funciona desde que se crea el perfil. El factor compara contra las habilidades de las postulaciones aceptadas del semillero (o, si no hay, de todas las recibidas). Usa un valor neutral de 50 solo si el semillero no tiene historial de postulaciones o si el estudiante no tiene ninguna habilidad (perfiles anteriores a la migración V3 sin postulaciones).
 
+### Semilleros similares a los tuyos (árbol KD)
+Complemento del Servicio 1 y aplicación del tema **árboles KD** de Estructura de Datos. Recomienda semilleros parecidos a aquellos en los que el estudiante **está o ha estado**. Es independiente del ranking ponderado: el motor puntúa cada semillero con cuatro factores recorriéndolos todos, mientras que este servicio busca los **vecinos más cercanos** a su historial en un espacio geométrico.
+
+**Qué es un árbol KD.** Un árbol KD (*k-dimensional tree*) es un árbol binario de búsqueda para puntos de k coordenadas. Cada nivel parte el espacio en dos con un hiperplano perpendicular a un eje, que se elige de forma cíclica: el nivel 0 corta por el eje 0, el nivel 1 por el eje 1, …, el nivel k vuelve al eje 0. En cada nodo, el subárbol izquierdo guarda los puntos con coordenada menor o igual a la del nodo en ese eje, y el derecho los mayores o iguales. Es la generalización a k dimensiones del árbol binario de búsqueda (que sería un árbol KD con k = 1).
+
+**Construcción** (`KdTree.construir`). En cada nivel se toma como nodo el punto **mediano** según el eje del nivel; la mitad menor forma el subárbol izquierdo y la mayor el derecho. Así el árbol queda balanceado, con profundidad ⌈log₂(n+1)⌉. La mediana se obtiene con *quickselect* con partición en tres vías (O(n) promedio por nivel, y sin degradarse con coordenadas repetidas, que aquí abundan), por lo que construir cuesta **O(n log n)**.
+
+Ejemplo (el de `KdTreeTest`): puntos A(2,3), B(5,4), C(9,6), D(4,7), E(8,1), F(7,2).
+```
+              F(7,2)  corta por x
+             /      \
+   B(5,4) corta y   C(9,6) corta y
+      /     \          /
+  A(2,3)  D(4,7)   E(8,1)
+```
+
+**Búsqueda de los k vecinos más cercanos** (`buscarVecinosMasCercanos`). Recursiva, con un montículo de máximos que guarda los k mejores encontrados (en la cima, el peor de ellos):
+1. Se evalúa el nodo actual y, si es mejor que el peor del montículo, entra.
+2. Se baja primero por el lado del hiperplano donde cae la consulta (ahí suelen estar los vecinos).
+3. Al volver, el otro lado solo se visita si el hiperplano está más cerca que el peor vecino actual (`diferencia² < peorDistancia²`). Si no, ningún punto de ese lado puede mejorar el resultado y toda la rama se **poda**.
+
+En el ejemplo, buscar el vecino más cercano a (9,2): F (distancia² 4) → baja a la derecha porque 9 ≥ 7 → C (16) → baja a la izquierda porque 2 < 6 → E (2, el mejor). Al volver a F, el hiperplano x = 7 está a distancia² 4 ≥ 2: se poda el subárbol izquierdo completo (A, B, D). Visitó 3 de 6 nodos.
+
+**Complejidad y límites.** Con pocas dimensiones la búsqueda visita O(log n) nodos en promedio, frente a O(n) de un recorrido lineal. Con muchas dimensiones la poda casi nunca se cumple y la búsqueda tiende a O(n) (**maldición de la dimensionalidad**); regla práctica: el árbol rinde cuando n ≫ 2^k. Por eso el espacio usa **áreas de especialidad** (pocas) y no líneas de investigación (que darían decenas de dimensiones). Con los volúmenes de la universidad (cientos de semilleros) la diferencia de tiempo frente al recorrido lineal es pequeña; el valor del árbol es que la búsqueda escala y que el mismo índice sirve a todas las consultas. `KdTreeTest` compara el árbol contra la fuerza bruta en miles de consultas aleatorias (1 a 6 dimensiones, con empates y con filtro) y comprueba que la poda funciona (con 10 000 puntos en 2D visita menos de 200 nodos). Se ejecuta sin base de datos: `./mvnw test -Dtest=KdTreeTest`.
+
+**Cómo se aplica a los semilleros:**
+- **Espacio:** una dimensión por área de especialidad del catálogo (`tbl_areas_especialidad`, ordenadas por id).
+- **Punto de un semillero:** cuántas de sus líneas de investigación caen en cada área (vía `tbl_linea_investigacion.id_area_especialidad`), normalizado a longitud 1. Ejemplo con áreas (Computación, Ambiente, Estadística): líneas IA y Datos → (1, 0, 1) → (0.707, 0, 0.707).
+- **Distancia y similitud:** con vectores unitarios, la distancia euclidiana d y la similitud coseno cumplen `cos = 1 − d²/2`. El vecino más cercano en el árbol es el semillero de temática más parecida. Se muestra `porcentajeSimilitud = cos × 100` (100 % = mismas áreas en la misma proporción; 0 % = ninguna área en común, y esos no se recomiendan).
+- **Índice** (`IndiceSemillerosKdService`): el árbol contiene los semilleros en estado `Activo` (categoría "Estado Semillero") que tienen al menos una línea. Se construye con una sola consulta, se guarda en memoria y se reutiliza. Se descarta cuando se publica `SemillerosModificadosEvent` (después del commit; si la operación falla, no se descarta), que publican `SemilleroService` (crear, actualizar, cambiar estado, eliminar, agregar o quitar líneas), `LineaInvestigacionService` (actualizar, eliminar) y `AreaEspecialidadService` (crear, eliminar). Como respaldo para cambios hechos por SQL directo (scripts en Supabase), se reconstruye cuando pasa `app.recomendacion.kd.vigencia-minutos` (15 por defecto).
+- **Punto de consulta** (`SemillerosSimilaresService`): suma ponderada de los vectores de los semilleros del historial del estudiante, normalizada (su "centro de gravedad" temático). Los semilleros donde es integrante activo o líder pesan 1.0; aquellos de los que salió (`fecha_salida` no nula) pesan 0.5. Sin historial con líneas, el punto sale de las líneas de interés de su perfil; si tampoco tiene, la respuesta es `SIN_DATOS` y no recomienda nada.
+- **Exclusiones:** los semilleros donde está, estuvo o lidera se descartan durante el recorrido del árbol (filtro sobre el dato del nodo: se recorren pero no se devuelven).
+- **Desempate:** con pocas dimensiones muchos semilleros quedan a la misma distancia. Se piden al árbol 3·k candidatos y se ordenan por similitud; a igual similitud, por más líneas de investigación en común con el historial (o el perfil), luego por convocatoria abierta y luego por nombre. Se devuelven los k primeros (`limite`, 5 por defecto, máximo 10).
+- **Explicación al estudiante:** áreas en común, líneas en común, "Parecido a" (el semillero de su historial con mayor similitud coseno al recomendado) y si tiene convocatoria abierta. La respuesta incluye los datos de la búsqueda (dimensiones, semilleros en el árbol, profundidad, candidatos y nodos visitados), que `/compatibilidad` muestra al pie de la sección.
+
 ### Analítica
 - Tiempo de respuesta del estudiante: va de `fechaPreAprobacion` a `fechaDecisionEstudiante`, solo en postulaciones `Aceptada` o `Rechazada por Estudiante`.
 - Retención de ofertas: solo cuenta ofertas reales.
@@ -266,7 +301,7 @@ El puntaje se limita a 0–100. Las habilidades del estudiante son las de su per
 - Proyectos y publicaciones de un semillero: `/api/proyectos/semillero/{id}`, `/api/publicaciones/semillero/{id}`.
 - Convocatorias: `/api/convocatorias`, `/api/convocatorias/activas`, `/api/convocatorias/semillero/{id}`.
 - Postulaciones: `/api/postulaciones`, `/api/postulaciones/estudiante/{id}`, `/api/postulaciones/semillero/{id}`, `/api/postulaciones/semillero/{id}/priorizacion` y las acciones del flujo de doble vía. El DTO incluye `fechaLimiteRespuesta`.
-- Recomendaciones (solo estudiante): `/api/recomendaciones/estudiante/{id}`.
+- Recomendaciones (solo estudiante, solo los propios datos): `/api/recomendaciones/estudiante/{id}` (ranking ponderado) y `/api/recomendaciones/estudiante/{id}/similares?limite=5` (semilleros similares, árbol KD).
 - Analítica (solo administrador): `/api/analitica/dashboard` y KPIs bajo `/api/analitica/*`.
 
 Los servicios frontend adaptan los DTO del backend a tipos de vista con funciones `mapear*` en `services.ts`. Toda respuesta debe pasar por un mapeador: no tipar la respuesta cruda del backend con un tipo de vista. Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). El registro heredado por email (`AuthController`, `/api/auth/register/**`, `/api/auth/check-email`) se eliminó: el único alta de cuentas es el onboarding OAuth con identidad firmada.
@@ -297,6 +332,8 @@ Los servicios frontend adaptan los DTO del backend a tipos de vista con funcione
 - El esquema productivo es externo. No cambiar `ddl-auto` a `update`/`create` en producción.
 - CORS se configura solo en `SecurityConfig`; no uses `@CrossOrigin` en controladores.
 - Un endpoint nuevo bajo `/api/**` necesita su regla en `SecurityConfig` o en `AutorizacionService`; por defecto exige autenticación.
+- Toda operación nueva que cambie semilleros (estado, líneas) o el catálogo de líneas y áreas debe publicar `SemillerosModificadosEvent`; si no, el árbol KD de semilleros similares queda desactualizado hasta que venza su vigencia.
+- `KdTree` (`backend/.../estructuras`) es una estructura genérica e inmutable, sin dependencias de Spring: para reflejar cambios se construye un árbol nuevo.
 
 ## Configuración y Comandos
 Variables esperadas por el backend:
@@ -308,6 +345,7 @@ Variables esperadas por el backend:
 - `APP_CORS_ORIGINS` (opcional): orígenes permitidos separados por coma; por defecto `APP_FRONTEND_URL`.
 - `APP_OFERTAS_DIAS_RESPUESTA` (opcional, por defecto 3): plazo para responder una oferta.
 - `APP_SWAGGER_HABILITADO` (opcional, por defecto `false` en producción): expone Swagger.
+- `APP_RECOMENDACION_KD_VIGENCIA_MINUTOS` (opcional, por defecto 15): minutos que se reutiliza el árbol KD antes de reconstruirlo, para reflejar cambios hechos por SQL directo.
 
 Frontend:
 - `VITE_API_URL` debe apuntar al backend desplegado.
@@ -317,6 +355,7 @@ Comandos de validación:
 ```bash
 cd backend/agora-backend
 ./mvnw -q -DskipTests compile
+./mvnw test -Dtest=KdTreeTest   # pruebas del árbol KD, sin base de datos
 ./mvnw test          # requiere las variables anteriores (al menos JWT_SECRET y la BD)
 
 cd frontend

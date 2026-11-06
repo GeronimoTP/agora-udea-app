@@ -188,6 +188,45 @@ export interface ResultadoMatch {
   facultad: string;
 }
 
+/**
+ * Servicio 1 (complemento): semilleros similares a los del historial del estudiante,
+ * buscados como vecinos más cercanos en un árbol KD de áreas de especialidad.
+ */
+export interface SemillerosSimilares {
+  /** Con qué se armó la consulta: historial de semilleros, perfil o nada. */
+  base: "HISTORIAL" | "PERFIL" | "SIN_DATOS";
+  referencias: {
+    idSemillero: number;
+    nombre: string;
+    actual: boolean;
+    peso: number;
+  }[];
+  similares: SemilleroSimilar[];
+  busqueda: {
+    dimensiones: number;
+    nombresDimensiones: string[];
+    semillerosEnArbol: number;
+    profundidadArbol: number;
+    nodosVisitados: number;
+    candidatosEvaluados: number;
+  };
+}
+
+export interface SemilleroSimilar {
+  idSemillero: number;
+  nombre: string;
+  codigoIdentificador: string;
+  nombrePrograma: string | null;
+  porcentajeSimilitud: number;
+  distancia: number;
+  areasEnComun: string[];
+  /** Líneas compartidas con el historial o el perfil; desempatan a igual similitud. */
+  lineasEnComun: string[];
+  /** Semillero del historial al que más se parece (null si la base es el perfil). */
+  parecidoA: string | null;
+  convocatoriaAbierta: boolean;
+}
+
 /** Servicio 3: indicadores institucionales. */
 export interface KpiInstitucional {
   totalSemilleros: number;

@@ -13,6 +13,8 @@ import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.*;
 import com.udea.agora_backend.repository.*;
+import com.udea.agora_backend.evento.SemillerosModificadosEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +55,7 @@ public class SemilleroService {
     private final PublicacionRepository publicacionRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final ReconocimientoSemilleroRepository reconocimientoRepository;
+    private final ApplicationEventPublisher eventos;
 
     /**
      * Obtiene todos los semilleros
@@ -108,6 +111,7 @@ public class SemilleroService {
      * aunque no venga en la lista. Un estudiante solo puede liderar un semillero.
      */
     public SemilleroResponseDTO crear(SemilleroRequestDTO request, Integer idProfesorCreador) {
+        publicarCambioSemilleros();
         // Verificar código duplicado
         if (semilleroRepository.findByCodigoIdentificador(request.getCodigoIdentificador()).isPresent()) {
             throw new ConflictoException("Semillero", "codigoIdentificador", request.getCodigoIdentificador());
@@ -183,6 +187,7 @@ public class SemilleroService {
      * Actualiza un semillero existente
      */
     public SemilleroResponseDTO actualizar(Integer id, SemilleroRequestDTO request) {
+        publicarCambioSemilleros();
         Semillero semillero = semilleroRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", id));
 
@@ -238,6 +243,7 @@ public class SemilleroService {
      * Actualiza el estado de un semillero
      */
     public SemilleroResponseDTO actualizarEstado(Integer idSemillero, Integer idEstado) {
+        publicarCambioSemilleros();
         Semillero semillero = semilleroRepository.findById(idSemillero)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", idSemillero));
 
@@ -260,6 +266,7 @@ public class SemilleroService {
      * Elimina un semillero por su ID
      */
     public void eliminar(Integer id) {
+        publicarCambioSemilleros();
         Semillero semillero = semilleroRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", id));
         // Con historial (convocatorias, proyectos, integrantes o reconocimientos) se inactiva, no se borra
@@ -280,6 +287,7 @@ public class SemilleroService {
     // ==========================================
 
     public SemilleroLineaInvestigacionResponseDTO agregarLineaInvestigacion(SemilleroLineaInvestigacionRequestDTO request) {
+        publicarCambioSemilleros();
         Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
 
@@ -318,6 +326,7 @@ public class SemilleroService {
     }
 
     public void eliminarLineaInvestigacion(Integer idSemillero, Integer idLinea) {
+        publicarCambioSemilleros();
         SemilleroLineaInvestigacion asociacion = semilleroLineaRepository.findBySemilleroIdAndLineaInvestigacionId(idSemillero, idLinea)
                 .orElseThrow(() -> new RecursoNoEncontradoException("SemilleroLineaInvestigacion", "idLinea", idLinea));
         if (semilleroLineaRepository.findBySemilleroId(idSemillero).size() <= 1) {
@@ -559,5 +568,11 @@ public class SemilleroService {
                                 && c.getCuposDisponibles() > 0
                                 && !c.getFechaCierre().isBefore(LocalDate.now())))
                 .build();
+    }
+
+    // Invalida el árbol KD de semilleros similares. El índice escucha el evento después del
+    // commit: si la operación falla y se revierte, el árbol no se descarta.
+    private void publicarCambioSemilleros() {
+        eventos.publishEvent(new SemillerosModificadosEvent());
     }
 }

@@ -20,6 +20,7 @@ import {
   postulacionesRecibidasQuery,
   recomendacionesQuery,
   semillerosQuery,
+  semillerosSimilaresQuery,
 } from "@/lib/api/queries";
 import { ApiError, apiRequest } from "@/lib/api/client";
 import type { UsuarioSesion } from "@/types/api";
@@ -132,6 +133,10 @@ function TableroPage() {
   });
   const { data: recomendaciones = [] } = useQuery({
     ...recomendacionesQuery(sesion.idEstudiante ?? 0),
+    enabled: sesion.idEstudiante !== null,
+  });
+  const { data: similares } = useQuery({
+    ...semillerosSimilaresQuery(sesion.idEstudiante ?? 0),
     enabled: sesion.idEstudiante !== null,
   });
 
@@ -374,6 +379,59 @@ function TableroPage() {
                     </p>
                   </div>
                 ))}
+              </div>
+            </section>
+          )}
+
+          {sesion.idEstudiante !== null && similares && (
+            <section aria-labelledby="similares">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <h2
+                  id="similares"
+                  className="font-display text-sm font-semibold text-foreground"
+                >
+                  Semilleros similares a los tuyos
+                </h2>
+                <Link
+                  to="/compatibilidad"
+                  hash="similares"
+                  className="text-xs font-medium text-accent underline-offset-4 hover:underline"
+                >
+                  Ver más
+                </Link>
+              </div>
+              <div className="panel divide-y divide-border">
+                {similares.similares.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    {similares.base === "SIN_DATOS"
+                      ? "Elige líneas de investigación en tu perfil para encontrar semilleros parecidos."
+                      : "No hay otros semilleros activos con temáticas parecidas a las tuyas."}
+                  </p>
+                ) : (
+                  similares.similares.slice(0, 3).map((similar) => (
+                    <Link
+                      key={similar.idSemillero}
+                      to="/semilleros/$idSemillero"
+                      params={{ idSemillero: String(similar.idSemillero) }}
+                      className="block p-4 transition-colors hover:bg-secondary/50"
+                    >
+                      <p className="text-sm font-medium leading-snug text-foreground">
+                        {similar.nombre}
+                      </p>
+                      <MatchScore
+                        porcentaje={similar.porcentajeSimilitud}
+                        etiqueta="Similitud"
+                        className="mt-2"
+                        compact
+                      />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {similar.parecidoA
+                          ? `Parecido a ${similar.parecidoA}`
+                          : "Según las líneas de tu perfil"}
+                      </p>
+                    </Link>
+                  ))
+                )}
               </div>
             </section>
           )}

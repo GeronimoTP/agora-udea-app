@@ -3,6 +3,8 @@ package com.udea.agora_backend.service;
 import com.udea.agora_backend.model.AreaEspecialidad;
 import com.udea.agora_backend.repository.AreaEspecialidadRepository;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.evento.SemillerosModificadosEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import java.util.List;
 public class AreaEspecialidadService {
 
     private final AreaEspecialidadRepository areaRepository;
+    private final ApplicationEventPublisher eventos;
 
     /**
      * Obtiene todas las áreas de especialidad
@@ -48,6 +51,7 @@ public class AreaEspecialidadService {
      * Crea un nueva área de especialidad
      */
     public AreaEspecialidad crear(AreaEspecialidad area) {
+        publicarCambioSemilleros();
         return areaRepository.save(area);
     }
 
@@ -68,8 +72,15 @@ public class AreaEspecialidadService {
      * Elimina un área de especialidad por su ID
      */
     public void eliminar(Integer id) {
+        publicarCambioSemilleros();
         AreaEspecialidad area = areaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Área de Especialidad", id));
         areaRepository.delete(area);
+    }
+
+    // Invalida el árbol KD de semilleros similares. El índice escucha el evento después del
+    // commit: si la operación falla y se revierte, el árbol no se descarta.
+    private void publicarCambioSemilleros() {
+        eventos.publishEvent(new SemillerosModificadosEvent());
     }
 }

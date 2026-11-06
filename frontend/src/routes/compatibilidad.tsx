@@ -1,6 +1,6 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Network } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { MatchScore } from "@/components/common/MatchScore";
@@ -8,9 +8,14 @@ import { EstadoBadge } from "@/components/common/EstadoBadge";
 import {
   esEstudiante,
   recomendacionesQuery,
+  semillerosSimilaresQuery,
   usuarioSesionQuery,
 } from "@/lib/api/queries";
-import type { ResultadoMatch } from "@/types/api";
+import type {
+  ResultadoMatch,
+  SemilleroSimilar,
+  SemillerosSimilares,
+} from "@/types/api";
 
 export const Route = createFileRoute("/compatibilidad")({
   // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
@@ -93,6 +98,8 @@ function CompatibilidadPage() {
         </div>
       ) : (
         <>
+          <SeccionSimilares idEstudiante={sesion.idEstudiante} />
+
           <section aria-labelledby="ponderacion" className="mb-8">
             <h2
               id="ponderacion"
@@ -204,6 +211,150 @@ function ResultadoItem({
           );
         })}
       </dl>
+    </li>
+  );
+}
+
+const LIMITE_SIMILARES = 6;
+
+function SeccionSimilares({ idEstudiante }: { idEstudiante: number }) {
+  const { data, isPending, isError } = useQuery(
+    semillerosSimilaresQuery(idEstudiante, LIMITE_SIMILARES),
+  );
+
+  return (
+    <section
+      aria-labelledby="titulo-similares"
+      id="similares"
+      className="mb-10"
+    >
+      <h2
+        id="titulo-similares"
+        className="font-display text-sm font-semibold text-foreground"
+      >
+        Semilleros similares a los tuyos
+      </h2>
+      <p className="mt-1 mb-3 max-w-3xl text-sm text-muted-foreground">
+        {data ? describirBase(data) : "Buscando semilleros parecidos…"}
+      </p>
+
+      {isPending ? (
+        <div className="panel p-5 text-sm text-muted-foreground">
+          Calculando similitud…
+        </div>
+      ) : isError ? (
+        <div className="panel p-5 text-sm text-muted-foreground">
+          No se pudieron calcular los semilleros similares.
+        </div>
+      ) : data.similares.length === 0 ? (
+        <div className="panel p-5 text-sm text-muted-foreground">
+          {data.base === "SIN_DATOS"
+            ? "Elige líneas de investigación en tu perfil para encontrar semilleros parecidos."
+            : "No hay otros semilleros activos con temáticas parecidas a las tuyas."}
+        </div>
+      ) : (
+        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {data.similares.map((similar) => (
+            <TarjetaSimilar key={similar.idSemillero} similar={similar} />
+          ))}
+        </ul>
+      )}
+
+      {data && data.busqueda.semillerosEnArbol > 0 && (
+        <p className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
+          <Network
+            className="mt-0.5 size-3.5 shrink-0"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+          <span>
+            Árbol KD de {data.busqueda.semillerosEnArbol} semilleros en{" "}
+            {data.busqueda.dimensiones} dimensiones (una por área de
+            especialidad), profundidad {data.busqueda.profundidadArbol}.
+            {data.busqueda.nodosVisitados > 0 &&
+              ` Para reunir ${data.busqueda.candidatosEvaluados} candidatos (los resultados más sus posibles empates), la búsqueda visitó ${data.busqueda.nodosVisitados} de ${data.busqueda.semillerosEnArbol} nodos.`}
+          </span>
+        </p>
+      )}
+    </section>
+  );
+}
+
+function describirBase(data: SemillerosSimilares) {
+  if (data.base === "SIN_DATOS") {
+    return "Aún no hay datos para comparar: no perteneces a semilleros con líneas de investigación ni tienes líneas en tu perfil.";
+  }
+  if (data.base === "PERFIL") {
+    return "Aún no perteneces a un semillero, así que la búsqueda parte de las líneas de investigación de tu perfil.";
+  }
+  const actuales = data.referencias
+    .filter((r) => r.actual)
+    .map((r) => r.nombre);
+  const anteriores = data.referencias
+    .filter((r) => !r.actual)
+    .map((r) => r.nombre);
+  const partes = [
+    actuales.length > 0 && `tus semilleros actuales (${actuales.join(", ")})`,
+    anteriores.length > 0 &&
+      `aquellos en los que estuviste (${anteriores.join(", ")}), con la mitad de peso`,
+  ].filter(Boolean);
+  return `Temáticamente cercanos a ${partes.join(" y ")}.`;
+}
+
+function TarjetaSimilar({ similar }: { similar: SemilleroSimilar }) {
+  return (
+    <li className="panel flex flex-col p-5">
+      <p className="label-caps">
+        {similar.nombrePrograma ?? similar.codigoIdentificador}
+      </p>
+      <h3 className="mt-1 font-display text-base font-semibold text-foreground">
+        {similar.nombre}
+      </h3>
+      <MatchScore
+        porcentaje={similar.porcentajeSimilitud}
+        etiqueta="Similitud"
+        className="mt-3"
+      />
+      {similar.areasEnComun.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {similar.areasEnComun.map((area) => (
+            <li
+              key={area}
+              className="rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+            >
+              {area}
+            </li>
+          ))}
+        </ul>
+      )}
+      {similar.lineasEnComun.length > 0 && (
+        <p className="mt-3 text-xs text-foreground">
+          Líneas en común: {similar.lineasEnComun.join(", ")}
+        </p>
+      )}
+      {/* mb-4 separa el pie; mt-auto lo alinea abajo entre tarjetas */}
+      <p className="mt-1 mb-4 text-xs text-muted-foreground">
+        {similar.parecidoA
+          ? `Parecido a ${similar.parecidoA}`
+          : "Según las líneas de tu perfil"}
+      </p>
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-border pt-3">
+        {similar.convocatoriaAbierta ? (
+          <EstadoBadge estado="ABIERTA" />
+        ) : (
+          <span className="text-xs text-muted-foreground">
+            Sin convocatoria vigente
+          </span>
+        )}
+        <Link
+          to="/semilleros/$idSemillero"
+          params={{ idSemillero: String(similar.idSemillero) }}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-accent underline-offset-4 hover:underline"
+        >
+          Ver semillero
+          <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
+        </Link>
+      </div>
     </li>
   );
 }

@@ -3,6 +3,8 @@ package com.udea.agora_backend.service;
 import com.udea.agora_backend.model.LineaInvestigacion;
 import com.udea.agora_backend.repository.LineaInvestigacionRepository;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.evento.SemillerosModificadosEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import java.util.List;
 public class LineaInvestigacionService {
 
     private final LineaInvestigacionRepository lineaRepository;
+    private final ApplicationEventPublisher eventos;
 
     /**
      * Obtiene todas las líneas de investigación
@@ -55,6 +58,7 @@ public class LineaInvestigacionService {
      * Actualiza una línea de investigación existente
      */
     public LineaInvestigacion actualizar(Integer id, LineaInvestigacion lineaActualizada) {
+        publicarCambioSemilleros();
         LineaInvestigacion linea = lineaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Línea de Investigación", id));
         
@@ -69,8 +73,15 @@ public class LineaInvestigacionService {
      * Elimina una línea de investigación por su ID
      */
     public void eliminar(Integer id) {
+        publicarCambioSemilleros();
         LineaInvestigacion linea = lineaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Línea de Investigación", id));
         lineaRepository.delete(linea);
+    }
+
+    // Invalida el árbol KD de semilleros similares. El índice escucha el evento después del
+    // commit: si la operación falla y se revierte, el árbol no se descarta.
+    private void publicarCambioSemilleros() {
+        eventos.publishEvent(new SemillerosModificadosEvent());
     }
 }

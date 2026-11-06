@@ -4,17 +4,19 @@ export function MatchScore({
   porcentaje,
   className,
   compact = false,
+  etiqueta = "Afinidad",
 }: {
   porcentaje: number;
   className?: string;
   compact?: boolean;
+  etiqueta?: string;
 }) {
   const valor = Math.max(0, Math.min(100, porcentaje));
 
   return (
     <div className={cn("w-full", className)}>
       <div className="flex items-baseline justify-between gap-2">
-        {compact ? null : <span className="label-caps">Afinidad</span>}
+        {compact ? null : <span className="label-caps">{etiqueta}</span>}
         <span className="font-display text-sm font-semibold tabular-nums text-primary">
           {valor.toFixed(1)}%
         </span>
@@ -27,7 +29,7 @@ export function MatchScore({
           aria-valuenow={Math.round(valor)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Porcentaje de afinidad"
+          aria-label={`Porcentaje de ${etiqueta.toLocaleLowerCase()}`}
         />
       </div>
     </div>

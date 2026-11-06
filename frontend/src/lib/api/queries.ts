@@ -9,6 +9,7 @@ import {
   postulacionesService,
   profesoresService,
   semillerosService,
+  semillerosSimilaresService,
 } from "./services";
 import { apiRequest } from "./client";
 import type { FiltroSemilleros, UsuarioSesion } from "@/types/api";
@@ -136,6 +137,13 @@ export const recomendacionesQuery = (idEstudiante: number) =>
   queryOptions({
     queryKey: ["matching", idEstudiante],
     queryFn: () => matchingService.recomendaciones(idEstudiante),
+  });
+
+// Comparte el prefijo "matching": al editar el perfil se invalida junto con el ranking
+export const semillerosSimilaresQuery = (idEstudiante: number, limite = 5) =>
+  queryOptions({
+    queryKey: ["matching", idEstudiante, "similares", limite],
+    queryFn: () => semillerosSimilaresService.buscar(idEstudiante, limite),
   });
 
 export const habilidadesQuery = () =>

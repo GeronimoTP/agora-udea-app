@@ -15,6 +15,7 @@ import type {
   Proyecto,
   Publicacion,
   ResultadoMatch,
+  SemillerosSimilares,
   Semillero,
   TutorSemillero,
 } from "@/types/api";
@@ -285,6 +286,16 @@ export const matchingService = {
   },
 };
 
+export const semillerosSimilaresService = {
+  // Vecinos más cercanos en el árbol KD del backend al historial del estudiante
+  buscar: async (idEstudiante: number, limite = 5) =>
+    mapearSemillerosSimilares(
+      await apiRequest<SemillerosSimilaresApi>(
+        `/api/recomendaciones/estudiante/${idEstudiante}/similares?limite=${limite}`,
+      ),
+    ),
+};
+
 // ============================================
 // ANALÍTICA INSTITUCIONAL (Servicio 3)
 // ============================================
@@ -543,6 +554,28 @@ interface PublicacionApi {
   }[];
 }
 
+function mapearSemillerosSimilares(
+  respuesta: SemillerosSimilaresApi,
+): SemillerosSimilares {
+  return {
+    base: respuesta.base,
+    referencias: respuesta.referencias ?? [],
+    similares: (respuesta.similares ?? []).map((similar) => ({
+      idSemillero: similar.idSemillero,
+      nombre: similar.nombre,
+      codigoIdentificador: similar.codigoIdentificador,
+      nombrePrograma: similar.nombrePrograma ?? null,
+      porcentajeSimilitud: similar.porcentajeSimilitud,
+      distancia: similar.distancia,
+      areasEnComun: similar.areasEnComun ?? [],
+      lineasEnComun: similar.lineasEnComun ?? [],
+      parecidoA: similar.parecidoA ?? null,
+      convocatoriaAbierta: similar.convocatoriaAbierta,
+    })),
+    busqueda: respuesta.busqueda,
+  };
+}
+
 function mapearSemillero(semillero: SemilleroApi): Semillero {
   return {
     idSemillero: semillero.id,
@@ -654,6 +687,26 @@ function normalizarEstadoSemillero(estado: string | null): Semillero["estado"] {
   if (normalizado.includes("activo")) return "ACTIVO";
   if (normalizado.includes("pausa")) return "EN_PAUSA";
   return "PENDIENTE_APROBACION";
+}
+
+interface SemillerosSimilaresApi {
+  base: SemillerosSimilares["base"];
+  referencias: SemillerosSimilares["referencias"] | null;
+  similares:
+    | {
+        idSemillero: number;
+        nombre: string;
+        codigoIdentificador: string;
+        nombrePrograma: string | null;
+        porcentajeSimilitud: number;
+        distancia: number;
+        areasEnComun: string[] | null;
+        lineasEnComun: string[] | null;
+        parecidoA: string | null;
+        convocatoriaAbierta: boolean;
+      }[]
+    | null;
+  busqueda: SemillerosSimilares["busqueda"];
 }
 
 interface RecomendacionApi {
