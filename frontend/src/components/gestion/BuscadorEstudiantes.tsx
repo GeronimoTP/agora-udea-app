@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import type { EstudianteResumen, ProgramaCatalogo } from "@/lib/api/services";
+import type { ProgramaCatalogo } from "@/lib/api/catalogos";
+import type { EstudianteResumen } from "@/lib/api/perfiles";
 import { claseCampo, normalizar } from "./comunes";
 
 const MAX_RESULTADOS = 30;

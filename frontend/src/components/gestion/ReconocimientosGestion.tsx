@@ -8,7 +8,7 @@ import {
   type NuevoReconocimiento,
   type ReconocimientoGestion,
 } from "@/lib/api/gestion";
-import type { ItemCatalogo } from "@/lib/api/services";
+import type { ItemCatalogo } from "@/lib/api/catalogos";
 import {
   Campo,
   Confirmar,

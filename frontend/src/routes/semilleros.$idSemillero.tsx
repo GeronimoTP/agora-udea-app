@@ -22,7 +22,7 @@ import {
   publicacionesQuery,
   semilleroQuery,
 } from "@/lib/api/queries";
-import { postulacionesService } from "@/lib/api/services";
+import { postulacionesService } from "@/lib/api/postulaciones";
 import type { Convocatoria, Proyecto, Publicacion } from "@/types/api";
 import { formatearFecha } from "@/lib/formato";
 

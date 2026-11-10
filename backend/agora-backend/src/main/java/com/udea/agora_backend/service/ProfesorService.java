@@ -16,6 +16,7 @@ import com.udea.agora_backend.repository.ProfesorAreaEspecialidadRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
 import com.udea.agora_backend.repository.ProgramaAcademicoRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
+import com.udea.agora_backend.service.mapper.ProfesorMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +39,7 @@ public class ProfesorService {
     private final ProgramaAcademicoRepository programaRepository;
     private final AreaEspecialidadRepository areaEspecialidadRepository;
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
+    private final ProfesorMapper profesorMapper;
 
     /**
      * Obtiene todos los profesores
@@ -45,7 +47,7 @@ public class ProfesorService {
     public List<ProfesorResponseDTO> obtenerTodos() {
         return profesorRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(profesorMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -55,7 +57,7 @@ public class ProfesorService {
     public ProfesorResponseDTO obtenerPorId(Integer id) {
         Profesor profesor = profesorRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Profesor", id));
-        return mapeoAResponseDTO(profesor);
+        return profesorMapper.aResponse(profesor);
     }
 
     /**
@@ -64,7 +66,7 @@ public class ProfesorService {
     public ProfesorResponseDTO obtenerPorIdUsuario(Integer idUsuario) {
         Profesor profesor = profesorRepository.findByUsuarioId(idUsuario)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Profesor", "usuarioId", idUsuario));
-        return mapeoAResponseDTO(profesor);
+        return profesorMapper.aResponse(profesor);
     }
 
     /**
@@ -107,7 +109,7 @@ public class ProfesorService {
             }
         }
 
-        return mapeoAResponseDTO(profesorGuardado);
+        return profesorMapper.aResponse(profesorGuardado);
     }
 
     /**
@@ -145,7 +147,7 @@ public class ProfesorService {
             }
         }
 
-        return mapeoAResponseDTO(profesorActualizado);
+        return profesorMapper.aResponse(profesorActualizado);
     }
 
     /**
@@ -179,21 +181,13 @@ public class ProfesorService {
 
         ProfesorAreaEspecialidad guardada = profesorAreaRepository.save(asociacion);
 
-        return ProfesorAreaEspecialidadResponseDTO.builder()
-                .id(guardada.getId())
-                .nombreProfesor(profesor.getUsuario().getNombreCompleto())
-                .nombreAreaEspecialidad(area.getNombre())
-                .build();
+        return profesorMapper.aArea(guardada);
     }
 
     public List<ProfesorAreaEspecialidadResponseDTO> obtenerAreasEspecialidad(Integer idProfesor) {
         return profesorAreaRepository.findByProfesorId(idProfesor)
                 .stream()
-                .map(pae -> ProfesorAreaEspecialidadResponseDTO.builder()
-                        .id(pae.getId())
-                        .nombreProfesor(pae.getProfesor().getUsuario().getNombreCompleto())
-                        .nombreAreaEspecialidad(pae.getAreaEspecialidad().getNombre())
-                        .build())
+                .map(profesorMapper::aArea)
                 .collect(Collectors.toList());
     }
 
@@ -201,27 +195,5 @@ public class ProfesorService {
         ProfesorAreaEspecialidad asociacion = profesorAreaRepository.findByProfesorIdAndAreaEspecialidadId(idProfesor, idArea)
                 .orElseThrow(() -> new RecursoNoEncontradoException("ProfesorAreaEspecialidad", "idArea", idArea));
         profesorAreaRepository.delete(asociacion);
-    }
-
-    /**
-     * Mapea entidad Profesor a ResponseDTO
-     */
-    private ProfesorResponseDTO mapeoAResponseDTO(Profesor profesor) {
-        List<String> areas = profesorAreaRepository.findByProfesorId(profesor.getId())
-                .stream()
-                .map(pae -> pae.getAreaEspecialidad().getNombre())
-                .collect(Collectors.toList());
-
-        return ProfesorResponseDTO.builder()
-                .id(profesor.getId())
-                .nombreCompleto(profesor.getUsuario() != null ? profesor.getUsuario().getNombreCompleto() : null)
-                .email(profesor.getUsuario() != null ? profesor.getUsuario().getEmail() : null)
-                .idPrograma(profesor.getPrograma() != null ? profesor.getPrograma().getId() : null)
-                .nombrePrograma(profesor.getPrograma() != null ? profesor.getPrograma().getNombre() : null)
-                .idFacultad(profesor.getPrograma() != null ? profesor.getPrograma().getFacultad().getId() : null)
-                .nombreFacultad(profesor.getPrograma() != null ? profesor.getPrograma().getFacultad().getNombre() : null)
-                .areasEspecialidad(areas)
-                .createdAt(profesor.getCreatedAt())
-                .build();
     }
 }

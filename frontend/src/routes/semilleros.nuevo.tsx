@@ -26,11 +26,8 @@ import {
   profesoresQuery,
   semillerosQuery,
 } from "@/lib/api/queries";
-import {
-  semillerosService,
-  type EstudianteResumen,
-  type Profesor,
-} from "@/lib/api/services";
+import type { EstudianteResumen, Profesor } from "@/lib/api/perfiles";
+import { semillerosService } from "@/lib/api/semilleros";
 import { requerirSesion } from "@/lib/api/sesion";
 import { apiRequest } from "@/lib/api/client";
 

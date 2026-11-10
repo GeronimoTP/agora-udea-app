@@ -22,6 +22,7 @@ import com.udea.agora_backend.repository.ProyectoRepository;
 import com.udea.agora_backend.repository.PublicacionRepository;
 import com.udea.agora_backend.repository.RolEstudianteProyectoRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
+import com.udea.agora_backend.service.mapper.ProyectoMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,6 +49,7 @@ public class ProyectoService {
     private final EstudianteProyectoRepository estudianteProyectoRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final PublicacionRepository publicacionRepository;
+    private final ProyectoMapper proyectoMapper;
 
     /**
      * Obtiene todos los proyectos
@@ -55,7 +57,7 @@ public class ProyectoService {
     public List<ProyectoResponseDTO> obtenerTodos() {
         return proyectoRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(proyectoMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -65,7 +67,7 @@ public class ProyectoService {
     public ProyectoResponseDTO obtenerPorId(Integer id) {
         Proyecto proyecto = proyectoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Proyecto", id));
-        return mapeoAResponseDTO(proyecto);
+        return proyectoMapper.aResponse(proyecto);
     }
 
     /**
@@ -74,7 +76,7 @@ public class ProyectoService {
     public List<ProyectoResponseDTO> obtenerPorSemillero(Integer idSemillero) {
         return proyectoRepository.findBySemilleroId(idSemillero)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(proyectoMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -103,7 +105,7 @@ public class ProyectoService {
                 .build();
 
         Proyecto proyectoGuardado = proyectoRepository.save(proyecto);
-        return mapeoAResponseDTO(proyectoGuardado);
+        return proyectoMapper.aResponse(proyectoGuardado);
     }
 
     /**
@@ -127,7 +129,7 @@ public class ProyectoService {
         proyecto.setFechaFin(request.getFechaFin());
 
         Proyecto proyectoActualizado = proyectoRepository.save(proyecto);
-        return mapeoAResponseDTO(proyectoActualizado);
+        return proyectoMapper.aResponse(proyectoActualizado);
     }
 
     /**
@@ -141,7 +143,7 @@ public class ProyectoService {
 
         proyecto.setEstado(nuevoEstado);
         Proyecto proyectoActualizado = proyectoRepository.save(proyecto);
-        return mapeoAResponseDTO(proyectoActualizado);
+        return proyectoMapper.aResponse(proyectoActualizado);
     }
 
     /**
@@ -193,15 +195,7 @@ public class ProyectoService {
 
         EstudianteProyecto guardado = estudianteProyectoRepository.save(vinculacion);
 
-        return VinculacionProyectoResponseDTO.builder()
-                .id(guardado.getId())
-                .tituloProyecto(proyecto.getTitulo())
-                .idEstudiante(estudiante.getId())
-                .nombreEstudiante(estudiante.getUsuario().getNombreCompleto())
-                .idRolProyecto(rol.getId())
-                .rolProyecto(rol.getNombre())
-                .fechaVinculacion(guardado.getFechaVinculacion())
-                .build();
+        return proyectoMapper.aVinculacion(guardado);
     }
 
     /**
@@ -210,15 +204,7 @@ public class ProyectoService {
     public List<VinculacionProyectoResponseDTO> obtenerEstudiantesVinculados(Integer idProyecto) {
         return estudianteProyectoRepository.findByProyectoId(idProyecto)
                 .stream()
-                .map(ep -> VinculacionProyectoResponseDTO.builder()
-                        .id(ep.getId())
-                        .tituloProyecto(ep.getProyecto().getTitulo())
-                        .idEstudiante(ep.getEstudiante().getId())
-                        .nombreEstudiante(ep.getEstudiante().getUsuario().getNombreCompleto())
-                        .idRolProyecto(ep.getRolProyecto().getId())
-                        .rolProyecto(ep.getRolProyecto().getNombre())
-                        .fechaVinculacion(ep.getFechaVinculacion())
-                        .build())
+                .map(proyectoMapper::aVinculacion)
                 .collect(Collectors.toList());
     }
 
@@ -235,23 +221,5 @@ public class ProyectoService {
         if (request.getFechaFin().isBefore(request.getFechaInicio())) {
             throw new ErrorLogicaNegocioException("La fecha de fin no puede ser anterior a la fecha de inicio.");
         }
-    }
-
-    /**
-     * Mapea entidad Proyecto a ResponseDTO
-     */
-    private ProyectoResponseDTO mapeoAResponseDTO(Proyecto proyecto) {
-        return ProyectoResponseDTO.builder()
-                .id(proyecto.getId())
-                .idSemillero(proyecto.getSemillero() != null ? proyecto.getSemillero().getId() : null)
-                .totalIntegrantes(estudianteProyectoRepository.findByProyectoId(proyecto.getId()).size())
-                .titulo(proyecto.getTitulo())
-                .descripcion(proyecto.getDescripcion())
-                .nombreSemillero(proyecto.getSemillero() != null ? proyecto.getSemillero().getNombre() : null)
-                .presupuestoAsignado(proyecto.getPresupuestoAsignado())
-                .fechaInicio(proyecto.getFechaInicio())
-                .fechaFin(proyecto.getFechaFin())
-                .estadoActual(proyecto.getEstado() != null ? proyecto.getEstado().getNombre() : null)
-                .build();
     }
 }

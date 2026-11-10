@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.config.PesosPriorizacion;
 import com.udea.agora_backend.dominio.EstadosPostulacion;
 import com.udea.agora_backend.dto.response.CandidatoPriorizadoDTO;
 import com.udea.agora_backend.model.Convocatoria;
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
  *
  * Para cada convocatoria de un semillero ordena a los aspirantes que siguen en proceso
  * (Pendiente o Pre-aprobada) con un puntaje de 0 a 100, para que el líder decida a quién
- * ofrecer los cupos. Ponderación:
+ * ofrecer los cupos. Ponderación por defecto (configurable en {@link PesosPriorizacion}):
  *   - Afinidad temática (35%): líneas de investigación del estudiante que coinciden con las del semillero.
  *   - Habilidades (25%): habilidades declaradas en la postulación que el semillero ya usa
  *     (las de sus postulaciones aceptadas). Sin ese historial, valor neutral.
@@ -43,10 +44,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PriorizacionCandidatosService {
 
-    private static final double PESO_TEMATICA = 0.35;
-    private static final double PESO_HABILIDADES = 0.25;
-    private static final double PESO_DISPONIBILIDAD = 0.20;
-    private static final double PESO_COMPROMISO = 0.20;
     private static final double VALOR_NEUTRAL = 50.0;
     private static final int HORAS_MAXIMO_PUNTAJE = 12;
 
@@ -56,6 +53,7 @@ public class PriorizacionCandidatosService {
     private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final PlazoOfertasService plazoOfertasService;
+    private final PesosPriorizacion pesos;
 
     public List<CandidatoPriorizadoDTO> priorizarPorSemillero(Integer idSemillero) {
         Set<Integer> lineasSemillero = semilleroLineaRepository.findBySemilleroId(idSemillero).stream()
@@ -120,8 +118,8 @@ public class PriorizacionCandidatosService {
             observaciones.add("Ya integra " + otrosSemilleros + " semillero(s)");
         }
 
-        double puntaje = tematica * PESO_TEMATICA + habilidades * PESO_HABILIDADES
-                + disponibilidad * PESO_DISPONIBILIDAD + compromiso * PESO_COMPROMISO;
+        double puntaje = tematica * pesos.tematica() + habilidades * pesos.habilidades()
+                + disponibilidad * pesos.disponibilidad() + compromiso * pesos.compromiso();
 
         return CandidatoPriorizadoDTO.builder()
                 .idPostulacion(postulacion.getId())

@@ -8,14 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Integer> {
     List<Convocatoria> findBySemilleroId(Integer semilleroId);
+    List<Convocatoria> findBySemilleroIdIn(Collection<Integer> idsSemillero);
     List<Convocatoria> findByEstadoId(Integer estadoId);
-
 
     // Convocatorias activas con cupos disponibles
     @Query("SELECT c FROM Convocatoria c WHERE c.cuposDisponibles > 0 AND c.estado.id = ?1")
@@ -31,7 +32,7 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Inte
     Optional<Convocatoria> findByIdParaActualizarCupos(Integer id);
 
     /** El semillero tiene hoy al menos una convocatoria abierta, iniciada, vigente y con cupos. */
-    default boolean existeConvocatoriaRecibiendoPostulaciones(Integer idSemillero, java.time.LocalDate hoy) {
+    default boolean existeConvocatoriaRecibiendoPostulaciones(Integer idSemillero, LocalDate hoy) {
         return findBySemilleroId(idSemillero).stream().anyMatch(c -> c.recibePostulaciones(hoy));
     }
 }

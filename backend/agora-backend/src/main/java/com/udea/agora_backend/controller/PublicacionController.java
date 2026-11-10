@@ -4,8 +4,8 @@ import com.udea.agora_backend.dto.request.PublicacionRequestDTO;
 import com.udea.agora_backend.dto.request.PublicacionUsuarioRequestDTO;
 import com.udea.agora_backend.dto.response.PublicacionResponseDTO;
 import com.udea.agora_backend.dto.response.PublicacionUsuarioResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.PublicacionService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -26,7 +26,7 @@ import java.util.List;
 public class PublicacionController {
 
     private final PublicacionService publicacionService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionSemilleroService autorizacionSemillero;
 
     @Operation(summary = "Obtener todas las publicaciones académicas")
     @ApiResponse(responseCode = "200", description = "Lista de publicaciones obtenida exitosamente")
@@ -67,7 +67,7 @@ public class PublicacionController {
     })
     @PostMapping
     public ResponseEntity<PublicacionResponseDTO> crear(@Valid @RequestBody PublicacionRequestDTO request, Authentication authentication) {
-        autorizacionService.validarLiderProyecto(authentication.getName(), request.getIdProyecto());
+        autorizacionSemillero.validarLiderProyecto(authentication.getName(), request.getIdProyecto());
         PublicacionResponseDTO creada = publicacionService.crear(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -83,7 +83,7 @@ public class PublicacionController {
             @PathVariable Integer id,
             @Valid @RequestBody PublicacionRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderPublicacion(authentication.getName(), id);
+        autorizacionSemillero.validarLiderPublicacion(authentication.getName(), id);
         return ResponseEntity.ok(publicacionService.actualizar(id, request));
     }
 
@@ -94,7 +94,7 @@ public class PublicacionController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLiderPublicacion(authentication.getName(), id);
+        autorizacionSemillero.validarLiderPublicacion(authentication.getName(), id);
         publicacionService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -121,7 +121,7 @@ public class PublicacionController {
     public ResponseEntity<PublicacionUsuarioResponseDTO> asociarAutor(
             @Valid @RequestBody PublicacionUsuarioRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderPublicacion(authentication.getName(), request.getIdPublicacion());
+        autorizacionSemillero.validarLiderPublicacion(authentication.getName(), request.getIdPublicacion());
         PublicacionUsuarioResponseDTO asociacion = publicacionService.asociarAutor(request);
         return new ResponseEntity<>(asociacion, HttpStatus.CREATED);
     }
@@ -136,7 +136,7 @@ public class PublicacionController {
             @PathVariable Integer idPublicacion,
             @PathVariable Integer idUsuario,
             Authentication authentication) {
-        autorizacionService.validarLiderPublicacion(authentication.getName(), idPublicacion);
+        autorizacionSemillero.validarLiderPublicacion(authentication.getName(), idPublicacion);
         publicacionService.removerAutor(idPublicacion, idUsuario);
         return ResponseEntity.noContent().build();
     }

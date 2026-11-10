@@ -13,7 +13,6 @@ import com.udea.agora_backend.model.PublicacionUsuario;
 import com.udea.agora_backend.model.RolAutor;
 import com.udea.agora_backend.model.Semillero;
 import com.udea.agora_backend.model.Usuario;
-import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
 import com.udea.agora_backend.repository.ProyectoRepository;
@@ -21,6 +20,7 @@ import com.udea.agora_backend.repository.PublicacionRepository;
 import com.udea.agora_backend.repository.PublicacionUsuarioRepository;
 import com.udea.agora_backend.repository.RolAutorRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
+import com.udea.agora_backend.service.mapper.PublicacionMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,9 +44,9 @@ public class PublicacionService {
     private final UsuarioRepository usuarioRepository;
     private final RolAutorRepository rolAutorRepository;
     private final PublicacionUsuarioRepository publicacionUsuarioRepository;
-    private final EstudianteRepository estudianteRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final ProfesorSemilleroRepository profesorSemilleroRepository;
+    private final PublicacionMapper publicacionMapper;
 
     /**
      * Obtiene todas las publicaciones
@@ -54,7 +54,7 @@ public class PublicacionService {
     public List<PublicacionResponseDTO> obtenerTodas() {
         return publicacionRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(publicacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -64,7 +64,7 @@ public class PublicacionService {
     public PublicacionResponseDTO obtenerPorId(Integer id) {
         Publicacion publicacion = publicacionRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Publicacion", id));
-        return mapeoAResponseDTO(publicacion);
+        return publicacionMapper.aResponse(publicacion);
     }
 
     /**
@@ -73,14 +73,14 @@ public class PublicacionService {
     public List<PublicacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
         return publicacionRepository.findByProyectoSemilleroId(idSemillero)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(publicacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
     public List<PublicacionResponseDTO> obtenerPorProyecto(Integer idProyecto) {
         return publicacionRepository.findByProyectoId(idProyecto)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(publicacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -100,7 +100,7 @@ public class PublicacionService {
                 .build();
 
         Publicacion guardada = publicacionRepository.save(publicacion);
-        return mapeoAResponseDTO(guardada);
+        return publicacionMapper.aResponse(guardada);
     }
 
     /**
@@ -125,7 +125,7 @@ public class PublicacionService {
         publicacion.setFechaPublicacion(request.getFechaPublicacion());
 
         Publicacion actualizada = publicacionRepository.save(publicacion);
-        return mapeoAResponseDTO(actualizada);
+        return publicacionMapper.aResponse(actualizada);
     }
 
     /**
@@ -170,27 +170,13 @@ public class PublicacionService {
 
         PublicacionUsuario guardada = publicacionUsuarioRepository.save(asociacion);
 
-        return PublicacionUsuarioResponseDTO.builder()
-                .id(guardada.getId())
-                .nombrePublicacion(publicacion.getTitulo())
-                .idUsuario(usuario.getId())
-                .nombreUsuario(usuario.getNombreCompleto())
-                .rolAutor(rolAutor.getNombre())
-                .fechaAsociacion(guardada.getFechaAsociacion())
-                .build();
+        return publicacionMapper.aAutoria(guardada);
     }
 
     public List<PublicacionUsuarioResponseDTO> obtenerAutores(Integer idPublicacion) {
         return publicacionUsuarioRepository.findByPublicacionId(idPublicacion)
                 .stream()
-                .map(pu -> PublicacionUsuarioResponseDTO.builder()
-                        .id(pu.getId())
-                        .nombrePublicacion(pu.getPublicacion().getTitulo())
-                        .idUsuario(pu.getUsuario().getId())
-                        .nombreUsuario(pu.getUsuario().getNombreCompleto())
-                        .rolAutor(pu.getRolAutor().getNombre())
-                        .fechaAsociacion(pu.getFechaAsociacion())
-                        .build())
+                .map(publicacionMapper::aAutoria)
                 .collect(Collectors.toList());
     }
 
@@ -209,41 +195,5 @@ public class PublicacionService {
                         .anyMatch(es -> es.getEstudiante().getUsuario().getId().equals(idUsuario))
                 || profesorSemilleroRepository.findBySemilleroId(semillero.getId()).stream()
                         .anyMatch(ps -> ps.getProfesor().getUsuario().getId().equals(idUsuario));
-    }
-
-    /**
-     * Mapea entidad Publicacion a ResponseDTO
-     */
-    private PublicacionResponseDTO mapeoAResponseDTO(Publicacion publicacion) {
-        List<PublicacionUsuario> autorias = publicacionUsuarioRepository.findByPublicacionId(publicacion.getId());
-        List<String> autores = autorias.stream()
-                .map(pu -> pu.getUsuario().getNombreCompleto() + " (" + pu.getRolAutor().getNombre() + ")")
-                .collect(Collectors.toList());
-        List<PublicacionResponseDTO.AutorDTO> autoresDetalle = autorias.stream()
-                .map(pu -> PublicacionResponseDTO.AutorDTO.builder()
-                        .idUsuario(pu.getUsuario().getId())
-                        .nombre(pu.getUsuario().getNombreCompleto())
-                        .rolAutoria(pu.getRolAutor().getNombre())
-                        .esEstudiante(estudianteRepository.findByUsuarioId(pu.getUsuario().getId()).isPresent())
-                        .build())
-                .collect(Collectors.toList());
-
-        String nombreProyecto = publicacion.getProyecto() != null ? publicacion.getProyecto().getTitulo() : null;
-        String nombreSemillero = publicacion.getProyecto() != null && publicacion.getProyecto().getSemillero() != null
-                ? publicacion.getProyecto().getSemillero().getNombre()
-                : null;
-
-        return PublicacionResponseDTO.builder()
-                .id(publicacion.getId())
-                .titulo(publicacion.getTitulo())
-                .urlDocumento(publicacion.getUrlDocumento())
-                .fechaPublicacion(publicacion.getFechaPublicacion())
-                .idProyecto(publicacion.getProyecto() != null ? publicacion.getProyecto().getId() : null)
-                .nombreProyecto(nombreProyecto)
-                .nombreSemillero(nombreSemillero)
-                .autores(autores)
-                .autoresDetalle(autoresDetalle)
-                .createdAt(publicacion.getCreatedAt())
-                .build();
     }
 }

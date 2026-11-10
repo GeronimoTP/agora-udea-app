@@ -55,6 +55,7 @@ public interface SemilleroLineaInvestigacionRepository extends JpaRepository<Sem
             FROM SemilleroLineaInvestigacion sl
             JOIN sl.lineaInvestigacion l
             WHERE sl.semillero.id IN :idsSemillero
+            ORDER BY sl.id
             """)
     List<LineaDeSemillero> findLineasDeSemilleros(@Param("idsSemillero") Collection<Integer> idsSemillero);
 }

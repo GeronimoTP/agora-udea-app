@@ -6,12 +6,15 @@ Agora UdeA administra semilleros de investigación de la Universidad de Antioqui
 Este documento describe el código y flujo revisados. Cuando exista una diferencia entre esta guía y la implementación, prevalece el código actual; actualiza la guía junto con el cambio.
 
 ## Estructura
-- `backend/agora-backend`: API Spring Boot organizada por capas (`controller` → `service` → `repository` → `model`), más `dto`, `security`, `exception`, `config` y estos paquetes de apoyo:
+- `backend/agora-backend`: API Spring Boot organizada por capas (`controller` → `service` → `repository` → `model`), más `dto`, `security`, `exception` y estos paquetes de apoyo:
+  - `config`: OpenAPI y los pesos configurables de los algoritmos (`PesosRecomendacion`, `PesosPriorizacion`, `PesosSemillerosSimilares`).
   - `dominio`: nombres de estados y roles del catálogo (`EstadosPostulacion`, `EstadosConvocatoria`, `EstadosSemillero`, `EstadosVinculacion`, `EstadosProyecto`, `CategoriasEstado`, `NombresRol`).
   - `estructuras`: estructuras de datos propias (`KdTree`).
   - `evento`: eventos de aplicación (`SemillerosModificadosEvent`).
   - `service/analitica`: fórmulas de indicadores (`CalculadoraIndicadores`, `DatosAnalitica`).
-  - `service/mapper`: conversión de entidades a DTOs (`SemilleroMapper`).
+  - `job`: tareas programadas (`ExpiracionConvocatoriasJob`).
+  - `service/autorizacion`: reglas de propiedad por recurso (`AutorizacionPerfilService`, `AutorizacionSemilleroService`, `AutorizacionPostulacionService`) y la identidad del usuario autenticado (`UsuarioAutenticadoService`).
+  - `service/mapper`: conversión de entidades a DTOs, un mapper por dominio (`SemilleroMapper`, `ConvocatoriaMapper`, `PostulacionMapper`, `ProyectoMapper`, `PublicacionMapper`, `ReconocimientoMapper`, `EstudianteMapper`, `ProfesorMapper`, `UsuarioMapper`).
   - `util`: utilidades sin estado (`Redondeo`).
 - `docs/ARQUITECTURA_Y_REFACTORIZACION.md`: análisis de la arquitectura actual, auditoría SOLID y clean code, refactorización aplicada y opciones de evolución.
 - `frontend`: aplicación React con TanStack Start, TanStack Router y React Query.
@@ -55,7 +58,7 @@ El proyecto se organiza en tres servicios de procesamiento: cada uno toma datos 
 | Servicio | Clases | Toma | Produce |
 | --- | --- | --- | --- |
 | 1. Motor de recomendación | `MotorRecomendacionService`, `SemillerosSimilaresService`, `IndiceSemillerosKdService`, `estructuras/KdTree`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores, convocatorias vigentes e historial de semilleros del estudiante | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante; **semilleros similares a los suyos** (vecinos más cercanos en un árbol KD) |
-| 2. Gestor de convocatorias | `GestorConvocatoriasService`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cascada, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria |
+| 2. Gestor de convocatorias | `GestorConvocatoriasService`, `ExpiracionPostulacionesService`, `ExpiracionConvocatoriasJob`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cascada, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria |
 | 3. Analítica | `AnaliticaService`, `CalculadoraIndicadores`, `AnaliticaController` | Postulaciones, convocatorias, proyectos, publicaciones, reconocimientos y vinculaciones (de toda la universidad o de un semillero) | 8 indicadores: demanda, tiempo de respuesta, retención de ofertas, conversión proyecto-publicación, participación estudiantil, reconocimientos, habilidades emergentes e interdisciplinariedad. Vista institucional para el administrador y **vista por semillero** para sus líderes y tutores, con embudo de postulaciones, demanda por convocatoria y comparación con la universidad |
 
 Las reglas de cada servicio están en "Recomendaciones", "Semilleros similares a los tuyos (árbol KD)", "Postulaciones y cupos" (incluida "Priorización de candidatos") y "Analítica".
@@ -126,17 +129,21 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 ### Autorización (backend)
 - `JwtAuthenticationFilter` carga el rol del usuario desde la BD y lo expone como autoridad `ROLE_<nombre del rol>` (por ejemplo `ROLE_Administrador`). El token de onboarding no recibe autoridades.
 - `SecurityConfig`:
-  - `GET /api/analitica/semillero/*` → autenticado, y además líder, tutor o administrador (`AutorizacionService.validarLiderOAdministrador`). Va antes de la regla general de analítica.
+  - `GET /api/analitica/semillero/*` → autenticado, y además líder, tutor o administrador (`AutorizacionSemilleroService.validarLiderOAdministrador`). Va antes de la regla general de analítica.
   - Resto de `/api/analitica/**` → `Administrador`.
   - Catálogos (`/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades`, `/api/estados`): lectura para cualquier usuario autenticado; `POST`, `PUT`, `PATCH` y `DELETE` solo `Administrador` (`CATALOGOS_ADMINISTRABLES`). Antes cualquier usuario podía renombrar un estado y romper convocatorias, recomendaciones y analítica.
   - `POST /api/postulaciones`, `POST /api/postulaciones/*/confirmar-aceptacion`, `POST /api/postulaciones/*/rechazar-estudiante`, `/api/recomendaciones/**` → `Estudiante`.
   - `POST /api/postulaciones/*/pre-aprobar`, `POST /api/postulaciones/*/rechazar-lider` → `Estudiante` o `Profesor`, y además el usuario debe ser líder del semillero de la postulación (ver abajo).
   - `POST /api/semilleros`, `POST /api/convocatorias` → `Estudiante` o `Profesor`.
   - Solo `Administrador`: `/api/usuarios/**` (excepto `GET /api/usuarios/me`), `POST /api/estudiantes`, `POST /api/profesores` (los perfiles se crean por onboarding), `GET /api/postulaciones` (listado global) y `POST /api/convocatorias/procesar-expiradas` (también expira ofertas vencidas).
-  - Resto de rutas no públicas → autenticación, más las reglas de propiedad de `AutorizacionService`.
+  - Resto de rutas no públicas → autenticación, más las reglas de propiedad de `service/autorizacion`.
   - Sin token, o con un token inválido o vencido, `/api/**` responde 401 (no redirige a Google).
 - Líderes de semillero: `LiderazgoSemilleroService` considera líder al estudiante `estudianteLider` del semillero y a los profesores vinculados en `tbl_profesor_x_semillero`. `GET /api/usuarios/me` devuelve en `idSemillerosLiderados` la unión de ambos casos.
-- `AutorizacionService` concentra las reglas de propiedad (403 si no se cumplen):
+- Las reglas de propiedad (403 si no se cumplen) están en `service/autorizacion`, una clase por recurso; cada controlador inyecta solo las que usa:
+  - `AutorizacionPerfilService`: el dueño del perfil de estudiante o profesor.
+  - `AutorizacionSemilleroService`: líder del semillero y de su contenido (convocatorias, proyectos, publicaciones, reconocimientos), líder o administrador, integrante activo.
+  - `AutorizacionPostulacionService`: el estudiante postulado, el líder que evalúa y quién puede leer una postulación.
+  - `UsuarioAutenticadoService`: usuario, rol e IDs de estudiante o profesor a partir del email del token.
 
 | Acción | Quién |
 | --- | --- |
@@ -235,9 +242,10 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
   5. Si los cupos llegan a cero, la convocatoria pasa a `Cerrada` y lo que quedaba `Pendiente` o `Pre-aprobada` en ella pasa a `Expirada`.
 - `fechaDecisionEstudiante` solo se registra cuando el estudiante acepta o declina; los rechazos del líder, la cascada y las expiraciones no la tocan.
 - Un cron diario, configurable con `app.scheduler.convocatorias-expiradas.cron` (por defecto 01:00), cierra convocatorias expiradas y marca como `Expirada` lo que quedó sin resolver, también en convocatorias que ya estaban `Cerradas`.
+- Reparto de responsabilidades: `GestorConvocatoriasService` tiene el flujo de doble vía y los cierres del líder; `ExpiracionPostulacionesService`, las operaciones que marcan `Expirada`; `ExpiracionConvocatoriasJob` (paquete `job`), los dos crons y el proceso manual de `POST /api/convocatorias/procesar-expiradas`; `MiembrosSemilleroService.incorporarAdmitido`, la vinculación del admitido al semillero.
 - Estados de postulación (categoría "Estado Postulación" en `tbl_estados`): `Pendiente`, `Pre-aprobada`, `Aceptada`, `Rechazada`, `Rechazada por Estudiante`, `Cancelada en cascada`, `Expirada`. El frontend los refleja 1:1 (`PENDIENTE`, `PRE_APROBADA`, ..., `CANCELADA`).
 ### Priorización de candidatos (Servicio 2)
-`GET /api/postulaciones/semillero/{idSemillero}/priorizacion` (solo líderes del semillero) puntúa de 0 a 100 cada postulación en proceso (`Pendiente` o `Pre-aprobada`) y la ordena dentro de su convocatoria (`posicion` 1 = mejor; empates por orden de llegada):
+`GET /api/postulaciones/semillero/{idSemillero}/priorizacion` (solo líderes del semillero) puntúa de 0 a 100 cada postulación en proceso (`Pendiente` o `Pre-aprobada`) y la ordena dentro de su convocatoria (`posicion` 1 = mejor; empates por orden de llegada). Pesos por defecto, configurables con `app.priorizacion.pesos.*` (`PesosPriorizacion`):
 - Afinidad temática, 35%: líneas del estudiante que coinciden con las del semillero, sobre el total de líneas del semillero.
 - Habilidades, 25%: habilidades declaradas en la postulación que el semillero ya usa (las de sus postulaciones `Aceptada`). Sin ese historial, valor neutral 50.
 - Disponibilidad, 20%: horas semanales declaradas; 12 h o más dan el 100.
@@ -249,7 +257,7 @@ La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para 
 - La columna `tbl_postulaciones.fecha_pre_aprobacion` se crea con `backend/agora-backend/db/migrations/V2__oferta_y_cancelacion_postulaciones.sql`, que debe ejecutarse antes de desplegar.
 
 ### Recomendaciones
-`MotorRecomendacionService` solo considera semilleros `Activo` que el estudiante no lidera y a los que no pertenece. Los ordena por puntaje ponderado:
+`MotorRecomendacionService` solo considera semilleros `Activo` que el estudiante no lidera y a los que no pertenece. Los ordena por puntaje ponderado. Pesos por defecto, configurables con `app.recomendacion.pesos.*` (`PesosRecomendacion`):
 - Habilidades: 40%.
 - Coincidencia con áreas de especialidad de tutores: 25%.
 - Disponibilidad: 20%. Tiene una convocatoria `Abierta`, ya iniciada, no vencida y con cupos.
@@ -287,7 +295,7 @@ En el ejemplo, buscar el vecino más cercano a (9,2): F (distancia² 4) → baja
 - **Punto de un semillero:** cuántas de sus líneas de investigación caen en cada área (vía `tbl_linea_investigacion.id_area_especialidad`), normalizado a longitud 1. Ejemplo con áreas (Computación, Ambiente, Estadística): líneas IA y Datos → (1, 0, 1) → (0.707, 0, 0.707).
 - **Distancia y similitud:** con vectores unitarios, la distancia euclidiana d y la similitud coseno cumplen `cos = 1 − d²/2`. El vecino más cercano en el árbol es el semillero de temática más parecida. Se muestra `porcentajeSimilitud = cos × 100` (100 % = mismas áreas en la misma proporción; 0 % = ninguna área en común, y esos no se recomiendan).
 - **Índice** (`IndiceSemillerosKdService`): el árbol contiene los semilleros en estado `Activo` (categoría "Estado Semillero") que tienen al menos una línea. Se construye con una sola consulta, se guarda en memoria y se reutiliza. Se descarta cuando se publica `SemillerosModificadosEvent` (después del commit; si la operación falla, no se descarta), que publican `SemilleroService` (crear, actualizar, cambiar estado, eliminar, agregar o quitar líneas), `LineaInvestigacionService` (actualizar, eliminar) y `AreaEspecialidadService` (crear, eliminar). Como respaldo para cambios hechos por SQL directo (scripts en Supabase), se reconstruye cuando pasa `app.recomendacion.kd.vigencia-minutos` (15 por defecto).
-- **Punto de consulta** (`SemillerosSimilaresService`): suma ponderada de los vectores de los semilleros del historial del estudiante, normalizada (su "centro de gravedad" temático). Los semilleros donde es integrante activo o líder pesan 1.0; aquellos de los que salió (`fecha_salida` no nula) pesan 0.5. Sin historial con líneas, el punto sale de las líneas de interés de su perfil; si tampoco tiene, la respuesta es `SIN_DATOS` y no recomienda nada.
+- **Punto de consulta** (`SemillerosSimilaresService`): suma ponderada de los vectores de los semilleros del historial del estudiante, normalizada (su "centro de gravedad" temático). Los semilleros donde es integrante activo o líder pesan 1.0; aquellos de los que salió (`fecha_salida` no nula) pesan 0.5 (configurable con `app.recomendacion.kd.pesos.*`). Sin historial con líneas, el punto sale de las líneas de interés de su perfil; si tampoco tiene, la respuesta es `SIN_DATOS` y no recomienda nada.
 - **Exclusiones:** los semilleros donde está, estuvo o lidera se descartan durante el recorrido del árbol (filtro sobre el dato del nodo: se recorren pero no se devuelven).
 - **Desempate:** con pocas dimensiones muchos semilleros quedan a la misma distancia. Se piden al árbol 3·k candidatos y se ordenan por similitud; a igual similitud, por más líneas de investigación en común con el historial (o el perfil), luego por convocatoria abierta y luego por nombre. Se devuelven los k primeros (`limite`, 5 por defecto, máximo 10).
 - **Explicación al estudiante:** áreas en común, líneas en común, "Parecido a" (el semillero de su historial con mayor similitud coseno al recomendado) y si tiene convocatoria abierta. La respuesta incluye los datos de la búsqueda (dimensiones, semilleros en el árbol, profundidad, candidatos y nodos visitados), que `/compatibilidad` muestra al pie de la sección.
@@ -326,7 +334,11 @@ Reglas de cálculo:
 - Analítica: `/api/analitica/dashboard` y KPIs bajo `/api/analitica/*` (administrador); `/api/analitica/semillero/{id}` (líderes, tutores y administrador).
 - Catálogos administrables: `/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades` y `/api/estados` reciben y devuelven DTOs (`*RequestDTO` con validación, `*ResponseDTO`), nunca entidades JPA. Las líneas incluyen `idAreaEspecialidad` y `nombreAreaEspecialidad`; los estados, `nombreCategoria`. `GET .../buscar?nombre=` filtra en la base de datos y ordena por nombre.
 
-Los servicios frontend adaptan los DTO del backend a tipos de vista con funciones `mapear*` en `services.ts`. Toda respuesta debe pasar por un mapeador: no tipar la respuesta cruda del backend con un tipo de vista. Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). El registro heredado por email (`AuthController`, `/api/auth/register/**`, `/api/auth/check-email`) se eliminó: el único alta de cuentas es el onboarding OAuth con identidad firmada.
+El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dominio: `semilleros`, `convocatorias`, `postulaciones`, `recomendaciones`, `analitica`, `perfiles`, `catalogos` y `gestion`. Las query options de React Query están en `queries.ts` (y `gestionQueries` en `gestion.ts`). Cada módulo usa una de dos formas y lo dice en su cabecera:
+- **Vistas públicas** (`semilleros`, `convocatorias`, `postulaciones`, `recomendaciones`, `analitica`): adaptan el DTO del backend (tipo `*Api`, privado del módulo) a un tipo de vista de `@/types/api` con funciones `mapear*`, que además normalizan los estados. No tipar la respuesta cruda del backend con un tipo de vista.
+- **Edición** (`gestion`, `perfiles`, `catalogos`): exportan el DTO del backend tal cual, porque los formularios necesitan los IDs y los nombres exactos de estado.
+
+ Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). El registro heredado por email (`AuthController`, `/api/auth/register/**`, `/api/auth/check-email`) se eliminó: el único alta de cuentas es el onboarding OAuth con identidad firmada.
 
 ## Seguridad
 - **CORS**: configuración única en `SecurityConfig.corsConfigurationSource`, solo para `/api/**` y solo para los orígenes de `app.cors.allowed-origins` (`APP_CORS_ORIGINS`, separados por coma; por defecto `APP_FRONTEND_URL`). Sin cookies entre orígenes (`allowCredentials=false`). Los controladores ya no usan `@CrossOrigin`; no lo vuelvas a agregar. Si el frontend se abre desde otro dominio (por ejemplo, una URL de vista previa de Vercel), agrégalo a `APP_CORS_ORIGINS`.
@@ -345,7 +357,11 @@ Los servicios frontend adaptan los DTO del backend a tipos de vista con funcione
 - Nombres de estado y de rol: usar las constantes de `dominio` (`EstadosPostulacion.ACEPTADA`, `NombresRol.ADMINISTRADOR`…). No declarar constantes `ESTADO_*` locales ni escribir el nombre como texto.
 - Obtener un estado: `BuscadorEstados` (`dePostulacion`, `deConvocatoria`, `deSemillero`, `deVinculacion`, `porNombre`, `porIdEnCategoria`). No repetir la consulta `findByCategoriaEstadoNombre...` en cada servicio.
 - Preguntas sobre el estado de una entidad: métodos de dominio en el modelo (`Estado.tieneNombre`, `Postulacion.tieneEstado`, `Convocatoria.estaAbierta / estaVigente / tieneCuposDisponibles / recibePostulaciones`, `Semillero.estaActivo`, `EstudianteSemillero.estaActiva`) y `ConvocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones`. No repetir la condición a mano.
-- Una clase, una responsabilidad: `SemilleroService` (datos del semillero, estado, líneas), `MiembrosSemilleroService` (tutores, integrantes, liderazgo), `SemilleroMapper` (DTOs). Si un servicio pasa de ~300 líneas o mezcla temas, dividirlo igual.
+- Una clase, una responsabilidad: `SemilleroService` (datos del semillero, estado, líneas), `MiembrosSemilleroService` (tutores, integrantes, liderazgo, incorporación de admitidos), `SemilleroMapper` (DTOs). Si un servicio pasa de ~300 líneas o mezcla temas, dividirlo igual.
+- Conversión entidad → DTO: en el mapper del dominio (`service/mapper`), nunca como método privado del servicio ni repitiendo el `builder()` en varios métodos.
+- Listados: no hacer consultas por elemento. Para totales por semillero, una consulta agregada con `GROUP BY` que devuelva `ConteoPorSemillero` (ver `SemilleroMapper.aResponses`). `hibernate.default_batch_fetch_size=50` carga las relaciones `LAZY` por lotes.
+- Tareas programadas (`@Scheduled`): en el paquete `job`, delegando la lógica en servicios.
+- Pesos de algoritmos: en los records `config/Pesos*` (`@ConfigurationProperties`), no como constantes. Cada grupo valida al arrancar que sus pesos sumen 1.
 - Los DTOs viven en `dto/request` y `dto/response` (los de analítica en `dto/response/analitica`), no como clases anidadas en servicios.
 - Redondeo de valores de la API: `util.Redondeo` (`unDecimal`, `dosDecimales`, `tresDecimales`).
 - No capturar `Exception` para devolver un valor por defecto: oculta errores reales. Dejar que llegue a `ManejadorExcepcionesGlobal`.
@@ -364,7 +380,7 @@ Los servicios frontend adaptan los DTO del backend a tipos de vista con funcione
 - No subir secretos, tokens, correos de prueba ni URLs que incluyan JWT.
 - El esquema productivo es externo. No cambiar `ddl-auto` a `update`/`create` en producción.
 - CORS se configura solo en `SecurityConfig`; no uses `@CrossOrigin` en controladores.
-- Un endpoint nuevo bajo `/api/**` necesita su regla en `SecurityConfig` o en `AutorizacionService`; por defecto exige autenticación.
+- Un endpoint nuevo bajo `/api/**` necesita su regla en `SecurityConfig` o en `service/autorizacion`; por defecto exige autenticación.
 - Toda operación nueva que cambie semilleros (estado, líneas) o el catálogo de líneas y áreas debe publicar `SemillerosModificadosEvent`; si no, el árbol KD de semilleros similares queda desactualizado hasta que venza su vigencia.
 - `KdTree` (`backend/.../estructuras`) es una estructura genérica e inmutable, sin dependencias de Spring: para reflejar cambios se construye un árbol nuevo.
 
@@ -379,6 +395,7 @@ Variables esperadas por el backend:
 - `APP_OFERTAS_DIAS_RESPUESTA` (opcional, por defecto 3): plazo para responder una oferta.
 - `APP_SWAGGER_HABILITADO` (opcional, por defecto `false` en producción): expone Swagger.
 - `APP_RECOMENDACION_KD_VIGENCIA_MINUTOS` (opcional, por defecto 15): minutos que se reutiliza el árbol KD antes de reconstruirlo, para reflejar cambios hechos por SQL directo.
+- Pesos de los algoritmos (opcional): `app.recomendacion.pesos.*`, `app.priorizacion.pesos.*` y `app.recomendacion.kd.pesos.*` en `application*.properties`, o como variables de entorno con el nombre en mayúsculas (`APP_RECOMENDACION_PESOS_HABILIDADES=0.5`). Si un grupo no suma 1, el backend no arranca y el log dice cuál.
 
 Frontend:
 - `VITE_API_URL` debe apuntar al backend desplegado.

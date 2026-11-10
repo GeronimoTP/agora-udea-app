@@ -23,11 +23,13 @@ import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
 import com.udea.agora_backend.service.mapper.SemilleroMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Personas de un semillero: profesores tutores (co-tutoría), estudiantes integrantes
@@ -36,6 +38,7 @@ import java.util.List;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class MiembrosSemilleroService {
 
@@ -117,6 +120,33 @@ public class MiembrosSemilleroService {
                 .build();
 
         return semilleroMapper.aVinculacion(estudianteSemilleroRepository.save(vinculacion));
+    }
+
+    /**
+     * Un estudiante que acepta una oferta pasa a ser integrante del semillero. Si había sido
+     * retirado antes, su vinculación se reactiva con fecha de ingreso de hoy.
+     */
+    public void incorporarAdmitido(Estudiante estudiante, Semillero semillero) {
+        Optional<EstudianteSemillero> existente = estudianteSemilleroRepository
+                .findBySemilleroIdAndEstudianteId(semillero.getId(), estudiante.getId());
+        if (existente.isPresent()) {
+            EstudianteSemillero vinculacion = existente.get();
+            if (!vinculacion.estaActiva()) {
+                vinculacion.setFechaSalida(null);
+                vinculacion.setFechaIngreso(LocalDate.now());
+                vinculacion.setEstado(buscadorEstados.deVinculacion(EstadosVinculacion.ACTIVA));
+                estudianteSemilleroRepository.save(vinculacion);
+                log.info("Estudiante {} reincorporado al semillero {}", estudiante.getId(), semillero.getId());
+            }
+            return;
+        }
+        estudianteSemilleroRepository.save(EstudianteSemillero.builder()
+                .semillero(semillero)
+                .estudiante(estudiante)
+                .fechaIngreso(LocalDate.now())
+                .estado(buscadorEstados.deVinculacion(EstadosVinculacion.ACTIVA))
+                .build());
+        log.info("Estudiante {} vinculado al semillero {}", estudiante.getId(), semillero.getId());
     }
 
     public List<EstudianteSemilleroResponseDTO> obtenerEstudiantes(Integer idSemillero) {

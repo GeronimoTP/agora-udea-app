@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.config.PesosSemillerosSimilares;
 import com.udea.agora_backend.dto.response.SemillerosSimilaresResponseDTO;
 import com.udea.agora_backend.dto.response.SemillerosSimilaresResponseDTO.Base;
 import com.udea.agora_backend.dto.response.SemillerosSimilaresResponseDTO.BusquedaKd;
@@ -40,8 +41,8 @@ import java.util.stream.Collectors;
  * {@link IndiceSemillerosKdService}:
  * <ol>
  *   <li>Cada semillero del historial se vectoriza por sus áreas de especialidad. Los actuales
- *       (integrante activo o líder) pesan {@value #PESO_ACTUAL} y los anteriores
- *       {@value #PESO_ANTERIOR}.</li>
+ *       (integrante activo o líder) pesan más que los anteriores: 1 y 0,5 por defecto
+ *       ({@link PesosSemillerosSimilares}).</li>
  *   <li>El punto de consulta es la suma ponderada de esos vectores, normalizada: el "centro
  *       de gravedad" temático del estudiante.</li>
  *   <li>Sin historial con líneas, el punto sale de las líneas de interés de su perfil.</li>
@@ -59,8 +60,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class SemillerosSimilaresService {
 
-    static final double PESO_ACTUAL = 1.0;
-    static final double PESO_ANTERIOR = 0.5;
     public static final int LIMITE_MAXIMO = 10;
     // Vecinos que se piden al árbol por cada resultado, para poder desempatar
     static final int CANDIDATOS_POR_RESULTADO = 3;
@@ -72,6 +71,7 @@ public class SemillerosSimilaresService {
     private final SemilleroRepository semilleroRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
+    private final PesosSemillerosSimilares pesos;
 
     public SemillerosSimilaresResponseDTO buscar(Integer idEstudiante, int limite) {
         if (!estudianteRepository.existsById(idEstudiante)) {
@@ -83,11 +83,11 @@ public class SemillerosSimilaresService {
         // 1. Historial: idSemillero → peso. Liderar cuenta como pertenencia actual.
         Map<Integer, Double> pesoPorSemillero = new LinkedHashMap<>();
         for (EstudianteSemillero vinculacion : estudianteSemilleroRepository.findByEstudianteId(idEstudiante)) {
-            double peso = vinculacion.estaActiva() ? PESO_ACTUAL : PESO_ANTERIOR;
+            double peso = vinculacion.estaActiva() ? pesos.actual() : pesos.anterior();
             pesoPorSemillero.merge(vinculacion.getSemillero().getId(), peso, Math::max);
         }
         for (Integer idLiderado : semilleroRepository.findIdsByEstudianteLiderId(idEstudiante)) {
-            pesoPorSemillero.put(idLiderado, PESO_ACTUAL);
+            pesoPorSemillero.put(idLiderado, pesos.actual());
         }
 
         // 2. Vector de cada semillero del historial (pueden estar inactivos: se leen de la BD)
@@ -118,7 +118,7 @@ public class SemillerosSimilaresService {
                 .map(entrada -> SemilleroReferencia.builder()
                         .idSemillero(entrada.getKey())
                         .nombre(semillerosHistorial.get(entrada.getKey()).getNombre())
-                        .actual(entrada.getValue() == PESO_ACTUAL)
+                        .actual(entrada.getValue() == pesos.actual())
                         .peso(entrada.getValue())
                         .build())
                 .toList();

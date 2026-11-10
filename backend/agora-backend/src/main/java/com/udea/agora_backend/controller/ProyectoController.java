@@ -4,8 +4,8 @@ import com.udea.agora_backend.dto.request.ProyectoRequestDTO;
 import com.udea.agora_backend.dto.request.VinculacionProyectoRequestDTO;
 import com.udea.agora_backend.dto.response.ProyectoResponseDTO;
 import com.udea.agora_backend.dto.response.VinculacionProyectoResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.ProyectoService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -26,7 +26,7 @@ import java.util.List;
 public class ProyectoController {
 
     private final ProyectoService proyectoService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionSemilleroService autorizacionSemillero;
 
     @Operation(summary = "Obtener todos los proyectos de investigación")
     @ApiResponse(responseCode = "200", description = "Lista de proyectos obtenida exitosamente")
@@ -60,7 +60,7 @@ public class ProyectoController {
     })
     @PostMapping
     public ResponseEntity<ProyectoResponseDTO> crear(@Valid @RequestBody ProyectoRequestDTO request, Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         ProyectoResponseDTO creado = proyectoService.crear(request);
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
     }
@@ -76,7 +76,7 @@ public class ProyectoController {
             @PathVariable Integer id,
             @Valid @RequestBody ProyectoRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderProyecto(authentication.getName(), id);
+        autorizacionSemillero.validarLiderProyecto(authentication.getName(), id);
         return ResponseEntity.ok(proyectoService.actualizar(id, request));
     }
 
@@ -90,7 +90,7 @@ public class ProyectoController {
             @PathVariable Integer id,
             @PathVariable Integer idEstado,
             Authentication authentication) {
-        autorizacionService.validarLiderProyecto(authentication.getName(), id);
+        autorizacionSemillero.validarLiderProyecto(authentication.getName(), id);
         return ResponseEntity.ok(proyectoService.actualizarEstado(id, idEstado));
     }
 
@@ -101,7 +101,7 @@ public class ProyectoController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLiderProyecto(authentication.getName(), id);
+        autorizacionSemillero.validarLiderProyecto(authentication.getName(), id);
         proyectoService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -128,7 +128,7 @@ public class ProyectoController {
     public ResponseEntity<VinculacionProyectoResponseDTO> vincularEstudiante(
             @Valid @RequestBody VinculacionProyectoRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderProyecto(authentication.getName(), request.getIdProyecto());
+        autorizacionSemillero.validarLiderProyecto(authentication.getName(), request.getIdProyecto());
         VinculacionProyectoResponseDTO vinculacion = proyectoService.vincularEstudiante(request);
         return new ResponseEntity<>(vinculacion, HttpStatus.CREATED);
     }
@@ -143,7 +143,7 @@ public class ProyectoController {
             @PathVariable Integer idProyecto,
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
-        autorizacionService.validarLiderProyecto(authentication.getName(), idProyecto);
+        autorizacionSemillero.validarLiderProyecto(authentication.getName(), idProyecto);
         proyectoService.desvincularEstudiante(idProyecto, idEstudiante);
         return ResponseEntity.noContent().build();
     }

@@ -4,8 +4,8 @@ import com.udea.agora_backend.dto.request.ProfesorAreaEspecialidadRequestDTO;
 import com.udea.agora_backend.dto.request.ProfesorRequestDTO;
 import com.udea.agora_backend.dto.response.ProfesorAreaEspecialidadResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.ProfesorService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -26,7 +26,7 @@ import java.util.List;
 public class ProfesorController {
 
     private final ProfesorService profesorService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionPerfilService autorizacionPerfil;
 
     @Operation(summary = "Obtener todos los profesores")
     @ApiResponse(responseCode = "200", description = "Lista de profesores obtenida exitosamente")
@@ -79,7 +79,7 @@ public class ProfesorController {
             @PathVariable Integer id,
             @Valid @RequestBody ProfesorRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarProfesorActual(authentication.getName(), id);
+        autorizacionPerfil.validarProfesorActual(authentication.getName(), id);
         return ResponseEntity.ok(profesorService.actualizar(id, request));
     }
 
@@ -90,7 +90,7 @@ public class ProfesorController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarProfesorActual(authentication.getName(), id);
+        autorizacionPerfil.validarProfesorActual(authentication.getName(), id);
         profesorService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -117,7 +117,7 @@ public class ProfesorController {
     public ResponseEntity<ProfesorAreaEspecialidadResponseDTO> agregarAreaEspecialidad(
             @Valid @RequestBody ProfesorAreaEspecialidadRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarProfesorActual(authentication.getName(), request.getIdProfesor());
+        autorizacionPerfil.validarProfesorActual(authentication.getName(), request.getIdProfesor());
         ProfesorAreaEspecialidadResponseDTO creada = profesorService.agregarAreaEspecialidad(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -132,7 +132,7 @@ public class ProfesorController {
             @PathVariable Integer idProfesor,
             @PathVariable Integer idArea,
             Authentication authentication) {
-        autorizacionService.validarProfesorActual(authentication.getName(), idProfesor);
+        autorizacionPerfil.validarProfesorActual(authentication.getName(), idProfesor);
         profesorService.eliminarAreaEspecialidad(idProfesor, idArea);
         return ResponseEntity.noContent().build();
     }

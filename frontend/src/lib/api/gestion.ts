@@ -3,12 +3,12 @@
  *
  * Usa los DTOs del backend tal cual: la gestión necesita los IDs y los nombres
  * exactos de estado que devuelve Spring Boot. Cada mutación la valida el backend
- * con AutorizacionService (solo líderes del semillero).
+ * con las reglas de service/autorizacion (solo líderes del semillero).
  */
 
 import { queryOptions } from "@tanstack/react-query";
 import { apiRequest } from "./client";
-import type { ItemCatalogo } from "./services";
+import type { ItemCatalogo } from "./catalogos";
 
 // ============================================
 // TIPOS (DTOs del backend)

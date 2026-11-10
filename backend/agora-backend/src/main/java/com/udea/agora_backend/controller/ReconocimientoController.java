@@ -2,8 +2,8 @@ package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.request.ReconocimientoRequestDTO;
 import com.udea.agora_backend.dto.response.ReconocimientoResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.ReconocimientoService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -24,7 +24,7 @@ import java.util.List;
 public class ReconocimientoController {
 
     private final ReconocimientoService reconocimientoService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionSemilleroService autorizacionSemillero;
 
     @Operation(summary = "Obtener todos los reconocimientos")
     @ApiResponse(responseCode = "200", description = "Lista de reconocimientos obtenida exitosamente")
@@ -58,7 +58,7 @@ public class ReconocimientoController {
     })
     @PostMapping
     public ResponseEntity<ReconocimientoResponseDTO> crear(@Valid @RequestBody ReconocimientoRequestDTO request, Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         ReconocimientoResponseDTO creado = reconocimientoService.crear(request);
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
     }
@@ -74,7 +74,7 @@ public class ReconocimientoController {
             @PathVariable Integer id,
             @Valid @RequestBody ReconocimientoRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderReconocimiento(authentication.getName(), id);
+        autorizacionSemillero.validarLiderReconocimiento(authentication.getName(), id);
         return ResponseEntity.ok(reconocimientoService.actualizar(id, request));
     }
 
@@ -85,7 +85,7 @@ public class ReconocimientoController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLiderReconocimiento(authentication.getName(), id);
+        autorizacionSemillero.validarLiderReconocimiento(authentication.getName(), id);
         reconocimientoService.eliminar(id);
         return ResponseEntity.noContent().build();
     }

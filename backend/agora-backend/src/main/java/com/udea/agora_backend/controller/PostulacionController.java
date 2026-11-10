@@ -5,10 +5,12 @@ import com.udea.agora_backend.dto.request.PostulacionRequestDTO;
 import com.udea.agora_backend.dto.response.CandidatoPriorizadoDTO;
 import com.udea.agora_backend.dto.response.PostulacionHabilidadResponseDTO;
 import com.udea.agora_backend.dto.response.PostulacionResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.GestorConvocatoriasService;
 import com.udea.agora_backend.service.PostulacionService;
 import com.udea.agora_backend.service.PriorizacionCandidatosService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionPostulacionService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -30,7 +32,9 @@ public class PostulacionController {
 
     private final PostulacionService postulacionService;
     private final GestorConvocatoriasService gestorConvocatoriasService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionPerfilService autorizacionPerfil;
+    private final AutorizacionSemilleroService autorizacionSemillero;
+    private final AutorizacionPostulacionService autorizacionPostulacion;
     private final PriorizacionCandidatosService priorizacionCandidatosService;
 
     @Operation(summary = "Obtener todas las postulaciones")
@@ -47,7 +51,7 @@ public class PostulacionController {
     })
     @GetMapping("/{id}")
     public ResponseEntity<PostulacionResponseDTO> obtenerPorId(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLecturaPostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarLecturaPostulacion(authentication.getName(), id);
         return ResponseEntity.ok(postulacionService.obtenerPorId(id));
     }
 
@@ -55,7 +59,7 @@ public class PostulacionController {
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones del estudiante obtenida exitosamente")
     @GetMapping("/estudiante/{idEstudiante}")
     public ResponseEntity<List<PostulacionResponseDTO>> obtenerPorEstudiante(@PathVariable Integer idEstudiante, Authentication authentication) {
-        autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);
+        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
         return ResponseEntity.ok(postulacionService.obtenerPorEstudiante(idEstudiante));
     }
 
@@ -63,7 +67,7 @@ public class PostulacionController {
     @ApiResponse(responseCode = "200", description = "Postulaciones del semillero obtenidas exitosamente")
     @GetMapping("/semillero/{idSemillero}")
     public ResponseEntity<List<PostulacionResponseDTO>> obtenerPorSemillero(@PathVariable Integer idSemillero, Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(postulacionService.obtenerPorSemillero(idSemillero));
     }
 
@@ -72,7 +76,7 @@ public class PostulacionController {
     @GetMapping("/semillero/{idSemillero}/priorizacion")
     public ResponseEntity<List<CandidatoPriorizadoDTO>> priorizarCandidatos(
             @PathVariable Integer idSemillero, Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(priorizacionCandidatosService.priorizarPorSemillero(idSemillero));
     }
 
@@ -80,7 +84,7 @@ public class PostulacionController {
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones activas obtenida exitosamente")
     @GetMapping("/estudiante/{idEstudiante}/activas")
     public ResponseEntity<List<PostulacionResponseDTO>> obtenerActivasPorEstudiante(@PathVariable Integer idEstudiante, Authentication authentication) {
-        autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);
+        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
         return ResponseEntity.ok(postulacionService.obtenerPostulacionesActivasByEstudiante(idEstudiante));
     }
 
@@ -88,7 +92,7 @@ public class PostulacionController {
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones de la convocatoria obtenida exitosamente")
     @GetMapping("/convocatoria/{idConvocatoria}")
     public ResponseEntity<List<PostulacionResponseDTO>> obtenerPorConvocatoria(@PathVariable Integer idConvocatoria, Authentication authentication) {
-        autorizacionService.validarLiderConvocatoria(authentication.getName(), idConvocatoria);
+        autorizacionSemillero.validarLiderConvocatoria(authentication.getName(), idConvocatoria);
         return ResponseEntity.ok(postulacionService.obtenerPorConvocatoria(idConvocatoria));
     }
 
@@ -102,7 +106,7 @@ public class PostulacionController {
     @PostMapping
     public ResponseEntity<PostulacionResponseDTO> crear(@Valid @RequestBody PostulacionRequestDTO request,
                                                         Authentication authentication) {
-        autorizacionService.validarEstudianteActual(authentication.getName(), request.getIdEstudiante());
+        autorizacionPerfil.validarEstudianteActual(authentication.getName(), request.getIdEstudiante());
         PostulacionResponseDTO creada = postulacionService.crear(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -118,8 +122,8 @@ public class PostulacionController {
             @PathVariable Integer id,
             @Valid @RequestBody PostulacionRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarPropietarioPostulacion(authentication.getName(), id);
-        autorizacionService.validarEstudianteActual(authentication.getName(), request.getIdEstudiante());
+        autorizacionPostulacion.validarPropietarioPostulacion(authentication.getName(), id);
+        autorizacionPerfil.validarEstudianteActual(authentication.getName(), request.getIdEstudiante());
         return ResponseEntity.ok(postulacionService.actualizar(id, request));
     }
 
@@ -130,7 +134,7 @@ public class PostulacionController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarPropietarioPostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarPropietarioPostulacion(authentication.getName(), id);
         postulacionService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -143,7 +147,7 @@ public class PostulacionController {
     @ApiResponse(responseCode = "200", description = "Lista de habilidades obtenida exitosamente")
     @GetMapping("/{id}/habilidades")
     public ResponseEntity<List<PostulacionHabilidadResponseDTO>> obtenerHabilidades(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLecturaPostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarLecturaPostulacion(authentication.getName(), id);
         return ResponseEntity.ok(postulacionService.obtenerHabilidades(id));
     }
 
@@ -158,7 +162,7 @@ public class PostulacionController {
     public ResponseEntity<PostulacionHabilidadResponseDTO> agregarHabilidad(
             @Valid @RequestBody PostulacionHabilidadRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarPropietarioPostulacion(authentication.getName(), request.getIdPostulacion());
+        autorizacionPostulacion.validarPropietarioPostulacion(authentication.getName(), request.getIdPostulacion());
         PostulacionHabilidadResponseDTO creada = postulacionService.agregarHabilidad(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -173,7 +177,7 @@ public class PostulacionController {
             @PathVariable Integer idPostulacion,
             @PathVariable Integer idHabilidad,
             Authentication authentication) {
-        autorizacionService.validarPropietarioPostulacion(authentication.getName(), idPostulacion);
+        autorizacionPostulacion.validarPropietarioPostulacion(authentication.getName(), idPostulacion);
         postulacionService.eliminarHabilidad(idPostulacion, idHabilidad);
         return ResponseEntity.noContent().build();
     }
@@ -190,7 +194,7 @@ public class PostulacionController {
     })
     @PostMapping("/{id}/pre-aprobar")
     public ResponseEntity<String> preAprobarPostulacion(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLiderDePostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarLiderDePostulacion(authentication.getName(), id);
         gestorConvocatoriasService.preAprobarPostulacion(id);
         return ResponseEntity.ok("Postulación pre-aprobada con éxito. En espera de confirmación del estudiante.");
     }
@@ -203,7 +207,7 @@ public class PostulacionController {
     })
     @PostMapping("/{id}/rechazar-lider")
     public ResponseEntity<String> rechazarPostulacionLider(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLiderDePostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarLiderDePostulacion(authentication.getName(), id);
         gestorConvocatoriasService.rechazarPostulacion(id);
         return ResponseEntity.ok("Postulación rechazada por el líder.");
     }
@@ -216,7 +220,7 @@ public class PostulacionController {
     })
     @PostMapping("/{id}/confirmar-aceptacion")
     public ResponseEntity<String> confirmarAceptacion(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarPropietarioPostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarPropietarioPostulacion(authentication.getName(), id);
         gestorConvocatoriasService.confirmarAceptacion(id);
         return ResponseEntity.ok("Admisión aceptada exitosamente. Se ha descontado el cupo y liberado las demás postulaciones activas.");
     }
@@ -229,7 +233,7 @@ public class PostulacionController {
     })
     @PostMapping("/{id}/rechazar-estudiante")
     public ResponseEntity<String> rechazarOfertaEstudiante(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarPropietarioPostulacion(authentication.getName(), id);
+        autorizacionPostulacion.validarPropietarioPostulacion(authentication.getName(), id);
         gestorConvocatoriasService.rechazarOfertaEstudiante(id);
         return ResponseEntity.ok("Oferta rechazada por el estudiante exitosamente.");
     }

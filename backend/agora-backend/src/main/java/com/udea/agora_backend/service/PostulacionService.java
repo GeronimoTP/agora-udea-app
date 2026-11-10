@@ -20,6 +20,7 @@ import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.HabilidadRepository;
 import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
 import com.udea.agora_backend.repository.PostulacionRepository;
+import com.udea.agora_backend.service.mapper.PostulacionMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +47,7 @@ public class PostulacionService {
     private final HabilidadRepository habilidadRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
-    private final PlazoOfertasService plazoOfertasService;
+    private final PostulacionMapper postulacionMapper;
 
     /**
      * Obtiene todas las postulaciones
@@ -54,7 +55,7 @@ public class PostulacionService {
     public List<PostulacionResponseDTO> obtenerTodas() {
         return postulacionRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(postulacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -64,7 +65,7 @@ public class PostulacionService {
     public PostulacionResponseDTO obtenerPorId(Integer id) {
         Postulacion postulacion = postulacionRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Postulación", id));
-        return mapeoAResponseDTO(postulacion);
+        return postulacionMapper.aResponse(postulacion);
     }
 
     /**
@@ -73,14 +74,14 @@ public class PostulacionService {
     public List<PostulacionResponseDTO> obtenerPorEstudiante(Integer idEstudiante) {
         return postulacionRepository.findByEstudianteId(idEstudiante)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(postulacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
         public List<PostulacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
                 return postulacionRepository.findByConvocatoriaSemilleroId(idSemillero)
                                 .stream()
-                                .map(this::mapeoAResponseDTO)
+                                .map(postulacionMapper::aResponse)
                                 .collect(Collectors.toList());
         }
 
@@ -90,7 +91,7 @@ public class PostulacionService {
     public List<PostulacionResponseDTO> obtenerPorConvocatoria(Integer idConvocatoria) {
         return postulacionRepository.findByConvocatoriaId(idConvocatoria)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(postulacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -101,7 +102,7 @@ public class PostulacionService {
     public List<PostulacionResponseDTO> obtenerPostulacionesActivasByEstudiante(Integer idEstudiante) {
         return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, EstadosPostulacion.PENDIENTE, "Pre-aprobada")
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(postulacionMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -155,7 +156,7 @@ public class PostulacionService {
             }
         }
 
-        return mapeoAResponseDTO(postulacionGuardada);
+        return postulacionMapper.aResponse(postulacionGuardada);
     }
 
     /**
@@ -192,7 +193,7 @@ public class PostulacionService {
             }
         }
 
-        return mapeoAResponseDTO(postulacionActualizada);
+        return postulacionMapper.aResponse(postulacionActualizada);
     }
 
     /**
@@ -231,21 +232,13 @@ public class PostulacionService {
 
         PostulacionHabilidad guardada = postulacionHabilidadRepository.save(asociacion);
 
-        return PostulacionHabilidadResponseDTO.builder()
-                .id(guardada.getId())
-                .idPostulacion(postulacion.getId())
-                .nombreHabilidad(habilidad.getNombre())
-                .build();
+        return postulacionMapper.aHabilidad(guardada);
     }
 
     public List<PostulacionHabilidadResponseDTO> obtenerHabilidades(Integer idPostulacion) {
         return postulacionHabilidadRepository.findByPostulacionId(idPostulacion)
                 .stream()
-                .map(ph -> PostulacionHabilidadResponseDTO.builder()
-                        .id(ph.getId())
-                        .idPostulacion(ph.getPostulacion().getId())
-                        .nombreHabilidad(ph.getHabilidad().getNombre())
-                        .build())
+                .map(postulacionMapper::aHabilidad)
                 .collect(Collectors.toList());
     }
 
@@ -255,35 +248,6 @@ public class PostulacionService {
         PostulacionHabilidad asociacion = postulacionHabilidadRepository.findByPostulacionIdAndHabilidadId(idPostulacion, idHabilidad)
                 .orElseThrow(() -> new RecursoNoEncontradoException("PostulacionHabilidad", "idHabilidad", idHabilidad));
         postulacionHabilidadRepository.delete(asociacion);
-    }
-
-    /**
-     * Mapea entidad Postulacion a ResponseDTO
-     */
-    private PostulacionResponseDTO mapeoAResponseDTO(Postulacion postulacion) {
-        List<String> habilidades = postulacionHabilidadRepository.findByPostulacionId(postulacion.getId())
-                .stream()
-                .map(ph -> ph.getHabilidad().getNombre())
-                .collect(Collectors.toList());
-
-        return PostulacionResponseDTO.builder()
-                .id(postulacion.getId())
-                .idConvocatoria(postulacion.getConvocatoria() != null ? postulacion.getConvocatoria().getId() : null)
-                .idEstudiante(postulacion.getEstudiante() != null ? postulacion.getEstudiante().getId() : null)
-                .nombreEstudiante(postulacion.getEstudiante() != null && postulacion.getEstudiante().getUsuario() != null ? postulacion.getEstudiante().getUsuario().getNombreCompleto() : null)
-                .programaEstudiante(postulacion.getEstudiante() != null && postulacion.getEstudiante().getPrograma() != null ? postulacion.getEstudiante().getPrograma().getNombre() : null)
-                .tituloConvocatoria(postulacion.getConvocatoria() != null ? postulacion.getConvocatoria().getTitulo() : null)
-                .nombreSemillero(postulacion.getConvocatoria() != null && postulacion.getConvocatoria().getSemillero() != null ? postulacion.getConvocatoria().getSemillero().getNombre() : null)
-                .respuestaMotivacion(postulacion.getRespuestaMotivacion())
-                .disponibilidadHorasSemana(postulacion.getDisponibilidadHorasSemana())
-                .experienciaPrevia(postulacion.getExperienciaPrevia())
-                .fechaPostulacion(postulacion.getFechaPostulacion())
-                .fechaPreAprobacion(postulacion.getFechaPreAprobacion())
-                .fechaLimiteRespuesta(plazoOfertasService.calcularFechaLimite(postulacion))
-                .fechaDecisionEstudiante(postulacion.getFechaDecisionEstudiante())
-                .estadoPostulacion(postulacion.getEstado() != null ? postulacion.getEstado().getNombre() : null)
-                .habilidades(habilidades)
-                .build();
     }
 
     // Reglas para postularse: convocatoria abierta, vigente, con cupos y de un semillero que el estudiante no lidera

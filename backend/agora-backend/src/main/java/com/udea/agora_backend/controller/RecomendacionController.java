@@ -2,9 +2,9 @@ package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.response.SemilleroRecomendadoDTO;
 import com.udea.agora_backend.dto.response.SemillerosSimilaresResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.MotorRecomendacionService;
 import com.udea.agora_backend.service.SemillerosSimilaresService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -24,7 +24,7 @@ public class RecomendacionController {
 
     private final MotorRecomendacionService motorRecomendacionService;
     private final SemillerosSimilaresService semillerosSimilaresService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionPerfilService autorizacionPerfil;
 
     @Operation(
             summary = "Calcular ranking de afinidad de semilleros para un estudiante",
@@ -38,7 +38,7 @@ public class RecomendacionController {
     public ResponseEntity<List<SemilleroRecomendadoDTO>> calcularAfinidad(
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
-        autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);
+        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
         return ResponseEntity.ok(motorRecomendacionService.calcularAfinidad(idEstudiante));
     }
 
@@ -58,7 +58,7 @@ public class RecomendacionController {
             @PathVariable Integer idEstudiante,
             @RequestParam(defaultValue = "5") int limite,
             Authentication authentication) {
-        autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);
+        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
         return ResponseEntity.ok(semillerosSimilaresService.buscar(idEstudiante, limite));
     }
 }

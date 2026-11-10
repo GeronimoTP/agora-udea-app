@@ -16,7 +16,7 @@ import java.util.Set;
 
 /**
  * Determina qué semilleros lidera un usuario: el estudiante líder del semillero
- * o un profesor vinculado a él. Las validaciones de acceso están en AutorizacionService.
+ * o un profesor vinculado a él. Las validaciones de acceso están en service/autorizacion.
  */
 @Service
 @RequiredArgsConstructor

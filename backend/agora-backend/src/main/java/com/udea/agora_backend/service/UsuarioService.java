@@ -10,6 +10,7 @@ import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.OauthProveedorRepository;
 import com.udea.agora_backend.repository.RolRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
+import com.udea.agora_backend.service.mapper.UsuarioMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final OauthProveedorRepository oauthProveedorRepository;
     private final RolRepository rolRepository;
+    private final UsuarioMapper usuarioMapper;
 
     /**
      * Obtiene todos los usuarios del sistema
@@ -37,7 +39,7 @@ public class UsuarioService {
     public List<UsuarioResponseDTO> obtenerTodos() {
         return usuarioRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(usuarioMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -47,7 +49,7 @@ public class UsuarioService {
     public UsuarioResponseDTO obtenerPorId(Integer id) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", id));
-        return mapeoAResponseDTO(usuario);
+        return usuarioMapper.aResponse(usuario);
     }
 
     /**
@@ -56,7 +58,7 @@ public class UsuarioService {
     public UsuarioResponseDTO obtenerPorEmail(String email) {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", "email", email));
-        return mapeoAResponseDTO(usuario);
+        return usuarioMapper.aResponse(usuario);
     }
 
     /**
@@ -65,7 +67,7 @@ public class UsuarioService {
     public UsuarioResponseDTO obtenerPorOauthId(String oauthId) {
         Usuario usuario = usuarioRepository.findByOauthId(oauthId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", "oauthId", oauthId));
-        return mapeoAResponseDTO(usuario);
+        return usuarioMapper.aResponse(usuario);
     }
 
     /**
@@ -102,7 +104,7 @@ public class UsuarioService {
                 .build();
 
         Usuario usuarioGuardado = usuarioRepository.save(usuario);
-        return mapeoAResponseDTO(usuarioGuardado);
+        return usuarioMapper.aResponse(usuarioGuardado);
     }
 
     /**
@@ -132,7 +134,7 @@ public class UsuarioService {
         usuario.setRol(rol);
 
         Usuario usuarioActualizado = usuarioRepository.save(usuario);
-        return mapeoAResponseDTO(usuarioActualizado);
+        return usuarioMapper.aResponse(usuarioActualizado);
     }
 
     /**
@@ -142,18 +144,5 @@ public class UsuarioService {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario", id));
         usuarioRepository.delete(usuario);
-    }
-
-    /**
-     * Mapea entidad Usuario a ResponseDTO
-     */
-    private UsuarioResponseDTO mapeoAResponseDTO(Usuario usuario) {
-        return UsuarioResponseDTO.builder()
-                .id(usuario.getId())
-                .nombreCompleto(usuario.getNombreCompleto())
-                .email(usuario.getEmail())
-                .nombreRol(usuario.getRol().getNombre())
-                .createdAt(usuario.getCreatedAt())
-                .build();
     }
 }

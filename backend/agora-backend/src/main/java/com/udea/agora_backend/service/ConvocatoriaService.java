@@ -2,6 +2,7 @@ package com.udea.agora_backend.service;
 
 import com.udea.agora_backend.dominio.EstadosConvocatoria;
 import com.udea.agora_backend.dto.request.ConvocatoriaRequestDTO;
+import com.udea.agora_backend.dto.response.ConvocatoriaEstadoCuposDTO;
 import com.udea.agora_backend.dto.response.ConvocatoriaResponseDTO;
 import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
@@ -11,6 +12,7 @@ import com.udea.agora_backend.model.Semillero;
 import com.udea.agora_backend.repository.ConvocatoriaRepository;
 import com.udea.agora_backend.repository.PostulacionRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
+import com.udea.agora_backend.service.mapper.ConvocatoriaMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,7 @@ public class ConvocatoriaService {
     private final BuscadorEstados buscadorEstados;
     private final SemilleroRepository semilleroRepository;
     private final PostulacionRepository postulacionRepository;
+    private final ConvocatoriaMapper convocatoriaMapper;
 
     /**
      * Obtiene todas las convocatorias
@@ -41,7 +44,7 @@ public class ConvocatoriaService {
     public List<ConvocatoriaResponseDTO> obtenerTodas() {
         return convocatoriaRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(convocatoriaMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -51,7 +54,7 @@ public class ConvocatoriaService {
     public ConvocatoriaResponseDTO obtenerPorId(Integer id) {
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", id));
-        return mapeoAResponseDTO(convocatoria);
+        return convocatoriaMapper.aResponse(convocatoria);
     }
 
     /**
@@ -60,7 +63,7 @@ public class ConvocatoriaService {
     public List<ConvocatoriaResponseDTO> obtenerPorSemillero(Integer idSemillero) {
         return convocatoriaRepository.findBySemilleroId(idSemillero)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(convocatoriaMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -72,7 +75,7 @@ public class ConvocatoriaService {
 
         return convocatoriaRepository.findActivasConCupos(estadoAbierta.getId())
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(convocatoriaMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -108,7 +111,7 @@ public class ConvocatoriaService {
                 .build();
 
         Convocatoria convocatoriaGuardada = convocatoriaRepository.save(convocatoria);
-        return mapeoAResponseDTO(convocatoriaGuardada);
+        return convocatoriaMapper.aResponse(convocatoriaGuardada);
     }
 
     /**
@@ -151,7 +154,7 @@ public class ConvocatoriaService {
         }
 
         Convocatoria convocatoriaActualizada = convocatoriaRepository.save(convocatoria);
-        return mapeoAResponseDTO(convocatoriaActualizada);
+        return convocatoriaMapper.aResponse(convocatoriaActualizada);
     }
 
     /**
@@ -176,21 +179,20 @@ public class ConvocatoriaService {
         }
     }
 
-    /**
-     * Mapea entidad Convocatoria a ResponseDTO
-     */
-    private ConvocatoriaResponseDTO mapeoAResponseDTO(Convocatoria convocatoria) {
-        return ConvocatoriaResponseDTO.builder()
-                .id(convocatoria.getId())
-                .idSemillero(convocatoria.getSemillero() != null ? convocatoria.getSemillero().getId() : null)
-                .titulo(convocatoria.getTitulo())
-                .descripcion(convocatoria.getDescripcion())
-                .fechaInicio(convocatoria.getFechaInicio())
-                .fechaCierre(convocatoria.getFechaCierre())
-                .cuposTotales(convocatoria.getCuposTotales())
+    /** Ocupación de cupos de una convocatoria en tiempo real. */
+    @Transactional(readOnly = true)
+    public ConvocatoriaEstadoCuposDTO obtenerEstadoCupos(Integer idConvocatoria) {
+        Convocatoria convocatoria = convocatoriaRepository.findById(idConvocatoria)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", idConvocatoria));
+        int cuposUtilizados = convocatoria.getCuposTotales() - convocatoria.getCuposDisponibles();
+
+        return ConvocatoriaEstadoCuposDTO.builder()
+                .idConvocatoria(idConvocatoria)
+                .nombreConvocatoria(convocatoria.getTitulo())
+                .cuposOriginales(convocatoria.getCuposTotales())
                 .cuposDisponibles(convocatoria.getCuposDisponibles())
-                .nombreSemillero(convocatoria.getSemillero() != null ? convocatoria.getSemillero().getNombre() : null)
-                .estadoActual(convocatoria.getEstado() != null ? convocatoria.getEstado().getNombre() : null)
+                .cuposUtilizados(cuposUtilizados)
+                .porcentajeOcupacion((cuposUtilizados * 100.0) / convocatoria.getCuposTotales())
                 .build();
     }
 }

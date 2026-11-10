@@ -44,14 +44,18 @@ Está organizado **por capa técnica** ("package by layer"):
 | --- | --- |
 | `controller` | Endpoints REST: reciben DTOs validados, aplican la autorización de propiedad y delegan en un servicio. |
 | `service` | Reglas de negocio y transacciones (`@Transactional`). Incluye los tres servicios de procesamiento del proyecto. |
-| `service/analitica`, `service/mapper` | Fórmulas de indicadores y conversión de entidades a DTOs. |
+| `service/analitica` | Fórmulas de indicadores (`CalculadoraIndicadores`) sobre los datos de un alcance. |
+| `service/mapper` | Conversión de entidades a DTOs, un mapper por dominio. |
+| `service/autorizacion` | Reglas de propiedad por recurso (perfil, semillero, postulación) e identidad del usuario autenticado. |
+| `job` | Tareas programadas (`ExpiracionConvocatoriasJob`). |
 | `repository` | Acceso a datos con Spring Data JPA (consultas derivadas y JPQL). |
 | `model` | Entidades JPA (`tbl_*`) con algunos métodos de dominio. |
 | `dto/request`, `dto/response` | Contratos de la API. |
 | `dominio` | Nombres de estados y roles del catálogo. |
 | `estructuras` | Estructuras de datos propias (`KdTree`). |
 | `evento` | Eventos de aplicación (`SemillerosModificadosEvent`). |
-| `security`, `config` | Filtro JWT, OAuth, CORS, reglas por rol. |
+| `security` | Filtro JWT, OAuth, CORS, reglas por rol. |
+| `config` | OpenAPI y pesos configurables de los algoritmos (`Pesos*`, `@ConfigurationProperties`). |
 | `exception` | Excepciones de negocio y manejador global (`@RestControllerAdvice`). |
 | `util` | Utilidades sin estado (`Redondeo`). |
 
@@ -60,7 +64,7 @@ Una petición típica pasa por estas capas:
 ```
 HTTP → JwtAuthenticationFilter (identidad y rol)
      → SecurityConfig (regla por rol)
-     → Controller (@Valid DTO, AutorizacionService: ¿es su recurso?)
+     → Controller (@Valid DTO, service/autorizacion: ¿es su recurso?)
      → Service (@Transactional: reglas de negocio)
      → Repository (Spring Data JPA) → PostgreSQL
      ← Mapper / DTO de respuesta ← ManejadorExcepcionesGlobal si algo falla
@@ -68,8 +72,9 @@ HTTP → JwtAuthenticationFilter (identidad y rol)
 
 Componentes transversales:
 
-- **Autorización en dos niveles:** por rol en `SecurityConfig` y por propiedad en `AutorizacionService`. El segundo responde, por ejemplo, si el usuario es líder de ese semillero.
-- **Tareas programadas** (`@Scheduled`): una expira las ofertas vencidas y otra cierra las convocatorias que pasaron su fecha.
+- **Autorización en dos niveles:** por rol en `SecurityConfig` y por propiedad en `service/autorizacion`. El segundo responde, por ejemplo, si el usuario es líder de ese semillero.
+- **Tareas programadas** (`@Scheduled`, paquete `job`): una expira las ofertas vencidas y otra cierra las convocatorias que pasaron su fecha.
+- **Configuración tipada:** los pesos de los tres algoritmos se leen de `application*.properties` y se validan al arrancar (cada grupo debe sumar 1).
 - **Índice en memoria:** el árbol KD de semilleros similares. Se invalida con un evento después del commit y, como respaldo, cuando vence su vigencia.
 - **Esquema externo:** Hibernate solo valida el esquema; los cambios se aplican con scripts SQL manuales (`db/migrations/V2`, `V3`).
 
@@ -92,7 +97,7 @@ Es una SPA con rutas basadas en archivos (TanStack Router). Las rutas que piden 
 | --- | --- | --- |
 | Rutas | `src/routes/*.tsx` | Página, `loader` (carga previa y redirecciones), composición. |
 | Consultas | `lib/api/queries.ts`, `lib/api/gestion.ts` | Claves de caché e invalidación (React Query). |
-| Servicios | `lib/api/services.ts`, `lib/api/gestion.ts` | Llamadas a la API y adaptación de DTOs a tipos de vista. |
+| Servicios | `lib/api/<dominio>.ts`: `semilleros`, `convocatorias`, `postulaciones`, `recomendaciones`, `analitica`, `perfiles`, `catalogos`, `gestion` | Llamadas a la API. Los módulos de vistas públicas adaptan los DTOs a tipos de vista; los de edición usan los DTOs tal cual. |
 | Cliente HTTP | `lib/api/client.ts`, `lib/api/sesion.ts` | Token, tiempo de espera, manejo de 401, sesión en loaders. |
 | Componentes | `components/common`, `components/gestion`, `components/layout`, `components/ui` (shadcn) | Interfaz reutilizable. |
 | Utilidades | `lib/formato.ts`, `lib/utils.ts` | Formato de fechas y utilidades. |
@@ -108,10 +113,10 @@ Es una SPA con rutas basadas en archivos (TanStack Router). Las rutas que piden 
 
 **Debilidades**
 
-- **Organización por capa técnica.** Una funcionalidad (por ejemplo, postulaciones) está repartida en seis paquetes, y `service` tiene 27 clases (30 con sus subpaquetes) sin límites entre dominios.
+- **Organización por capa técnica.** Una funcionalidad (por ejemplo, postulaciones) está repartida en ocho paquetes (controlador, servicio, mapper, autorización, repositorio, modelo y DTOs de entrada y salida), y `service` tiene 27 clases (42 con sus subpaquetes) sin límites entre dominios.
 - **Dominio mayormente anémico.** Las entidades son casi solo datos; las reglas viven en los servicios. Esta refactorización empezó a mover reglas al modelo.
 - **Servicios acoplados a Spring Data JPA.** Probar una regla de negocio exige base de datos: solo `KdTree` tiene pruebas unitarias.
-- **Consultas N+1 en listados.** `SemilleroMapper` hace 5 consultas por semillero; listar 65 semilleros son más de 300 consultas.
+- **Consultas por elemento en algunos cálculos.** El listado de semilleros ya usa consultas agregadas, pero el motor de recomendación todavía consulta la base varias veces por cada semillero que puntúa (ver 2.5).
 - **Estado en memoria y tareas programadas en cada instancia.** Con más de una instancia del backend, las tareas se ejecutarían varias veces y el índice KD podría diferir entre instancias.
 - **Migraciones manuales.** No hay Flyway ni Liquibase; el orden de los scripts depende de que alguien los ejecute.
 - **El JWT vive en `localStorage`.** Es vulnerable si hubiera XSS.
@@ -142,12 +147,15 @@ Después de cada paso de la refactorización se compararon las respuestas contra
 | 2 | Un estudiante ya no puede crear un área ni renombrar un estado (antes 201 y 200; ahora 403). |
 | 1 | El líder ve los indicadores de su semillero dentro del flujo de escritura. |
 
+En una segunda ronda (mappers, consultas agregadas, división del gestor y de la autorización, pesos configurables y división del cliente HTTP del frontend) se generó una línea base nueva desde el commit anterior y se repitió la comparación: **0 diferencias en 988 casos**. Esa ronda no cambió el comportamiento.
+
 Además:
 
 - **Pruebas unitarias:** las 5 de `KdTreeTest` siguen pasando.
 - **Frontend:** `tsc`, `eslint` (0 errores) y `vite build` pasan.
 - **Interfaz:** se revisaron capturas de las pantallas afectadas en escritorio y móvil.
 - **Indicadores por semillero:** se validaron contra consultas SQL directas.
+- **Consultas SQL:** se contaron con `log_statement=all` en PostgreSQL. `GET /api/semilleros` bajó de 52 a 15 sentencias con 5 semilleros, y ahora no crece con el número de semilleros.
 
 ### 2.2 Hallazgos por principio
 
@@ -159,6 +167,8 @@ Además:
 | `AnaliticaService` (393 líneas) mezclaba carga de datos, fórmulas y 9 DTOs anidados. | Se separó: `AnaliticaService` carga los datos (198 líneas), `CalculadoraIndicadores` aplica las fórmulas y los DTOs están en `dto/response/analitica`. |
 | Había DTOs declarados dentro de servicios (`MotorRecomendacionService`, `PriorizacionCandidatosService`, `GestorConvocatoriasService`). | Se movieron a `dto/response`. |
 | `SemilleroController` filtraba los integrantes activos. | El filtro está en el servicio (`obtenerIntegrantesActivos`) y se hace con una consulta. |
+| Ocho servicios convertían sus entidades a DTOs en un método privado, y cinco repetían el `builder()` de sus asociaciones al crear y al listar. | Un mapper por dominio en `service/mapper` (`ConvocatoriaMapper`, `PostulacionMapper`, `ProyectoMapper`, `PublicacionMapper`, `ReconocimientoMapper`, `EstudianteMapper`, `ProfesorMapper`, `UsuarioMapper`). Cada conversión existe una sola vez. |
+| `GestorConvocatoriasService` (414 líneas) mezclaba el flujo de doble vía, las tareas programadas, la expiración, la vinculación del admitido y la consulta de cupos. | El gestor quedó con el flujo y los cierres del líder (260 líneas). `ExpiracionPostulacionesService` marca `Expirada`, `ExpiracionConvocatoriasJob` tiene los crons, `MiembrosSemilleroService.incorporarAdmitido` vincula al admitido y `ConvocatoriaService.obtenerEstadoCupos` responde la consulta de cupos. |
 
 #### O: Abierto/cerrado
 
@@ -166,6 +176,7 @@ Además:
 | --- | --- |
 | Para calcular indicadores de otro alcance había que copiar las 8 fórmulas. | Las fórmulas operan sobre `DatosAnalitica`; un alcance nuevo solo necesita un cargador de datos. Así se agregó la vista por semillero sin tocar las fórmulas. |
 | Agregar o renombrar un estado obligaba a editar 10 servicios con constantes propias. | Los nombres están una sola vez en `dominio`, y las preguntas sobre estado son métodos del modelo. |
+| Ajustar un peso del motor, de la priorización o del árbol KD exigía editar y recompilar el servicio. | Los pesos son records `@ConfigurationProperties` (`PesosRecomendacion`, `PesosPriorizacion`, `PesosSemillerosSimilares`) con los mismos valores por defecto. Se cambian por propiedad o variable de entorno, y la aplicación no arranca si un grupo no suma 1. |
 
 #### L: Sustitución de Liskov
 
@@ -176,6 +187,7 @@ No hay jerarquías propias que la violen. Las excepciones de negocio extienden `
 | Hallazgo | Acción |
 | --- | --- |
 | Para obtener un estado, seis servicios dependían de `EstadoRepository` con su propia copia de la consulta. | `BuscadorEstados` ofrece solo las búsquedas que necesitan (`dePostulacion`, `deConvocatoria`, `porIdEnCategoria`…). `EstadoService` quedó solo para el CRUD del catálogo. |
+| `AutorizacionService` tenía 15 métodos públicos y 10 dependencias; cada controlador dependía de todo aunque usara uno o dos métodos. | Se dividió por recurso en `service/autorizacion`: `AutorizacionPerfilService`, `AutorizacionSemilleroService`, `AutorizacionPostulacionService` y `UsuarioAutenticadoService`. Cada controlador inyecta solo las que usa (ocho de diez usan una sola). |
 
 #### D: Inversión de dependencias
 
@@ -193,7 +205,9 @@ No hay jerarquías propias que la violen. Las excepciones de negocio extienden `
 | Copias de "¿tiene convocatoria abierta?" | 3 | 1 (`Convocatoria.recibePostulaciones` + `ConvocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones`) |
 | Redondeos `Math.round(x * 100.0) / 100.0` repetidos | 16 | `util.Redondeo` |
 | `catch (Exception)` que devolvía 0 y ocultaba errores | 4 (motor de recomendación) | 0 |
-| Números mágicos en el puntaje de recomendación | `0.40`, `0.25`, `0.20`, `0.15` | Constantes con nombre (`PESO_HABILIDADES`…) |
+| Números mágicos en los puntajes | `0.40`, `0.25`, `0.20`, `0.15`… en tres servicios | Configuración tipada y validada (`config/Pesos*`) |
+| Consultas para listar semilleros | 5 por semillero, más las relaciones `LAZY` de cada uno | Fijas: consultas agregadas (`ConteoPorSemillero`) y `default_batch_fetch_size` |
+| Métodos privados de conversión a DTO | 8 servicios, con 5 `builder()` duplicados | 9 mappers en `service/mapper` |
 | Métodos de servicio sin uso | 6 | 0 |
 | Consultas de repositorio sin uso | 5 | 0 |
 | Métodos heredados que creaban cuentas sin identidad de Google (riesgo de seguridad) | 3 | 0 |
@@ -203,6 +217,8 @@ No hay jerarquías propias que la violen. Las excepciones de negocio extienden `
 | Frontend: copias de `formatearFecha` | 4, tres con un error: mostraban el día anterior en Colombia | 1 (`lib/formato.ts`) |
 | Frontend: bloque repetido de carga de sesión en loaders | 4 | `requerirSesion()` |
 | Frontend: errores de lint (formato) | 605 | 0 |
+| Frontend: `services.ts` con todos los dominios | 772 líneas | 7 módulos por dominio, el mayor de 195 líneas |
+| Frontend: funciones de la API sin uso | 7 (`estudianteService` completo, `export default` y 5 métodos) | 0 |
 
 ### 2.4 Cambios de comportamiento
 
@@ -220,19 +236,16 @@ La refactorización buscó no cambiar el comportamiento. Estos son los únicos c
 
 ### 2.5 Pendientes de refactorización
 
-En orden de prioridad:
+Ya se hicieron: consultas agregadas en el listado de semilleros, mappers del resto de servicios, división de `GestorConvocatoriasService` y de `AutorizacionService`, pesos configurables y división del cliente HTTP del frontend.
 
-1. **Consultas N+1 en listados:** `SemilleroMapper.aResponse` hace 5 consultas por semillero. Conviene calcular los totales con una consulta agregada (`GROUP BY id_semillero`) o un `@EntityGraph`.
-2. **Mappers del resto de servicios:** los de postulación, convocatoria, proyecto, publicación, reconocimiento, estudiante y profesor siguen siendo métodos privados del servicio. Extraerlos como se hizo con `SemilleroMapper`.
-3. **`GestorConvocatoriasService` (414 líneas):** separar el flujo de doble vía de las tareas programadas, por ejemplo en un `ExpiracionConvocatoriasJob`.
-4. **`AutorizacionService`:** concentra todas las reglas de propiedad (10 dependencias). Podría dividirse por recurso.
-5. **Pesos de los algoritmos:** los del motor de recomendación, la priorización y el árbol KD están en el código. Podrían ser configuración, o estrategias intercambiables si se quiere comparar fórmulas.
-6. **Pruebas automatizadas:**
+Quedan, en orden de prioridad:
+
+1. **Motor de recomendación por elemento:** para cada semillero activo consulta sus tutores, las áreas de cada tutor, sus líneas, sus convocatorias y las habilidades de sus postulaciones, y vuelve a leer las habilidades y líneas del estudiante. Conviene cargar todo con consultas por lote (`IN :ids`), como `SemilleroMapper.aResponses`, y calcular los factores en memoria.
+2. **Otros listados con consultas por elemento:** las habilidades de cada postulación (`PostulacionMapper`), los autores de cada publicación (`PublicacionMapper`) y los integrantes de cada proyecto (`ProyectoMapper`). Con los volúmenes actuales no es un problema; se resuelve igual que el punto anterior.
+3. **Pruebas automatizadas:**
    - Llevar la prueba de caracterización al repositorio como prueba de integración con Testcontainers.
    - Agregar pruebas unitarias de `CalculadoraIndicadores` (es pura, no necesita base de datos).
-7. **Frontend:**
-   - `lib/api/services.ts` (772 líneas) mezcla todos los dominios; dividirlo por dominio.
-   - Unificar el estilo de tipos: hoy `services.ts` mapea los DTOs a tipos de vista y `gestion.ts` usa los DTOs del backend tal cual.
+4. **Estilo de tipos en el frontend:** hay dos formas, documentadas en la cabecera de cada módulo de `lib/api`. Las vistas públicas mapean el DTO a un tipo de vista; la edición (`gestion`, `perfiles`, `catalogos`) usa el DTO tal cual porque necesita los IDs y los nombres exactos de estado. Unificarlas en una sola implicaría reescribir los componentes de gestión, y hoy no lo justifica.
 
 ---
 

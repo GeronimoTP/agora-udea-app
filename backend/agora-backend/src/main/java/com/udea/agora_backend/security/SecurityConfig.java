@@ -64,7 +64,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/login-pruebas").permitAll()
 
                 // Analítica de un semillero: la ven sus líderes, tutores y el administrador
-                // (AutorizacionService). Debe ir antes de la regla general de analítica.
+                // (AutorizacionSemilleroService). Debe ir antes de la regla general de analítica.
                 .requestMatchers(HttpMethod.GET, "/api/analitica/semillero/*").authenticated()
                 .requestMatchers("/api/analitica/**").hasRole("Administrador")
 
@@ -93,16 +93,16 @@ public class SecurityConfig {
                 .requestMatchers("/api/recomendaciones/**").hasRole("Estudiante")
 
                 // Acciones del líder (estudiante líder o profesor del semillero); la propiedad
-                // del semillero se valida en AutorizacionService
+                // del semillero se valida en AutorizacionSemilleroService
                 .requestMatchers(HttpMethod.POST,
                     "/api/postulaciones/*/pre-aprobar",
                     "/api/postulaciones/*/rechazar-lider").hasAnyRole("Estudiante", "Profesor")
 
-                // Crear semilleros y convocatorias (el liderazgo se valida en AutorizacionService)
+                // Crear semilleros y convocatorias (el liderazgo se valida en AutorizacionSemilleroService)
                 .requestMatchers(HttpMethod.POST, "/api/semilleros", "/api/convocatorias")
                     .hasAnyRole("Estudiante", "Profesor")
 
-                // El resto de rutas protegidas valida propiedad o liderazgo en AutorizacionService
+                // El resto de rutas protegidas valida propiedad o liderazgo en service/autorizacion
 
                 .anyRequest().authenticated()
             )

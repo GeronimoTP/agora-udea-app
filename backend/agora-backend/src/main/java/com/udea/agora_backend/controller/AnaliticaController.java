@@ -11,7 +11,7 @@ import com.udea.agora_backend.dto.response.analitica.TasaDemandaSemilleroDTO;
 import com.udea.agora_backend.dto.response.analitica.TasaRetencionOfertasDTO;
 import com.udea.agora_backend.dto.response.analitica.TiempoPromedioRespuestaDTO;
 import com.udea.agora_backend.service.AnaliticaService;
-import com.udea.agora_backend.service.AutorizacionService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -30,7 +30,7 @@ import java.util.List;
 public class AnaliticaController {
 
     private final AnaliticaService analiticaService;
-    private final AutorizacionService autorizacionService;
+    private final AutorizacionSemilleroService autorizacionSemillero;
 
     @Operation(summary = "Obtener resumen consolidado del Dashboard con todos los KPIs institucionales")
     @ApiResponse(responseCode = "200", description = "Resumen del dashboard obtenido exitosamente")
@@ -107,7 +107,7 @@ public class AnaliticaController {
     @GetMapping("/semillero/{idSemillero}")
     public ResponseEntity<AnaliticaSemilleroDTO> obtenerAnaliticaSemillero(
             @PathVariable Integer idSemillero, Authentication authentication) {
-        autorizacionService.validarLiderOAdministrador(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderOAdministrador(authentication.getName(), idSemillero);
         return ResponseEntity.ok(analiticaService.obtenerAnaliticaSemillero(idSemillero));
     }
 }

@@ -14,7 +14,7 @@ import {
   postulacionesRecibidasQuery,
   usuarioSesionQuery,
 } from "@/lib/api/queries";
-import { postulacionesService } from "@/lib/api/services";
+import { postulacionesService } from "@/lib/api/postulaciones";
 import type { Postulacion } from "@/types/api";
 import { formatearFecha, formatearFechaHora } from "@/lib/formato";
 

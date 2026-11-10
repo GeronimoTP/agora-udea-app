@@ -1,16 +1,15 @@
 import { queryOptions } from "@tanstack/react-query";
+import { analiticaService } from "./analitica";
+import { catalogoService } from "./catalogos";
+import { convocatoriasService } from "./convocatorias";
 import {
-  analiticaService,
-  catalogoService,
-  convocatoriasService,
   estudiantesResumenService,
   perfilService,
-  matchingService,
-  postulacionesService,
   profesoresService,
-  semillerosService,
-  semillerosSimilaresService,
-} from "./services";
+} from "./perfiles";
+import { postulacionesService } from "./postulaciones";
+import { matchingService, semillerosSimilaresService } from "./recomendaciones";
+import { semillerosService } from "./semilleros";
 import { apiRequest } from "./client";
 import type { FiltroSemilleros, UsuarioSesion } from "@/types/api";
 

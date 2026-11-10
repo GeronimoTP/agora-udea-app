@@ -20,12 +20,15 @@ import com.udea.agora_backend.repository.HabilidadRepository;
 import com.udea.agora_backend.repository.LineaInvestigacionRepository;
 import com.udea.agora_backend.repository.ProgramaAcademicoRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
+import com.udea.agora_backend.service.mapper.EstudianteMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZonedDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -45,6 +48,7 @@ public class EstudianteService {
     private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
     private final HabilidadRepository habilidadRepository;
     private final EstudianteHabilidadRepository estudianteHabilidadRepository;
+    private final EstudianteMapper estudianteMapper;
 
     /**
     * Obtiene todos los estudiantes
@@ -52,7 +56,7 @@ public class EstudianteService {
     public List<EstudianteResponseDTO> obtenerTodos() {
         return estudianteRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(estudianteMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -62,7 +66,7 @@ public class EstudianteService {
     public EstudianteResponseDTO obtenerPorId(Integer id) {
         Estudiante estudiante = estudianteRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", id));
-        return mapeoAResponseDTO(estudiante);
+        return estudianteMapper.aResponse(estudiante);
     }
 
     /**
@@ -72,7 +76,7 @@ public class EstudianteService {
         Estudiante estudiante = estudianteRepository.findByUsuarioId(idUsuario)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", "usuarioId",
                         idUsuario));
-        return mapeoAResponseDTO(estudiante);
+        return estudianteMapper.aResponse(estudiante);
     }
 
     /**
@@ -120,7 +124,7 @@ public class EstudianteService {
 
         reemplazarHabilidades(estudianteGuardado, request.getIdHabilidades());
 
-        return mapeoAResponseDTO(estudianteGuardado);
+        return estudianteMapper.aResponse(estudianteGuardado);
     }
 
     /**
@@ -168,7 +172,7 @@ public class EstudianteService {
             reemplazarHabilidades(estudianteActualizado, request.getIdHabilidades());
         }
 
-        return mapeoAResponseDTO(estudianteActualizado);
+        return estudianteMapper.aResponse(estudianteActualizado);
     }
 
     /**
@@ -210,21 +214,13 @@ public class EstudianteService {
 
         EstudianteLineaInvestigacion guardada = estudianteLineaRepository.save(asociacion);
 
-        return EstudianteLineaInvestigacionResponseDTO.builder()
-                .id(guardada.getId())
-                .nombreEstudiante(estudiante.getUsuario().getNombreCompleto())
-                .nombreLineaInvestigacion(linea.getNombre())
-                .build();
+        return estudianteMapper.aLinea(guardada);
     }
 
     public List<EstudianteLineaInvestigacionResponseDTO> obtenerLineasInvestigacion(Integer idEstudiante) {
         return estudianteLineaRepository.findByEstudianteId(idEstudiante)
                 .stream()
-                .map(eli -> EstudianteLineaInvestigacionResponseDTO.builder()
-                        .id(eli.getId())
-                        .nombreEstudiante(eli.getEstudiante().getUsuario().getNombreCompleto())
-                        .nombreLineaInvestigacion(eli.getLineaInvestigacion().getNombre())
-                        .build())
+                .map(estudianteMapper::aLinea)
                 .collect(Collectors.toList());
     }
 
@@ -237,16 +233,13 @@ public class EstudianteService {
     }
 
     /**
-    * Mapea entidad Estudiante a ResponseDTO
-    */
-    /**
     * Reemplaza las habilidades del perfil del estudiante. Las usa el motor de
     * recomendación desde el registro, sin esperar a la primera postulación.
     */
     public void reemplazarHabilidades(Estudiante estudiante, List<Integer> idHabilidades) {
         // Solo se borran las que salen y se insertan las nuevas: Hibernate ejecuta los
         // INSERT antes que los DELETE y la tabla tiene UNIQUE (estudiante, habilidad)
-        java.util.Set<Integer> nuevas = new java.util.LinkedHashSet<>(idHabilidades);
+        Set<Integer> nuevas = new LinkedHashSet<>(idHabilidades);
         List<EstudianteHabilidad> actuales = estudianteHabilidadRepository.findByEstudianteId(estudiante.getId());
         estudianteHabilidadRepository.deleteAll(actuales.stream()
                 .filter(eh -> !nuevas.contains(eh.getHabilidad().getId()))
@@ -260,29 +253,5 @@ public class EstudianteService {
                     .habilidad(habilidad)
                     .build());
         }
-    }
-
-    private EstudianteResponseDTO mapeoAResponseDTO(Estudiante estudiante) {
-        List<String> lineas = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
-                .stream()
-                .map(eli -> eli.getLineaInvestigacion().getNombre())
-                .collect(Collectors.toList());
-
-        return EstudianteResponseDTO.builder()
-                .id(estudiante.getId())
-                .nombreCompleto(estudiante.getUsuario() != null
-                        ? estudiante.getUsuario().getNombreCompleto()
-                        : null)
-                .email(estudiante.getUsuario() != null ? estudiante.getUsuario().getEmail() : null)
-                .nombrePrograma(estudiante.getPrograma() != null ? estudiante.getPrograma().getNombre()
-                        : null)
-                .semestre(estudiante.getSemestre())
-                .lineasInvestigacion(lineas)
-                .habilidades(estudianteHabilidadRepository.findByEstudianteId(estudiante.getId())
-                        .stream()
-                        .map(eh -> eh.getHabilidad().getNombre())
-                        .collect(Collectors.toList()))
-                .createdAt(estudiante.getCreatedAt())
-                .build();
     }
 }

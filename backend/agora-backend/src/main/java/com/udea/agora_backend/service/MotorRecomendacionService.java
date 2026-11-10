@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.config.PesosRecomendacion;
 import com.udea.agora_backend.dominio.EstadosPostulacion;
 import com.udea.agora_backend.dto.response.SemilleroRecomendadoDTO;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
@@ -28,7 +29,8 @@ import java.util.stream.Collectors;
 /**
  * SERVICIO CRÍTICO: Motor de Recomendación de Semilleros
  *
- * Implementa algoritmo de puntuación ponderada con 4 factores:
+ * Implementa algoritmo de puntuación ponderada con 4 factores (pesos por defecto, configurables
+ * en {@link PesosRecomendacion}):
  * - Factor 1: Habilidades Coincidentes (40%)
  * - Factor 2: Afinidad Áreas de Especialidad (25%)
  * - Factor 3: Disponibilidad Convocatorias (20%)
@@ -54,19 +56,7 @@ public class MotorRecomendacionService {
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
     private final ProfesorSemilleroRepository profesorSemilleroRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
-
-    // Pesos de los cuatro factores del puntaje (suman 1)
-    private static final double PESO_HABILIDADES = 0.40;
-    private static final double PESO_AREAS_TUTORES = 0.25;
-    private static final double PESO_CONVOCATORIA_ABIERTA = 0.20;
-    private static final double PESO_PROXIMIDAD_TEMATICA = 0.15;
-
-    // Peso interno del Factor 4: coincidencia de líneas de investigación vs. mismo programa
-    private static final double PESO_LINEAS_EN_FACTOR_4 = 0.75;
-    private static final double PESO_PROGRAMA_EN_FACTOR_4 = 0.25;
-
-    // Nombre del estado de postulación que indica selección confirmada. Debe coincidir
-    // exactamente con el valor sembrado en tbl_estados (categoría "Estado Postulación").
+    private final PesosRecomendacion pesos;
 
     // Valor neutral (ni penaliza ni favorece) para el Factor 1 cuando un semillero no
     // tiene ningún historial de postulaciones con el que evaluar el fit técnico.
@@ -123,8 +113,8 @@ public class MotorRecomendacionService {
         double factor4 = calcularFactorProximidadTematica(estudiante, semillero);
 
         // Aplicar pesos
-        double porcentajeMatch = factor1 * PESO_HABILIDADES + factor2 * PESO_AREAS_TUTORES
-                + factor3 * PESO_CONVOCATORIA_ABIERTA + factor4 * PESO_PROXIMIDAD_TEMATICA;
+        double porcentajeMatch = factor1 * pesos.habilidades() + factor2 * pesos.areasTutores()
+                + factor3 * pesos.convocatoriaAbierta() + factor4 * pesos.proximidadTematica();
         porcentajeMatch = Math.min(100.0, Math.max(0.0, porcentajeMatch)); // Limitar 0-100%
 
         log.debug("Factores calculados - Habilidades: {}, AreaEsp: {}, Cupos: {}, Temática: {}, Total: {}%",
@@ -258,7 +248,7 @@ public class MotorRecomendacionService {
                 && estudiante.getPrograma().getId().equals(semillero.getPrograma().getId()) ? 100.0 : 0.0;
 
         if (lineasEstudiante.isEmpty()) {
-            return programa * PESO_PROGRAMA_EN_FACTOR_4; // Estudiante sin líneas de interés
+            return programa * pesos.programaEnProximidad(); // Estudiante sin líneas de interés
         }
 
         // Obtener líneas del semillero
@@ -268,7 +258,7 @@ public class MotorRecomendacionService {
                 .collect(Collectors.toSet());
 
         if (lineasSemillero.isEmpty()) {
-            return programa * PESO_PROGRAMA_EN_FACTOR_4; // Semillero sin líneas definidas
+            return programa * pesos.programaEnProximidad(); // Semillero sin líneas definidas
         }
 
         // Calcular coincidencia
@@ -276,7 +266,7 @@ public class MotorRecomendacionService {
         interseccion.retainAll(lineasSemillero);
 
         double lineas = Math.min(100.0, (double) interseccion.size() / lineasSemillero.size() * 100.0);
-        return lineas * PESO_LINEAS_EN_FACTOR_4 + programa * PESO_PROGRAMA_EN_FACTOR_4;
+        return lineas * pesos.lineasEnProximidad() + programa * pesos.programaEnProximidad();
     }
 
 }

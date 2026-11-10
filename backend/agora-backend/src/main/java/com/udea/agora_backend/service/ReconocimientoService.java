@@ -12,6 +12,7 @@ import com.udea.agora_backend.repository.EntidadOtorganteRepository;
 import com.udea.agora_backend.repository.ReconocimientoSemilleroRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
 import com.udea.agora_backend.repository.TipoReconocimientoRepository;
+import com.udea.agora_backend.service.mapper.ReconocimientoMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ReconocimientoService {
     private final SemilleroRepository semilleroRepository;
     private final TipoReconocimientoRepository tipoReconocimientoRepository;
     private final EntidadOtorganteRepository entidadOtorganteRepository;
+    private final ReconocimientoMapper reconocimientoMapper;
 
     /**
      * Obtiene todos los reconocimientos
@@ -40,7 +42,7 @@ public class ReconocimientoService {
     public List<ReconocimientoResponseDTO> obtenerTodos() {
         return reconocimientoRepository.findAll()
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(reconocimientoMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -50,7 +52,7 @@ public class ReconocimientoService {
     public ReconocimientoResponseDTO obtenerPorId(Integer id) {
         ReconocimientoSemillero reconocimiento = reconocimientoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("ReconocimientoSemillero", id));
-        return mapeoAResponseDTO(reconocimiento);
+        return reconocimientoMapper.aResponse(reconocimiento);
     }
 
     /**
@@ -59,7 +61,7 @@ public class ReconocimientoService {
     public List<ReconocimientoResponseDTO> obtenerPorSemillero(Integer idSemillero) {
         return reconocimientoRepository.findBySemilleroId(idSemillero)
                 .stream()
-                .map(this::mapeoAResponseDTO)
+                .map(reconocimientoMapper::aResponse)
                 .collect(Collectors.toList());
     }
 
@@ -88,7 +90,7 @@ public class ReconocimientoService {
                 .build();
 
         ReconocimientoSemillero guardado = reconocimientoRepository.save(reconocimiento);
-        return mapeoAResponseDTO(guardado);
+        return reconocimientoMapper.aResponse(guardado);
     }
 
     /**
@@ -120,7 +122,7 @@ public class ReconocimientoService {
         reconocimiento.setUrlCertificado(request.getUrlCertificado());
 
         ReconocimientoSemillero actualizado = reconocimientoRepository.save(reconocimiento);
-        return mapeoAResponseDTO(actualizado);
+        return reconocimientoMapper.aResponse(actualizado);
     }
 
     /**
@@ -131,24 +133,4 @@ public class ReconocimientoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("ReconocimientoSemillero", id));
         reconocimientoRepository.delete(reconocimiento);
     }
-
-    /**
-     * Mapea entidad ReconocimientoSemillero a ResponseDTO
-     */
-    private ReconocimientoResponseDTO mapeoAResponseDTO(ReconocimientoSemillero reconocimiento) {
-        return ReconocimientoResponseDTO.builder()
-                .id(reconocimiento.getId())
-                .idSemillero(reconocimiento.getSemillero() != null ? reconocimiento.getSemillero().getId() : null)
-                .nombreSemillero(reconocimiento.getSemillero() != null ? reconocimiento.getSemillero().getNombre() : null)
-                .idTipoReconocimiento(reconocimiento.getTipoReconocimiento() != null ? reconocimiento.getTipoReconocimiento().getId() : null)
-                .tipoReconocimiento(reconocimiento.getTipoReconocimiento() != null ? reconocimiento.getTipoReconocimiento().getNombre() : null)
-                .titulo(reconocimiento.getTitulo())
-                .descripcion(reconocimiento.getDescripcion())
-                .idEntidadOtorgante(reconocimiento.getEntidadOtorgante() != null ? reconocimiento.getEntidadOtorgante().getId() : null)
-                .entidadOtorgante(reconocimiento.getEntidadOtorgante() != null ? reconocimiento.getEntidadOtorgante().getNombre() : null)
-                .fechaObtencion(reconocimiento.getFechaObtencion())
-                .urlCertificado(reconocimiento.getUrlCertificado())
-                .build();
-    }
 }
-

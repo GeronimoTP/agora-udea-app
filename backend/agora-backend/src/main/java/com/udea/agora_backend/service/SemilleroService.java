@@ -73,10 +73,7 @@ public class SemilleroService {
      * Obtiene todos los semilleros
      */
     public List<SemilleroResponseDTO> obtenerTodos() {
-        return semilleroRepository.findAll()
-                .stream()
-                .map(semilleroMapper::aResponse)
-                .toList();
+        return semilleroMapper.aResponses(semilleroRepository.findAll());
     }
 
     /**
@@ -101,20 +98,14 @@ public class SemilleroService {
      * Obtiene semilleros por programa
      */
     public List<SemilleroResponseDTO> obtenerPorPrograma(Integer idPrograma) {
-        return semilleroRepository.findByProgramaId(idPrograma)
-                .stream()
-                .map(semilleroMapper::aResponse)
-                .toList();
+        return semilleroMapper.aResponses(semilleroRepository.findByProgramaId(idPrograma));
     }
 
     /**
      * Obtiene semilleros por estado
      */
     public List<SemilleroResponseDTO> obtenerPorEstado(Integer idEstado) {
-        return semilleroRepository.findByEstadoId(idEstado)
-                .stream()
-                .map(semilleroMapper::aResponse)
-                .toList();
+        return semilleroMapper.aResponses(semilleroRepository.findByEstadoId(idEstado));
     }
 
     /**

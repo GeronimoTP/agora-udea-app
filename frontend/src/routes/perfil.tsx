@@ -16,7 +16,8 @@ import {
   perfilEstudianteQuery,
   perfilProfesorQuery,
 } from "@/lib/api/queries";
-import { perfilService, type ItemCatalogo } from "@/lib/api/services";
+import type { ItemCatalogo } from "@/lib/api/catalogos";
+import { perfilService } from "@/lib/api/perfiles";
 import { requerirSesion } from "@/lib/api/sesion";
 
 export const Route = createFileRoute("/perfil")({

@@ -8,9 +8,11 @@ import com.udea.agora_backend.dto.response.EstudianteSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroResponseDTO;
-import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.MiembrosSemilleroService;
 import com.udea.agora_backend.service.SemilleroService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
+import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
+import com.udea.agora_backend.service.autorizacion.UsuarioAutenticadoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -34,7 +36,9 @@ public class SemilleroController {
 
     private final SemilleroService semilleroService;
     private final MiembrosSemilleroService miembrosSemilleroService;
-    private final AutorizacionService autorizacionService;
+    private final UsuarioAutenticadoService usuarioAutenticado;
+    private final AutorizacionPerfilService autorizacionPerfil;
+    private final AutorizacionSemilleroService autorizacionSemillero;
 
     @Operation(summary = "Obtener todos los semilleros")
     @ApiResponse(responseCode = "200", description = "Lista de semilleros obtenida exitosamente")
@@ -87,9 +91,9 @@ public class SemilleroController {
     @PostMapping
     public ResponseEntity<SemilleroResponseDTO> crear(@Valid @RequestBody SemilleroRequestDTO request, Authentication authentication) {
         // Un estudiante solo crea semilleros que él mismo lidera; un profesor queda como tutor
-        Integer idProfesorCreador = autorizacionService.obtenerIdProfesor(authentication.getName()).orElse(null);
+        Integer idProfesorCreador = usuarioAutenticado.obtenerIdProfesor(authentication.getName()).orElse(null);
         if (idProfesorCreador == null) {
-            autorizacionService.validarEstudianteActual(authentication.getName(), request.getIdEstudianteLider());
+            autorizacionPerfil.validarEstudianteActual(authentication.getName(), request.getIdEstudianteLider());
         }
         SemilleroResponseDTO creado = semilleroService.crear(request, idProfesorCreador);
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
@@ -107,7 +111,7 @@ public class SemilleroController {
             @PathVariable Integer id,
             @Valid @RequestBody SemilleroRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), id);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
         return ResponseEntity.ok(semilleroService.actualizar(id, request));
     }
 
@@ -121,7 +125,7 @@ public class SemilleroController {
             @PathVariable Integer id,
             @PathVariable Integer idEstado,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), id);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
         return ResponseEntity.ok(semilleroService.actualizarEstado(id, idEstado));
     }
 
@@ -132,7 +136,7 @@ public class SemilleroController {
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id, Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), id);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
         semilleroService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
@@ -159,7 +163,7 @@ public class SemilleroController {
     public ResponseEntity<SemilleroLineaInvestigacionResponseDTO> agregarLineaInvestigacion(
             @Valid @RequestBody SemilleroLineaInvestigacionRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         SemilleroLineaInvestigacionResponseDTO creada = semilleroService.agregarLineaInvestigacion(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -174,7 +178,7 @@ public class SemilleroController {
             @PathVariable Integer idSemillero,
             @PathVariable Integer idLinea,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), idSemillero);
         semilleroService.eliminarLineaInvestigacion(idSemillero, idLinea);
         return ResponseEntity.noContent().build();
     }
@@ -201,7 +205,7 @@ public class SemilleroController {
     public ResponseEntity<ProfesorSemilleroResponseDTO> asignarProfesor(
             @Valid @RequestBody ProfesorSemilleroRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         ProfesorSemilleroResponseDTO creada = miembrosSemilleroService.asignarProfesor(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
@@ -216,7 +220,7 @@ public class SemilleroController {
             @PathVariable Integer idSemillero,
             @PathVariable Integer idProfesor,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), idSemillero);
         miembrosSemilleroService.removerProfesor(idSemillero, idProfesor);
         return ResponseEntity.noContent().build();
     }
@@ -235,10 +239,10 @@ public class SemilleroController {
     public ResponseEntity<List<EstudianteSemilleroResponseDTO>> obtenerEstudiantes(
             @PathVariable Integer id, Authentication authentication) {
         // Incluye correos: solo lo ven quienes pertenecen al semillero
-        if (autorizacionService.esLiderOAdministrador(authentication.getName(), id)) {
+        if (autorizacionSemillero.esLiderOAdministrador(authentication.getName(), id)) {
             return ResponseEntity.ok(miembrosSemilleroService.obtenerEstudiantes(id));
         }
-        autorizacionService.validarIntegranteActivo(authentication.getName(), id);
+        autorizacionSemillero.validarIntegranteActivo(authentication.getName(), id);
         return ResponseEntity.ok(miembrosSemilleroService.obtenerIntegrantesActivos(id));
     }
 
@@ -253,7 +257,7 @@ public class SemilleroController {
     public ResponseEntity<EstudianteSemilleroResponseDTO> vincularEstudiante(
             @Valid @RequestBody EstudianteSemilleroRequestDTO request,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
         EstudianteSemilleroResponseDTO vinculacion = miembrosSemilleroService.vincularEstudiante(request);
         return new ResponseEntity<>(vinculacion, HttpStatus.CREATED);
     }
@@ -270,7 +274,7 @@ public class SemilleroController {
             @RequestParam Integer idEstado,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaSalida,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(miembrosSemilleroService.actualizarVinculacionEstudiante(idSemillero, idEstudiante, idEstado, fechaSalida));
     }
 
@@ -284,7 +288,7 @@ public class SemilleroController {
             @PathVariable Integer idSemillero,
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(miembrosSemilleroService.retirarEstudiante(idSemillero, idEstudiante));
     }
 
@@ -298,7 +302,7 @@ public class SemilleroController {
             @PathVariable Integer id,
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
-        autorizacionService.validarLiderSemillero(authentication.getName(), id);
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
         return ResponseEntity.ok(miembrosSemilleroService.transferirLiderazgo(id, idEstudiante));
     }
 }
