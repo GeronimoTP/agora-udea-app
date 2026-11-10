@@ -1,78 +1,90 @@
 package com.udea.agora_backend.controller;
 
-import com.udea.agora_backend.model.LineaInvestigacion;
+import com.udea.agora_backend.dto.request.LineaInvestigacionRequestDTO;
+import com.udea.agora_backend.dto.response.LineaInvestigacionResponseDTO;
 import com.udea.agora_backend.service.LineaInvestigacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** Lectura para cualquier usuario autenticado; escritura solo para el administrador (SecurityConfig). */
 @RestController
 @RequestMapping("/api/lineas-investigacion")
 @RequiredArgsConstructor
-@Tag(name = "Líneas de Investigación", description = "Endpoints para el catálogo de líneas de investigación institucionales")
+@Tag(name = "Líneas de Investigación", description = "Catálogo de líneas de investigación institucionales")
 public class LineaInvestigacionController {
 
-    private final LineaInvestigacionService lineaInvestigacionService;
+    private final LineaInvestigacionService lineaService;
 
-    @Operation(summary = "Obtener todas las líneas de investigación")
-    @ApiResponse(responseCode = "200", description = "Lista de líneas de investigación obtenida exitosamente")
+    @Operation(summary = "Listar líneas de investigación")
     @GetMapping
-    public ResponseEntity<List<LineaInvestigacion>> obtenerTodas() {
-        return ResponseEntity.ok(lineaInvestigacionService.obtenerTodas());
+    public ResponseEntity<List<LineaInvestigacionResponseDTO>> obtenerTodos() {
+        return ResponseEntity.ok(lineaService.obtenerTodas());
     }
 
-    @Operation(summary = "Obtener una línea de investigación por su ID")
+    @Operation(summary = "Obtener por ID")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Línea de investigación encontrada"),
-            @ApiResponse(responseCode = "404", description = "Línea de investigación no encontrada")
+            @ApiResponse(responseCode = "200", description = "Encontrado"),
+            @ApiResponse(responseCode = "404", description = "No encontrado")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<LineaInvestigacion> obtenerPorId(@PathVariable Integer id) {
-        return ResponseEntity.ok(lineaInvestigacionService.obtenerPorId(id));
+    public ResponseEntity<LineaInvestigacionResponseDTO> obtenerPorId(@PathVariable Integer id) {
+        return ResponseEntity.ok(lineaService.obtenerPorId(id));
     }
 
-    @Operation(summary = "Buscar líneas de investigación por coincidencia en su nombre")
-    @ApiResponse(responseCode = "200", description = "Líneas coincidentes obtenidas exitosamente")
+    @Operation(summary = "Buscar líneas por coincidencia de nombre")
     @GetMapping("/buscar")
-    public ResponseEntity<List<LineaInvestigacion>> buscarPorNombre(@RequestParam String nombre) {
-        return ResponseEntity.ok(lineaInvestigacionService.obtenerPorNombreContiene(nombre));
+    public ResponseEntity<List<LineaInvestigacionResponseDTO>> buscarPorNombre(@RequestParam String nombre) {
+        return ResponseEntity.ok(lineaService.buscarPorNombre(nombre));
     }
 
-    @Operation(summary = "Crear una nueva línea de investigación")
-    @ApiResponse(responseCode = "201", description = "Línea de investigación creada exitosamente")
-    @PostMapping
-    public ResponseEntity<LineaInvestigacion> crear(@RequestBody LineaInvestigacion linea) {
-        return new ResponseEntity<>(lineaInvestigacionService.crear(linea), HttpStatus.CREATED);
-    }
-
-    @Operation(summary = "Actualizar una línea de investigación existente")
+    @Operation(summary = "Crear (solo administrador)")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Línea de investigación actualizada exitosamente"),
-            @ApiResponse(responseCode = "404", description = "Línea de investigación no encontrada")
+            @ApiResponse(responseCode = "201", description = "Creado"),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+            @ApiResponse(responseCode = "403", description = "No es administrador")
+    })
+    @PostMapping
+    public ResponseEntity<LineaInvestigacionResponseDTO> crear(@Valid @RequestBody LineaInvestigacionRequestDTO request) {
+        return new ResponseEntity<>(lineaService.crear(request), HttpStatus.CREATED);
+    }
+
+    @Operation(summary = "Actualizar (solo administrador)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Actualizado"),
+            @ApiResponse(responseCode = "403", description = "No es administrador"),
+            @ApiResponse(responseCode = "404", description = "No encontrado")
     })
     @PutMapping("/{id}")
-    public ResponseEntity<LineaInvestigacion> actualizar(
-            @PathVariable Integer id,
-            @RequestBody LineaInvestigacion linea) {
-        return ResponseEntity.ok(lineaInvestigacionService.actualizar(id, linea));
+    public ResponseEntity<LineaInvestigacionResponseDTO> actualizar(@PathVariable Integer id, @Valid @RequestBody LineaInvestigacionRequestDTO request) {
+        return ResponseEntity.ok(lineaService.actualizar(id, request));
     }
 
-    @Operation(summary = "Eliminar una línea de investigación por su ID")
+    @Operation(summary = "Eliminar (solo administrador)")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Línea de investigación eliminada exitosamente"),
-            @ApiResponse(responseCode = "404", description = "Línea de investigación no encontrada")
+            @ApiResponse(responseCode = "204", description = "Eliminado"),
+            @ApiResponse(responseCode = "403", description = "No es administrador"),
+            @ApiResponse(responseCode = "404", description = "No encontrado")
     })
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
-        lineaInvestigacionService.eliminar(id);
+        lineaService.eliminar(id);
         return ResponseEntity.noContent().build();
     }
 }
-

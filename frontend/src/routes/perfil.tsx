@@ -16,9 +16,8 @@ import {
   perfilEstudianteQuery,
   perfilProfesorQuery,
 } from "@/lib/api/queries";
-import { ApiError, apiRequest } from "@/lib/api/client";
 import { perfilService, type ItemCatalogo } from "@/lib/api/services";
-import type { UsuarioSesion } from "@/types/api";
+import { requerirSesion } from "@/lib/api/sesion";
 
 export const Route = createFileRoute("/perfil")({
   ssr: false,
@@ -33,18 +32,7 @@ export const Route = createFileRoute("/perfil")({
     ],
   }),
   loader: async ({ context }) => {
-    if (!localStorage.getItem("access_token")) {
-      throw redirect({ to: "/auth/login" });
-    }
-    let sesion: UsuarioSesion;
-    try {
-      sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
-    } catch (error) {
-      if (error instanceof ApiError && [403, 404].includes(error.status)) {
-        throw redirect({ to: "/auth/select-role" });
-      }
-      throw error;
-    }
+    const sesion = await requerirSesion();
     // El administrador no tiene perfil de estudiante ni de profesor
     if (esAdministrador(sesion)) {
       throw redirect({ to: "/" });

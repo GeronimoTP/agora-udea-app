@@ -1,7 +1,9 @@
 package com.udea.agora_backend.model;
 
+import com.udea.agora_backend.dominio.EstadosSemillero;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.ZonedDateTime;
 
 @Entity
@@ -40,4 +42,8 @@ public class Semillero {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
+
+    public boolean estaActivo() {
+        return estado != null && estado.tieneNombre(EstadosSemillero.ACTIVO);
+    }
 }

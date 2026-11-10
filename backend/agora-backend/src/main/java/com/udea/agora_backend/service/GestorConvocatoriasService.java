@@ -1,9 +1,20 @@
 package com.udea.agora_backend.service;
 
-import com.udea.agora_backend.model.*;
-import com.udea.agora_backend.repository.*;
-import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.dominio.EstadosConvocatoria;
+import com.udea.agora_backend.dominio.EstadosPostulacion;
+import com.udea.agora_backend.dominio.EstadosVinculacion;
+import com.udea.agora_backend.dto.response.ConvocatoriaEstadoCuposDTO;
 import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
+import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.model.Convocatoria;
+import com.udea.agora_backend.model.Estado;
+import com.udea.agora_backend.model.Estudiante;
+import com.udea.agora_backend.model.EstudianteSemillero;
+import com.udea.agora_backend.model.Postulacion;
+import com.udea.agora_backend.model.Semillero;
+import com.udea.agora_backend.repository.ConvocatoriaRepository;
+import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
+import com.udea.agora_backend.repository.PostulacionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -48,21 +59,9 @@ import java.util.Optional;
 @Slf4j
 public class GestorConvocatoriasService {
 
-    private static final String ESTADO_PENDIENTE = "Pendiente";
-    private static final String ESTADO_PRE_APROBADA = "Pre-aprobada";
-    private static final String ESTADO_ACEPTADA = "Aceptada";
-    private static final String ESTADO_RECHAZADA = "Rechazada";
-    private static final String ESTADO_RECHAZADA_ESTUDIANTE = "Rechazada por Estudiante";
-    private static final String ESTADO_CERRADA = "Cerrada";
-    private static final String ESTADO_EXPIRADA = "Expirada";
-    private static final String ESTADO_CANCELADA = "Cancelada en cascada";
-    private static final String ESTADO_ABIERTA = "Abierta";
-    private static final String ESTADO_CONVOCATORIA_CANCELADA = "Cancelada";
-    private static final String ESTADO_VINCULACION_ACTIVA = "Activo";
-
     private final PostulacionRepository postulacionRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
-    private final EstadoRepository estadoRepository;
+    private final BuscadorEstados buscadorEstados;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final PlazoOfertasService plazoOfertasService;
 
@@ -76,7 +75,7 @@ public class GestorConvocatoriasService {
 
         Postulacion postulacion = obtenerPostulacionOFallar(idPostulacion);
 
-        validarEstadoPostulacion(postulacion, ESTADO_PENDIENTE,
+        validarEstadoPostulacion(postulacion, EstadosPostulacion.PENDIENTE,
                 "Solo se pueden pre-aprobar postulaciones en estado 'Pendiente'.");
 
         // Bloquea la convocatoria: dos pre-aprobaciones simultáneas no pueden exceder los cupos
@@ -88,16 +87,16 @@ public class GestorConvocatoriasService {
         ZonedDateTime ahora = ZonedDateTime.now();
         // Las ofertas vencidas que el cron aún no procesó no deben ocupar espacio
         expirarOfertasVencidas(postulacionRepository.findOfertasVencidasDeConvocatoria(
-                convocatoria.getId(), ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora)));
+                convocatoria.getId(), EstadosPostulacion.PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora)));
         long ofertasVigentes = postulacionRepository.contarOfertasVigentes(
-                convocatoria.getId(), ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora));
+                convocatoria.getId(), EstadosPostulacion.PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora));
         if (ofertasVigentes >= convocatoria.getCuposDisponibles()) {
             throw new ErrorLogicaNegocioException(
                     "Ya hay " + ofertasVigentes + " oferta(s) vigente(s) para " + convocatoria.getCuposDisponibles()
                             + " cupo(s) disponible(s). Espera a que los estudiantes respondan o a que venza su plazo.");
         }
 
-        postulacion.setEstado(buscarEstado(CategoriasEstado.POSTULACION, ESTADO_PRE_APROBADA));
+        postulacion.setEstado(buscadorEstados.dePostulacion(EstadosPostulacion.PRE_APROBADA));
         postulacion.setFechaPreAprobacion(ahora);
         postulacionRepository.save(postulacion);
 
@@ -112,11 +111,11 @@ public class GestorConvocatoriasService {
 
         Postulacion postulacion = obtenerPostulacionOFallar(idPostulacion);
 
-        validarEstadoPostulacion(postulacion, ESTADO_PENDIENTE,
+        validarEstadoPostulacion(postulacion, EstadosPostulacion.PENDIENTE,
                 "Solo se pueden rechazar postulaciones en estado 'Pendiente'.");
 
         // Decisión del líder: no es una respuesta del estudiante, no se registra fechaDecisionEstudiante
-        postulacion.setEstado(buscarEstado(CategoriasEstado.POSTULACION, ESTADO_RECHAZADA));
+        postulacion.setEstado(buscadorEstados.dePostulacion(EstadosPostulacion.RECHAZADA));
         postulacionRepository.save(postulacion);
 
         log.info("Postulación {} rechazada por el líder", idPostulacion);
@@ -132,11 +131,11 @@ public class GestorConvocatoriasService {
 
         Postulacion postulacion = obtenerPostulacionOFallar(idPostulacion);
 
-        validarEstadoPostulacion(postulacion, ESTADO_PRE_APROBADA,
+        validarEstadoPostulacion(postulacion, EstadosPostulacion.PRE_APROBADA,
                 "Solo se puede rechazar una oferta en estado 'Pre-aprobada'.");
         validarOfertaEnPlazo(postulacion);
 
-        postulacion.setEstado(buscarEstado(CategoriasEstado.POSTULACION, ESTADO_RECHAZADA_ESTUDIANTE));
+        postulacion.setEstado(buscadorEstados.dePostulacion(EstadosPostulacion.RECHAZADA_POR_ESTUDIANTE));
         postulacion.setFechaDecisionEstudiante(ZonedDateTime.now());
         postulacionRepository.save(postulacion);
 
@@ -154,7 +153,7 @@ public class GestorConvocatoriasService {
 
         Postulacion postulacion = obtenerPostulacionOFallar(idPostulacion);
 
-        validarEstadoPostulacion(postulacion, ESTADO_PRE_APROBADA,
+        validarEstadoPostulacion(postulacion, EstadosPostulacion.PRE_APROBADA,
                 "Solo se puede confirmar la aceptación de una oferta en estado 'Pre-aprobada'.");
         validarOfertaEnPlazo(postulacion);
 
@@ -171,7 +170,7 @@ public class GestorConvocatoriasService {
             );
         }
 
-        postulacion.setEstado(buscarEstado(CategoriasEstado.POSTULACION, ESTADO_ACEPTADA));
+        postulacion.setEstado(buscadorEstados.dePostulacion(EstadosPostulacion.ACEPTADA));
         postulacion.setFechaDecisionEstudiante(ZonedDateTime.now());
 
         convocatoria.setCuposDisponibles(convocatoria.getCuposDisponibles() - 1);
@@ -186,7 +185,7 @@ public class GestorConvocatoriasService {
         ejecutarCascadaRechazo(postulacion.getEstudiante().getId(), idPostulacion);
 
         if (convocatoria.getCuposDisponibles() == 0) {
-            convocatoria.setEstado(buscarEstado(CategoriasEstado.CONVOCATORIA, ESTADO_CERRADA));
+            convocatoria.setEstado(buscadorEstados.deConvocatoria(EstadosConvocatoria.CERRADA));
             log.info("Convocatoria marcada como CERRADA (sin cupos)");
             expirarPostulacionesSinResolver(convocatoria.getId());
         }
@@ -204,10 +203,10 @@ public class GestorConvocatoriasService {
     private void ejecutarCascadaRechazo(Integer idEstudiante, Integer idPostulacionAceptada) {
         log.info("Iniciando cascada de rechazos para estudiante {}", idEstudiante);
 
-        Estado estadoCancelada = buscarEstado(CategoriasEstado.POSTULACION, ESTADO_CANCELADA);
+        Estado estadoCancelada = buscadorEstados.dePostulacion(EstadosPostulacion.CANCELADA_EN_CASCADA);
 
         List<Postulacion> postulacionesActivas = postulacionRepository
-                .findPostulacionesActivasByEstudiante(idEstudiante, ESTADO_PENDIENTE, ESTADO_PRE_APROBADA);
+                .findPostulacionesActivasByEstudiante(idEstudiante, EstadosPostulacion.PENDIENTE, EstadosPostulacion.PRE_APROBADA);
 
         int contadorRechazadas = 0;
         for (Postulacion p : postulacionesActivas) {
@@ -229,7 +228,7 @@ public class GestorConvocatoriasService {
      * quedaba en revisión o con oferta pendiente expira. Los cupos ya asignados se conservan.
      */
     public void cerrarConvocatoria(Integer idConvocatoria) {
-        finalizarConvocatoria(idConvocatoria, ESTADO_CERRADA);
+        finalizarConvocatoria(idConvocatoria, EstadosConvocatoria.CERRADA);
     }
 
     /**
@@ -237,18 +236,18 @@ public class GestorConvocatoriasService {
      * expira lo que quedaba sin resolver; las aceptaciones ya confirmadas se mantienen.
      */
     public void cancelarConvocatoria(Integer idConvocatoria) {
-        finalizarConvocatoria(idConvocatoria, ESTADO_CONVOCATORIA_CANCELADA);
+        finalizarConvocatoria(idConvocatoria, EstadosConvocatoria.CANCELADA);
     }
 
     private void finalizarConvocatoria(Integer idConvocatoria, String estadoFinal) {
         Convocatoria convocatoria = convocatoriaRepository.findByIdParaActualizarCupos(idConvocatoria)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", idConvocatoria));
-        if (!ESTADO_ABIERTA.equalsIgnoreCase(convocatoria.getEstado().getNombre())) {
+        if (!convocatoria.estaAbierta()) {
             throw new ErrorLogicaNegocioException(
                     "Solo se puede cerrar o cancelar una convocatoria abierta. Estado actual: "
                             + convocatoria.getEstado().getNombre());
         }
-        convocatoria.setEstado(buscarEstado(CategoriasEstado.CONVOCATORIA, estadoFinal));
+        convocatoria.setEstado(buscadorEstados.deConvocatoria(estadoFinal));
         convocatoriaRepository.save(convocatoria);
         int expiradas = expirarPostulacionesSinResolver(idConvocatoria);
         log.info("Convocatoria {} pasó a '{}' por decisión del líder; {} postulaciones expiradas",
@@ -264,10 +263,10 @@ public class GestorConvocatoriasService {
                 .findBySemilleroIdAndEstudianteId(semillero.getId(), estudiante.getId());
         if (existente.isPresent()) {
             EstudianteSemillero vinculacion = existente.get();
-            if (vinculacion.getFechaSalida() != null) {
+            if (!vinculacion.estaActiva()) {
                 vinculacion.setFechaSalida(null);
                 vinculacion.setFechaIngreso(LocalDate.now());
-                vinculacion.setEstado(buscarEstado(CategoriasEstado.VINCULACION, ESTADO_VINCULACION_ACTIVA));
+                vinculacion.setEstado(buscadorEstados.deVinculacion(EstadosVinculacion.ACTIVA));
                 estudianteSemilleroRepository.save(vinculacion);
                 log.info("Estudiante {} reincorporado al semillero {}", estudiante.getId(), semillero.getId());
             }
@@ -277,7 +276,7 @@ public class GestorConvocatoriasService {
                 .semillero(semillero)
                 .estudiante(estudiante)
                 .fechaIngreso(LocalDate.now())
-                .estado(buscarEstado(CategoriasEstado.VINCULACION, ESTADO_VINCULACION_ACTIVA))
+                .estado(buscadorEstados.deVinculacion(EstadosVinculacion.ACTIVA))
                 .build());
         log.info("Estudiante {} vinculado al semillero {}", estudiante.getId(), semillero.getId());
     }
@@ -286,9 +285,9 @@ public class GestorConvocatoriasService {
      * Expira lo que quedó en revisión o con oferta pendiente en una convocatoria cerrada.
      */
     private int expirarPostulacionesSinResolver(Integer idConvocatoria) {
-        Estado estadoExpirada = buscarEstado(CategoriasEstado.POSTULACION, ESTADO_EXPIRADA);
+        Estado estadoExpirada = buscadorEstados.dePostulacion(EstadosPostulacion.EXPIRADA);
         List<Postulacion> sinResolver = postulacionRepository
-                .findPostulacionesByConvocatoriaAndEstado(idConvocatoria, ESTADO_PENDIENTE, ESTADO_PRE_APROBADA);
+                .findPostulacionesByConvocatoriaAndEstado(idConvocatoria, EstadosPostulacion.PENDIENTE, EstadosPostulacion.PRE_APROBADA);
         for (Postulacion post : sinResolver) {
             log.info("Marcando postulación {} como expirada", post.getId());
             post.setEstado(estadoExpirada);
@@ -310,7 +309,7 @@ public class GestorConvocatoriasService {
         if (vencidas.isEmpty()) {
             return 0;
         }
-        Estado estadoExpirada = buscarEstado(CategoriasEstado.POSTULACION, ESTADO_EXPIRADA);
+        Estado estadoExpirada = buscadorEstados.dePostulacion(EstadosPostulacion.EXPIRADA);
         for (Postulacion oferta : vencidas) {
             log.info("Oferta {} expirada: el estudiante no respondió en el plazo", oferta.getId());
             oferta.setEstado(estadoExpirada);
@@ -327,15 +326,14 @@ public class GestorConvocatoriasService {
     @Scheduled(cron = "${app.scheduler.ofertas-vencidas.cron:0 0 * * * *}")
     public void procesarOfertasVencidas() {
         int expiradas = expirarOfertasVencidas(postulacionRepository.findOfertasVencidas(
-                ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ZonedDateTime.now())));
+                EstadosPostulacion.PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ZonedDateTime.now())));
         if (expiradas > 0) {
             log.info("{} ofertas expiradas por vencimiento del plazo de respuesta", expiradas);
         }
     }
 
     private void validarConvocatoriaVigente(Convocatoria convocatoria) {
-        if (!ESTADO_ABIERTA.equalsIgnoreCase(convocatoria.getEstado().getNombre())
-                || convocatoria.getFechaCierre().isBefore(LocalDate.now())) {
+        if (!convocatoria.estaVigente(LocalDate.now())) {
             throw new ErrorLogicaNegocioException(
                     "La convocatoria '" + convocatoria.getTitulo() + "' ya no está abierta.");
         }
@@ -355,7 +353,7 @@ public class GestorConvocatoriasService {
 
         List<Convocatoria> convocatoriasExpiradas = convocatoriaRepository.findConvocatoriasExpiradas();
 
-        Estado estadoCerrada = buscarEstado(CategoriasEstado.CONVOCATORIA, ESTADO_CERRADA);
+        Estado estadoCerrada = buscadorEstados.deConvocatoria(EstadosConvocatoria.CERRADA);
 
         int convocatoriasActualizadas = 0;
         for (Convocatoria conv : convocatoriasExpiradas) {
@@ -371,9 +369,9 @@ public class GestorConvocatoriasService {
 
         // Convocatorias que ya estaban cerradas (sin cupos o cierre manual) pero conservan
         // postulaciones sin resolver: también expiran
-        Estado estadoExpirada = buscarEstado(CategoriasEstado.POSTULACION, ESTADO_EXPIRADA);
+        Estado estadoExpirada = buscadorEstados.dePostulacion(EstadosPostulacion.EXPIRADA);
         for (Postulacion post : postulacionRepository.findPostulacionesEnConvocatoriasConEstado(
-                ESTADO_CERRADA, ESTADO_PENDIENTE, ESTADO_PRE_APROBADA)) {
+                EstadosConvocatoria.CERRADA, EstadosPostulacion.PENDIENTE, EstadosPostulacion.PRE_APROBADA)) {
             post.setEstado(estadoExpirada);
             postulacionRepository.save(post);
         }
@@ -406,29 +404,11 @@ public class GestorConvocatoriasService {
     }
 
     private void validarEstadoPostulacion(Postulacion postulacion, String estadoEsperado, String mensaje) {
-        if (!postulacion.getEstado().getNombre().equalsIgnoreCase(estadoEsperado)) {
+        if (!postulacion.tieneEstado(estadoEsperado)) {
             throw new ErrorLogicaNegocioException(
                     mensaje + " Estado actual: " + postulacion.getEstado().getNombre()
             );
         }
     }
 
-    private Estado buscarEstado(String categoria, String nombre) {
-        return estadoRepository.findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(categoria, nombre)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", categoria + " / " + nombre));
-    }
-
-    /**
-     * DTO para respuesta de estado de cupos
-     */
-    @lombok.Data
-    @lombok.Builder
-    public static class ConvocatoriaEstadoCuposDTO {
-        private Integer idConvocatoria;
-        private String nombreConvocatoria;
-        private Integer cuposOriginales;
-        private Integer cuposDisponibles;
-        private Integer cuposUtilizados;
-        private Double porcentajeOcupacion;
-    }
 }

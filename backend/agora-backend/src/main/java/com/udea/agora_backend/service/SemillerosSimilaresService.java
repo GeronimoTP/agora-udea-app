@@ -16,6 +16,7 @@ import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
 import com.udea.agora_backend.service.IndiceSemillerosKdService.Indice;
+import com.udea.agora_backend.util.Redondeo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,9 +65,6 @@ public class SemillerosSimilaresService {
     // Vecinos que se piden al árbol por cada resultado, para poder desempatar
     static final int CANDIDATOS_POR_RESULTADO = 3;
 
-    private static final String ESTADO_SEMILLERO_ACTIVO = "Activo";
-    private static final String ESTADO_CONVOCATORIA_ABIERTA = "Abierta";
-
     private final IndiceSemillerosKdService indiceService;
     private final EstudianteRepository estudianteRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
@@ -85,7 +83,7 @@ public class SemillerosSimilaresService {
         // 1. Historial: idSemillero → peso. Liderar cuenta como pertenencia actual.
         Map<Integer, Double> pesoPorSemillero = new LinkedHashMap<>();
         for (EstudianteSemillero vinculacion : estudianteSemilleroRepository.findByEstudianteId(idEstudiante)) {
-            double peso = vinculacion.getFechaSalida() == null ? PESO_ACTUAL : PESO_ANTERIOR;
+            double peso = vinculacion.estaActiva() ? PESO_ACTUAL : PESO_ANTERIOR;
             pesoPorSemillero.merge(vinculacion.getSemillero().getId(), peso, Math::max);
         }
         for (Integer idLiderado : semilleroRepository.findIdsByEstudianteLiderId(idEstudiante)) {
@@ -156,7 +154,7 @@ public class SemillerosSimilaresService {
         for (KdTree.Vecino<Integer> vecino : resultado.vecinos()) {
             Semillero semillero = encontrados.get(vecino.valor());
             // El árbol puede tener hasta "vigencia" minutos: se descartan los que dejaron de estar activos
-            if (semillero == null || !esActivo(semillero)) {
+            if (semillero == null || !semillero.estaActivo()) {
                 continue;
             }
             // Vectores unitarios: cos = 1 - d²/2. Coseno 0 = ninguna área en común.
@@ -175,14 +173,15 @@ public class SemillerosSimilaresService {
                     .nombre(semillero.getNombre())
                     .codigoIdentificador(semillero.getCodigoIdentificador())
                     .nombrePrograma(semillero.getPrograma() != null ? semillero.getPrograma().getNombre() : null)
-                    .porcentajeSimilitud(redondear(similitud * 100))
-                    .distancia(Math.round(vecino.distancia() * 1000.0) / 1000.0)
+                    .porcentajeSimilitud(Redondeo.unDecimal(similitud * 100))
+                    .distancia(Redondeo.tresDecimales(vecino.distancia()))
                     .areasEnComun(areasEnComun(indice, consulta, vecino.punto()))
                     .lineasEnComun(lineasEnComun)
                     .parecidoA(base == Base.HISTORIAL
                             ? masParecidoDelHistorial(vecino.punto(), vectorPorSemillero, semillerosHistorial)
                             : null)
-                    .convocatoriaAbierta(tieneConvocatoriaAbierta(semillero.getId()))
+                    .convocatoriaAbierta(convocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones(
+                            semillero.getId(), LocalDate.now()))
                     .build());
         }
 
@@ -260,21 +259,6 @@ public class SemillerosSimilaresService {
         return nombre;
     }
 
-    private boolean tieneConvocatoriaAbierta(Integer idSemillero) {
-        LocalDate hoy = LocalDate.now();
-        return convocatoriaRepository.findBySemilleroId(idSemillero).stream()
-                .anyMatch(c -> c.getEstado() != null
-                        && ESTADO_CONVOCATORIA_ABIERTA.equalsIgnoreCase(c.getEstado().getNombre())
-                        && !c.getFechaInicio().isAfter(hoy)
-                        && !c.getFechaCierre().isBefore(hoy)
-                        && c.getCuposDisponibles() > 0);
-    }
-
-    private static boolean esActivo(Semillero semillero) {
-        return semillero.getEstado() != null
-                && ESTADO_SEMILLERO_ACTIVO.equalsIgnoreCase(semillero.getEstado().getNombre());
-    }
-
     private static BusquedaKd estadisticas(Indice indice, int nodosVisitados) {
         return BusquedaKd.builder()
                 .dimensiones(indice.dimensiones().size())
@@ -286,7 +270,4 @@ public class SemillerosSimilaresService {
                 .build();
     }
 
-    private static double redondear(double valor) {
-        return Math.round(valor * 10.0) / 10.0;
-    }
 }

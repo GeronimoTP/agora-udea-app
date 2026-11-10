@@ -1,5 +1,9 @@
 import { cn } from "@/lib/utils";
-import type { EstadoConvocatoria, EstadoPostulacion, EstadoSemillero } from "@/types/api";
+import type {
+  EstadoConvocatoria,
+  EstadoPostulacion,
+  EstadoSemillero,
+} from "@/types/api";
 
 const etiquetas: Record<string, string> = {
   ACTIVO: "Activo",
@@ -24,13 +28,15 @@ const tonos: Record<string, string> = {
   ACEPTADA: "border-success/30 bg-success/10 text-success",
   PRE_APROBADA: "border-accent/30 bg-accent/10 text-accent",
   PENDIENTE: "border-warning/40 bg-warning/10 text-warning-foreground",
-  PENDIENTE_APROBACION: "border-warning/40 bg-warning/10 text-warning-foreground",
+  PENDIENTE_APROBACION:
+    "border-warning/40 bg-warning/10 text-warning-foreground",
   EN_PAUSA: "border-border-strong bg-secondary text-muted-foreground",
   BORRADOR: "border-border-strong bg-secondary text-muted-foreground",
   CERRADA: "border-border-strong bg-secondary text-muted-foreground",
   INACTIVO: "border-border-strong bg-secondary text-muted-foreground",
   RECHAZADA: "border-destructive/30 bg-destructive/10 text-destructive",
-  RECHAZADA_POR_ESTUDIANTE: "border-destructive/30 bg-destructive/10 text-destructive",
+  RECHAZADA_POR_ESTUDIANTE:
+    "border-destructive/30 bg-destructive/10 text-destructive",
   EXPIRADA: "border-destructive/30 bg-destructive/10 text-destructive",
   CANCELADA: "border-border-strong bg-secondary text-muted-foreground",
 };
@@ -46,7 +52,8 @@ export function EstadoBadge({
     <span
       className={cn(
         "inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-medium",
-        tonos[estado] ?? "border-border-strong bg-secondary text-secondary-foreground",
+        tonos[estado] ??
+          "border-border-strong bg-secondary text-secondary-foreground",
         className,
       )}
     >

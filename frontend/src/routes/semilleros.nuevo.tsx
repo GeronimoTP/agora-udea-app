@@ -26,13 +26,13 @@ import {
   profesoresQuery,
   semillerosQuery,
 } from "@/lib/api/queries";
-import { ApiError, apiRequest } from "@/lib/api/client";
 import {
   semillerosService,
   type EstudianteResumen,
   type Profesor,
 } from "@/lib/api/services";
-import type { UsuarioSesion } from "@/types/api";
+import { requerirSesion } from "@/lib/api/sesion";
+import { apiRequest } from "@/lib/api/client";
 
 export const Route = createFileRoute("/semilleros/nuevo")({
   ssr: false,
@@ -47,18 +47,7 @@ export const Route = createFileRoute("/semilleros/nuevo")({
     ],
   }),
   loader: async ({ context }) => {
-    if (!localStorage.getItem("access_token")) {
-      throw redirect({ to: "/auth/login" });
-    }
-    let sesion: UsuarioSesion;
-    try {
-      sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
-    } catch (error) {
-      if (error instanceof ApiError && [403, 404].includes(error.status)) {
-        throw redirect({ to: "/auth/select-role" });
-      }
-      throw error;
-    }
+    const sesion = await requerirSesion();
     // Un estudiante registra un solo semillero, del que queda como líder; un profesor puede
     // registrar varios, elige al estudiante líder y queda como tutor
     const profesor = esProfesor(sesion);

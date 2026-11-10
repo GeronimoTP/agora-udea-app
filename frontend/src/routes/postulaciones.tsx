@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/queries";
 import { postulacionesService } from "@/lib/api/services";
 import type { Postulacion } from "@/types/api";
+import { formatearFecha, formatearFechaHora } from "@/lib/formato";
 
 export const Route = createFileRoute("/postulaciones")({
   // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
@@ -138,11 +139,13 @@ function PostulacionesPage() {
     { header: "Estado", cell: (row) => <EstadoBadge estado={row.estado} /> },
     {
       header: "Postulación",
-      cell: (row) => formatearFecha(row.fechaPostulacion),
+      cell: (row) =>
+        formatearFecha(row.fechaPostulacion, { siVacio: "Pendiente" }),
     },
     {
       header: "Pre-aprobación",
-      cell: (row) => formatearFecha(row.fechaPreAprobacion),
+      cell: (row) =>
+        formatearFecha(row.fechaPreAprobacion, { siVacio: "Pendiente" }),
     },
     {
       header: "Responder antes de",
@@ -387,22 +390,4 @@ function sinEspacioParaOfertas(row: Postulacion) {
     !!row.priorizacion &&
     row.priorizacion.ofertasVigentes >= row.priorizacion.cuposDisponibles
   );
-}
-
-function formatearFechaHora(valor: string) {
-  return new Date(valor).toLocaleString("es-CO", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatearFecha(valor?: string | null) {
-  if (!valor) return "Pendiente";
-  return new Date(valor).toLocaleDateString("es-CO", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }

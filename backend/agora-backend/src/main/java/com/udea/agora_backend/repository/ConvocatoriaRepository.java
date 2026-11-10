@@ -16,17 +16,11 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Inte
     List<Convocatoria> findBySemilleroId(Integer semilleroId);
     List<Convocatoria> findByEstadoId(Integer estadoId);
 
-    // Consultas para Servicio 2: Gestor de Convocatorias
-    // Convocatorias activas con cupos disponibles
-    List<Convocatoria> findByCuposDisponiblesGreaterThan(Integer cupos);
-    
-    // Convocatorias que han pasado su fecha de cierre
-    List<Convocatoria> findByFechaCierreBefore(LocalDate fecha);
-    
+
     // Convocatorias activas con cupos disponibles
     @Query("SELECT c FROM Convocatoria c WHERE c.cuposDisponibles > 0 AND c.estado.id = ?1")
     List<Convocatoria> findActivasConCupos(Integer estadoId);
-    
+
     // Convocatorias abiertas que necesitan ser cerradas (fecha expirada); las canceladas no se tocan
     @Query("SELECT c FROM Convocatoria c WHERE c.fechaCierre < CURRENT_DATE AND c.estado.nombre = 'Abierta'")
     List<Convocatoria> findConvocatoriasExpiradas();
@@ -35,4 +29,9 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Inte
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Convocatoria c WHERE c.id = ?1")
     Optional<Convocatoria> findByIdParaActualizarCupos(Integer id);
+
+    /** El semillero tiene hoy al menos una convocatoria abierta, iniciada, vigente y con cupos. */
+    default boolean existeConvocatoriaRecibiendoPostulaciones(Integer idSemillero, java.time.LocalDate hoy) {
+        return findBySemilleroId(idSemillero).stream().anyMatch(c -> c.recibePostulaciones(hoy));
+    }
 }

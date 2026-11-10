@@ -18,7 +18,10 @@ export const Route = createFileRoute("/semilleros/")({
         content:
           "Directorio de semilleros de investigación de la Universidad de Antioquia con filtros por facultad, línea de investigación y convocatorias abiertas.",
       },
-      { property: "og:title", content: "Semilleros de investigación | Agora UdeA" },
+      {
+        property: "og:title",
+        content: "Semilleros de investigación | Agora UdeA",
+      },
       {
         property: "og:description",
         content:
@@ -123,7 +126,8 @@ function SemillerosPage() {
       </form>
 
       <p className="mb-4 text-sm text-muted-foreground">
-        {resultados.length} semillero{resultados.length === 1 ? "" : "s"} encontrado
+        {resultados.length} semillero{resultados.length === 1 ? "" : "s"}{" "}
+        encontrado
         {resultados.length === 1 ? "" : "s"}
       </p>
 

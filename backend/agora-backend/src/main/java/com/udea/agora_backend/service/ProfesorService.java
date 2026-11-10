@@ -6,8 +6,16 @@ import com.udea.agora_backend.dto.response.ProfesorAreaEspecialidadResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorResponseDTO;
 import com.udea.agora_backend.exception.ConflictoException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
-import com.udea.agora_backend.model.*;
-import com.udea.agora_backend.repository.*;
+import com.udea.agora_backend.model.AreaEspecialidad;
+import com.udea.agora_backend.model.Profesor;
+import com.udea.agora_backend.model.ProfesorAreaEspecialidad;
+import com.udea.agora_backend.model.ProgramaAcademico;
+import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.repository.AreaEspecialidadRepository;
+import com.udea.agora_backend.repository.ProfesorAreaEspecialidadRepository;
+import com.udea.agora_backend.repository.ProfesorRepository;
+import com.udea.agora_backend.repository.ProgramaAcademicoRepository;
+import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +38,6 @@ public class ProfesorService {
     private final ProgramaAcademicoRepository programaRepository;
     private final AreaEspecialidadRepository areaEspecialidadRepository;
     private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
-    private final RolRepository rolRepository;
 
     /**
      * Obtiene todos los profesores
@@ -91,7 +98,7 @@ public class ProfesorService {
             for (Integer idArea : request.getIdAreasEspecialidad()) {
                 AreaEspecialidad area = areaEspecialidadRepository.findById(idArea)
                         .orElseThrow(() -> new RecursoNoEncontradoException("AreaEspecialidad", idArea));
-                
+
                 ProfesorAreaEspecialidad pae = ProfesorAreaEspecialidad.builder()
                         .profesor(profesorGuardado)
                         .areaEspecialidad(area)
@@ -101,55 +108,6 @@ public class ProfesorService {
         }
 
         return mapeoAResponseDTO(profesorGuardado);
-    }
-
-    /**
-     * Sobrecarga de crear para registrar profesor junto a su usuario desde AuthController
-     */
-    public Profesor crear(
-            String email,
-            String nombreCompleto,
-            Integer idPrograma,
-            List<Integer> idAreasEspecialidad) {
-        // Obtener programa
-        ProgramaAcademico programa = programaRepository.findById(idPrograma)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
-
-        // Obtener rol de profesor
-        Rol rolProfesor = rolRepository.findByNombre("Profesor")
-                .orElseThrow(() -> new RecursoNoEncontradoException("Rol", "nombre", "Profesor"));
-
-        // Crear usuario
-        Usuario usuario = new Usuario();
-        usuario.setNombreCompleto(nombreCompleto);
-        usuario.setEmail(email);
-        usuario.setRol(rolProfesor);
-        usuario = usuarioRepository.save(usuario);
-
-        // Crear profesor
-        Profesor profesor = Profesor.builder()
-                .usuario(usuario)
-                .programa(programa)
-                .createdAt(ZonedDateTime.now())
-                .build();
-
-        Profesor profesorGuardado = profesorRepository.save(profesor);
-
-        // Guardar áreas de especialidad iniciales
-        if (idAreasEspecialidad != null && !idAreasEspecialidad.isEmpty()) {
-            for (Integer idArea : idAreasEspecialidad) {
-                AreaEspecialidad area = areaEspecialidadRepository.findById(idArea)
-                        .orElseThrow(() -> new RecursoNoEncontradoException("AreaEspecialidad", idArea));
-
-                ProfesorAreaEspecialidad pae = ProfesorAreaEspecialidad.builder()
-                        .profesor(profesorGuardado)
-                        .areaEspecialidad(area)
-                        .build();
-                profesorAreaRepository.save(pae);
-            }
-        }
-
-        return profesorGuardado;
     }
 
     /**
@@ -178,7 +136,7 @@ public class ProfesorService {
             for (Integer idArea : request.getIdAreasEspecialidad()) {
                 AreaEspecialidad area = areaEspecialidadRepository.findById(idArea)
                         .orElseThrow(() -> new RecursoNoEncontradoException("AreaEspecialidad", idArea));
-                
+
                 ProfesorAreaEspecialidad pae = ProfesorAreaEspecialidad.builder()
                         .profesor(profesorActualizado)
                         .areaEspecialidad(area)

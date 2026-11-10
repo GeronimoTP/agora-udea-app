@@ -1,7 +1,9 @@
 package com.udea.agora_backend.model;
 
+import com.udea.agora_backend.dominio.EstadosConvocatoria;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 
@@ -46,4 +48,22 @@ public class Convocatoria {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
+
+    public boolean estaAbierta() {
+        return estado != null && estado.tieneNombre(EstadosConvocatoria.ABIERTA);
+    }
+
+    /** Abierta y con fecha de cierre no vencida. */
+    public boolean estaVigente(LocalDate hoy) {
+        return estaAbierta() && !fechaCierre.isBefore(hoy);
+    }
+
+    public boolean tieneCuposDisponibles() {
+        return cuposDisponibles != null && cuposDisponibles > 0;
+    }
+
+    /** Un estudiante puede postularse hoy: vigente, ya iniciada y con cupos. */
+    public boolean recibePostulaciones(LocalDate hoy) {
+        return estaVigente(hoy) && !fechaInicio.isAfter(hoy) && tieneCuposDisponibles();
+    }
 }

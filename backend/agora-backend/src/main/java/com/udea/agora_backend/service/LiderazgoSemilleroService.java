@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
@@ -36,5 +37,12 @@ public class LiderazgoSemilleroService {
                 .ifPresent(profesor -> ids.addAll(
                         profesorSemilleroRepository.findSemilleroIdsByProfesorId(profesor.getId())));
         return List.copyOf(ids);
+    }
+
+    /** Un estudiante lidera como máximo un semillero (al crear uno o al recibir el liderazgo). */
+    public void validarQueNoLideraOtroSemillero(Integer idEstudiante) {
+        if (!semilleroRepository.findIdsByEstudianteLiderId(idEstudiante).isEmpty()) {
+            throw new ErrorLogicaNegocioException("El estudiante ya es líder de otro semillero.");
+        }
     }
 }

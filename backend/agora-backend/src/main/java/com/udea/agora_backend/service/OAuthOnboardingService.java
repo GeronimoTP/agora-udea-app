@@ -1,8 +1,27 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.NombresRol;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
-import com.udea.agora_backend.model.*;
-import com.udea.agora_backend.repository.*;
+import com.udea.agora_backend.model.AreaEspecialidad;
+import com.udea.agora_backend.model.Estudiante;
+import com.udea.agora_backend.model.EstudianteLineaInvestigacion;
+import com.udea.agora_backend.model.LineaInvestigacion;
+import com.udea.agora_backend.model.OauthProveedor;
+import com.udea.agora_backend.model.Profesor;
+import com.udea.agora_backend.model.ProfesorAreaEspecialidad;
+import com.udea.agora_backend.model.ProgramaAcademico;
+import com.udea.agora_backend.model.Rol;
+import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.repository.AreaEspecialidadRepository;
+import com.udea.agora_backend.repository.EstudianteLineaInvestigacionRepository;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.LineaInvestigacionRepository;
+import com.udea.agora_backend.repository.OauthProveedorRepository;
+import com.udea.agora_backend.repository.ProfesorAreaEspecialidadRepository;
+import com.udea.agora_backend.repository.ProfesorRepository;
+import com.udea.agora_backend.repository.ProgramaAcademicoRepository;
+import com.udea.agora_backend.repository.RolRepository;
+import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,7 +52,7 @@ public class OAuthOnboardingService {
                                                                            Integer idPrograma, Integer semestre,
                                        List<Integer> idLineasInvestigacion, List<Integer> idHabilidades) {
                 OauthProveedor proveedor = obtenerProveedorGoogle();
-        Rol rol = obtenerRol("Estudiante");
+        Rol rol = obtenerRol(NombresRol.ESTUDIANTE);
         ProgramaAcademico programa = programaRepository.findById(idPrograma)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
                 Usuario usuario = obtenerUsuarioParaCompletar(email, oauthId, nombreCompleto, proveedor, rol);
@@ -64,7 +83,7 @@ public class OAuthOnboardingService {
         public Integer completarProfesor(String email, String oauthId, String nombreCompleto,
                                                                           Integer idPrograma, List<Integer> idAreasEspecialidad) {
                 OauthProveedor proveedor = obtenerProveedorGoogle();
-        Rol rol = obtenerRol("Profesor");
+        Rol rol = obtenerRol(NombresRol.PROFESOR);
         ProgramaAcademico programa = programaRepository.findById(idPrograma)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", idPrograma));
                 Usuario usuario = obtenerUsuarioParaCompletar(email, oauthId, nombreCompleto, proveedor, rol);

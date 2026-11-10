@@ -35,21 +35,27 @@ export function SemilleroCard({ semillero }: { semillero: Semillero }) {
             <Users className="size-3.5" strokeWidth={1.75} aria-hidden />
             Integrantes
           </dt>
-          <dd className="mt-1 font-medium tabular-nums">{semillero.totalIntegrantes}</dd>
+          <dd className="mt-1 font-medium tabular-nums">
+            {semillero.totalIntegrantes}
+          </dd>
         </div>
         <div>
           <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <FlaskConical className="size-3.5" strokeWidth={1.75} aria-hidden />
             Proyectos
           </dt>
-          <dd className="mt-1 font-medium tabular-nums">{semillero.totalProyectos}</dd>
+          <dd className="mt-1 font-medium tabular-nums">
+            {semillero.totalProyectos}
+          </dd>
         </div>
         <div>
           <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <FileText className="size-3.5" strokeWidth={1.75} aria-hidden />
             Publicaciones
           </dt>
-          <dd className="mt-1 font-medium tabular-nums">{semillero.totalPublicaciones}</dd>
+          <dd className="mt-1 font-medium tabular-nums">
+            {semillero.totalPublicaciones}
+          </dd>
         </div>
       </dl>
 
@@ -57,7 +63,9 @@ export function SemilleroCard({ semillero }: { semillero: Semillero }) {
         {semillero.convocatoriaAbierta ? (
           <EstadoBadge estado="ABIERTA" />
         ) : (
-          <span className="text-xs text-muted-foreground">Sin convocatoria vigente</span>
+          <span className="text-xs text-muted-foreground">
+            Sin convocatoria vigente
+          </span>
         )}
         <Link
           to="/semilleros/$idSemillero"

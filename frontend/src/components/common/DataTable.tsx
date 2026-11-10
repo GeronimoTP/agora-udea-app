@@ -57,7 +57,9 @@ export function DataTable<T>({
                   <td
                     key={col.header}
                     className={`px-4 py-3 align-middle ${
-                      col.align === "right" ? "text-right tabular-nums" : "text-left"
+                      col.align === "right"
+                        ? "text-right tabular-nums"
+                        : "text-left"
                     }`}
                   >
                     {col.cell(row)}

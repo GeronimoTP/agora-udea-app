@@ -1,19 +1,20 @@
 package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.request.ConvocatoriaRequestDTO;
+import com.udea.agora_backend.dto.response.ConvocatoriaEstadoCuposDTO;
 import com.udea.agora_backend.dto.response.ConvocatoriaResponseDTO;
+import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.ConvocatoriaService;
 import com.udea.agora_backend.service.GestorConvocatoriasService;
-import com.udea.agora_backend.service.AutorizacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -65,7 +66,7 @@ public class ConvocatoriaController {
             @ApiResponse(responseCode = "404", description = "Convocatoria no encontrada")
     })
     @GetMapping("/{id}/cupos")
-    public ResponseEntity<GestorConvocatoriasService.ConvocatoriaEstadoCuposDTO> obtenerEstadoCupos(@PathVariable Integer id) {
+    public ResponseEntity<ConvocatoriaEstadoCuposDTO> obtenerEstadoCupos(@PathVariable Integer id) {
         return ResponseEntity.ok(gestorConvocatoriasService.obtenerEstadoCupos(id));
     }
 

@@ -2,6 +2,7 @@ package com.udea.agora_backend.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 
 @Entity
@@ -40,4 +41,9 @@ public class EstudianteSemillero {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_estado", nullable = false)
     private Estado estado;
+
+    /** Integrante activo: la vinculación no tiene fecha de salida. */
+    public boolean estaActiva() {
+        return fechaSalida == null;
+    }
 }

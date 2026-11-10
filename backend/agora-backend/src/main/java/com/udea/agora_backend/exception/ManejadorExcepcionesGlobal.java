@@ -2,8 +2,8 @@ package com.udea.agora_backend.exception;
 
 import com.udea.agora_backend.dto.response.ApiErrorResponseDTO;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -135,7 +135,7 @@ public class ManejadorExcepcionesGlobal extends ResponseEntityExceptionHandler {
             WebRequest request) {
 
         List<ApiErrorResponseDTO.FieldErrorDTO> fieldErrors = new ArrayList<>();
-        
+
         ex.getBindingResult().getFieldErrors().forEach(error ->
                 fieldErrors.add(
                         ApiErrorResponseDTO.FieldErrorDTO.builder()

@@ -1,19 +1,23 @@
 package com.udea.agora_backend.service;
 
-import com.udea.agora_backend.model.LineaInvestigacion;
-import com.udea.agora_backend.repository.LineaInvestigacionRepository;
-import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.dto.request.LineaInvestigacionRequestDTO;
+import com.udea.agora_backend.dto.response.LineaInvestigacionResponseDTO;
 import com.udea.agora_backend.evento.SemillerosModificadosEvent;
-import org.springframework.context.ApplicationEventPublisher;
+import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.model.AreaEspecialidad;
+import com.udea.agora_backend.model.LineaInvestigacion;
+import com.udea.agora_backend.repository.AreaEspecialidadRepository;
+import com.udea.agora_backend.repository.LineaInvestigacionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * Servicio de gestión de líneas de investigación.
- * Maneja operaciones CRUD simples de líneas de investigación.
+ * Catálogo de líneas de investigación. Cada línea pertenece a un área de especialidad; cambiar
+ * esa área o eliminar la línea mueve a los semilleros en el árbol KD, que se invalida.
  */
 @Service
 @RequiredArgsConstructor
@@ -21,62 +25,68 @@ import java.util.List;
 public class LineaInvestigacionService {
 
     private final LineaInvestigacionRepository lineaRepository;
+    private final AreaEspecialidadRepository areaRepository;
     private final ApplicationEventPublisher eventos;
 
-    /**
-     * Obtiene todas las líneas de investigación
-     */
-    public List<LineaInvestigacion> obtenerTodas() {
-        return lineaRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<LineaInvestigacionResponseDTO> obtenerTodas() {
+        return lineaRepository.findAll().stream().map(this::aResponse).toList();
     }
 
-    /**
-     * Obtiene una línea de investigación por su ID
-     */
-    public LineaInvestigacion obtenerPorId(Integer id) {
+    @Transactional(readOnly = true)
+    public LineaInvestigacionResponseDTO obtenerPorId(Integer id) {
+        return aResponse(buscar(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<LineaInvestigacionResponseDTO> buscarPorNombre(String nombre) {
+        return lineaRepository.findByNombreContainingIgnoreCaseOrderByNombre(nombre).stream()
+                .map(this::aResponse)
+                .toList();
+    }
+
+    public LineaInvestigacionResponseDTO crear(LineaInvestigacionRequestDTO request) {
+        LineaInvestigacion linea = LineaInvestigacion.builder()
+                .nombre(request.getNombre())
+                .descripcion(request.getDescripcion())
+                .areaEspecialidad(buscarArea(request.getIdAreaEspecialidad()))
+                .build();
+        return aResponse(lineaRepository.save(linea));
+    }
+
+    public LineaInvestigacionResponseDTO actualizar(Integer id, LineaInvestigacionRequestDTO request) {
+        LineaInvestigacion linea = buscar(id);
+        linea.setNombre(request.getNombre());
+        linea.setDescripcion(request.getDescripcion());
+        linea.setAreaEspecialidad(buscarArea(request.getIdAreaEspecialidad()));
+        publicarCambioSemilleros();
+        return aResponse(lineaRepository.save(linea));
+    }
+
+    public void eliminar(Integer id) {
+        lineaRepository.delete(buscar(id));
+        publicarCambioSemilleros();
+    }
+
+    private LineaInvestigacion buscar(Integer id) {
         return lineaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Línea de Investigación", id));
     }
 
-    /**
-     * Obtiene líneas de investigación por nombre (búsqueda parcial)
-     */
-    public List<LineaInvestigacion> obtenerPorNombreContiene(String nombre) {
-        return lineaRepository.findAll().stream()
-                .filter(l -> l.getNombre().toLowerCase().contains(nombre.toLowerCase()))
-                .toList();
+    private AreaEspecialidad buscarArea(Integer idArea) {
+        return areaRepository.findById(idArea)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Área de Especialidad", idArea));
     }
 
-    /**
-     * Crea una nueva línea de investigación
-     */
-    public LineaInvestigacion crear(LineaInvestigacion linea) {
-        return lineaRepository.save(linea);
-    }
-
-    /**
-     * Actualiza una línea de investigación existente
-     */
-    public LineaInvestigacion actualizar(Integer id, LineaInvestigacion lineaActualizada) {
-        publicarCambioSemilleros();
-        LineaInvestigacion linea = lineaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Línea de Investigación", id));
-        
-        linea.setNombre(lineaActualizada.getNombre());
-        linea.setDescripcion(lineaActualizada.getDescripcion());
-        linea.setAreaEspecialidad(lineaActualizada.getAreaEspecialidad());
-
-        return lineaRepository.save(linea);
-    }
-
-    /**
-     * Elimina una línea de investigación por su ID
-     */
-    public void eliminar(Integer id) {
-        publicarCambioSemilleros();
-        LineaInvestigacion linea = lineaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Línea de Investigación", id));
-        lineaRepository.delete(linea);
+    private LineaInvestigacionResponseDTO aResponse(LineaInvestigacion linea) {
+        AreaEspecialidad area = linea.getAreaEspecialidad();
+        return LineaInvestigacionResponseDTO.builder()
+                .id(linea.getId())
+                .nombre(linea.getNombre())
+                .descripcion(linea.getDescripcion())
+                .idAreaEspecialidad(area != null ? area.getId() : null)
+                .nombreAreaEspecialidad(area != null ? area.getNombre() : null)
+                .build();
     }
 
     // Invalida el árbol KD de semilleros similares. El índice escucha el evento después del

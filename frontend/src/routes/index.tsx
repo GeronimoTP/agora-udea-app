@@ -22,20 +22,11 @@ import {
   semillerosQuery,
   semillerosSimilaresQuery,
 } from "@/lib/api/queries";
-import { ApiError, apiRequest } from "@/lib/api/client";
-import type { UsuarioSesion } from "@/types/api";
+import { formatearFecha } from "@/lib/formato";
+import { requerirSesion } from "@/lib/api/sesion";
 
 export const Route = createFileRoute("/")({
   ssr: false,
-  beforeLoad: () => {
-    const isAuthenticated = localStorage.getItem("access_token");
-
-    if (!isAuthenticated) {
-      throw redirect({
-        to: "/auth/login",
-      });
-    }
-  },
   head: () => ({
     meta: [
       { title: "Tablero institucional | Agora UdeA" },
@@ -53,20 +44,7 @@ export const Route = createFileRoute("/")({
     ],
   }),
   loader: async ({ context }) => {
-    const isAuthenticated = localStorage.getItem("access_token");
-    if (!isAuthenticated) {
-      throw redirect({ to: "/auth/login" });
-    }
-
-    let sesion: UsuarioSesion;
-    try {
-      sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
-    } catch (error) {
-      if (error instanceof ApiError && [403, 404].includes(error.status)) {
-        throw redirect({ to: "/auth/select-role" });
-      }
-      throw error;
-    }
+    const sesion = await requerirSesion();
     // El administrador no tiene tablero de estudiante/profesor: su página principal es la analítica
     if (esAdministrador(sesion)) {
       throw redirect({ to: "/analitica" });
@@ -282,7 +260,10 @@ function TableroPage() {
                   <p className="text-muted-foreground">
                     Cierra el{" "}
                     <span className="font-medium text-foreground">
-                      {formatearFecha(convocatoria.fechaCierre)}
+                      {formatearFecha(convocatoria.fechaCierre, {
+                        siVacio: "Sin registro",
+                        mes: "long",
+                      })}
                     </span>
                   </p>
                   <p className="text-muted-foreground">
@@ -333,12 +314,18 @@ function TableroPage() {
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Pre-aprobada el{" "}
-                          {formatearFecha(postulacion.fechaPreAprobacion)}
+                          {formatearFecha(postulacion.fechaPreAprobacion, {
+                            siVacio: "Sin registro",
+                            mes: "long",
+                          })}
                         </p>
                         {postulacion.fechaLimiteRespuesta && (
                           <p className="mt-0.5 text-xs font-medium text-warning">
                             Responde antes del{" "}
-                            {formatearFecha(postulacion.fechaLimiteRespuesta)}
+                            {formatearFecha(postulacion.fechaLimiteRespuesta, {
+                              siVacio: "Sin registro",
+                              mes: "long",
+                            })}
                           </p>
                         )}
                         <Link
@@ -669,13 +656,4 @@ function SemillerosLiderados({
       </ul>
     </section>
   );
-}
-
-function formatearFecha(valor?: string | null) {
-  if (!valor) return "Sin registro";
-  return new Date(valor).toLocaleDateString("es-CO", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
 }

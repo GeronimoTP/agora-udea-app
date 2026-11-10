@@ -1,15 +1,15 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.EstadosConvocatoria;
 import com.udea.agora_backend.dto.request.ConvocatoriaRequestDTO;
 import com.udea.agora_backend.dto.response.ConvocatoriaResponseDTO;
 import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.Convocatoria;
 import com.udea.agora_backend.model.Estado;
-import com.udea.agora_backend.repository.ConvocatoriaRepository;
-import com.udea.agora_backend.repository.EstadoRepository;
-import com.udea.agora_backend.repository.PostulacionRepository;
 import com.udea.agora_backend.model.Semillero;
+import com.udea.agora_backend.repository.ConvocatoriaRepository;
+import com.udea.agora_backend.repository.PostulacionRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,13 +31,9 @@ import java.util.stream.Collectors;
 public class ConvocatoriaService {
 
     private final ConvocatoriaRepository convocatoriaRepository;
-    private final EstadoRepository estadoRepository;
+    private final BuscadorEstados buscadorEstados;
     private final SemilleroRepository semilleroRepository;
     private final PostulacionRepository postulacionRepository;
-
-    private static final String ESTADO_ABIERTA = "Abierta";
-    private static final String ESTADO_CERRADA = "Cerrada";
-    private static final String ESTADO_SEMILLERO_ACTIVO = "Activo";
 
     /**
      * Obtiene todas las convocatorias
@@ -72,39 +68,9 @@ public class ConvocatoriaService {
      * Obtiene convocatorias activas con cupos disponibles
      */
     public List<ConvocatoriaResponseDTO> obtenerActivasConCupos() {
-        Estado estadoAbierta = buscarEstado(ESTADO_ABIERTA);
+        Estado estadoAbierta = buscadorEstados.deConvocatoria(EstadosConvocatoria.ABIERTA);
 
         return convocatoriaRepository.findActivasConCupos(estadoAbierta.getId())
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Obtiene convocatorias expiradas (para procesamiento)
-     */
-    public List<ConvocatoriaResponseDTO> obtenerConvocatoriasExpiradas() {
-        return convocatoriaRepository.findConvocatoriasExpiradas()
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Obtiene convocatorias cuya fecha de cierre es anterior a la especificada
-     */
-    public List<ConvocatoriaResponseDTO> obtenerPorFechaCierreBefore(LocalDate fecha) {
-        return convocatoriaRepository.findByFechaCierreBefore(fecha)
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Obtiene convocatorias con cupos disponibles mayores a 0
-     */
-    public List<ConvocatoriaResponseDTO> obtenerConCuposDisponibles() {
-        return convocatoriaRepository.findByCuposDisponiblesGreaterThan(0)
                 .stream()
                 .map(this::mapeoAResponseDTO)
                 .collect(Collectors.toList());
@@ -118,7 +84,7 @@ public class ConvocatoriaService {
         Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
 
-        if (!ESTADO_SEMILLERO_ACTIVO.equalsIgnoreCase(semillero.getEstado().getNombre())) {
+        if (!semillero.estaActivo()) {
             throw new ErrorLogicaNegocioException("Solo un semillero activo puede abrir convocatorias.");
         }
         if (request.getFechaInicio().isBefore(LocalDate.now())) {
@@ -126,7 +92,7 @@ public class ConvocatoriaService {
         }
         validarFechas(request.getFechaInicio(), request.getFechaCierre());
 
-        Estado estado = buscarEstado(ESTADO_ABIERTA);
+        Estado estado = buscadorEstados.deConvocatoria(EstadosConvocatoria.ABIERTA);
 
         // Crear convocatoria
         Convocatoria convocatoria = Convocatoria.builder()
@@ -152,7 +118,7 @@ public class ConvocatoriaService {
         Convocatoria convocatoria = convocatoriaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Convocatoria", id));
 
-        if ("Cancelada".equalsIgnoreCase(convocatoria.getEstado().getNombre())) {
+        if (convocatoria.getEstado().tieneNombre(EstadosConvocatoria.CANCELADA)) {
             throw new ErrorLogicaNegocioException("Una convocatoria cancelada no se puede editar.");
         }
         // Las postulaciones pertenecen al semillero original: una convocatoria no cambia de semillero
@@ -177,12 +143,11 @@ public class ConvocatoriaService {
 
         // Estado coherente con los cupos: sin cupos se cierra; si se liberan cupos en una
         // convocatoria cerrada solo por cupos y aún vigente, se reabre
-        String estadoActual = convocatoria.getEstado().getNombre();
-        if (convocatoria.getCuposDisponibles() == 0) {
-            convocatoria.setEstado(buscarEstado(ESTADO_CERRADA));
-        } else if (ESTADO_CERRADA.equalsIgnoreCase(estadoActual)
+        if (!convocatoria.tieneCuposDisponibles()) {
+            convocatoria.setEstado(buscadorEstados.deConvocatoria(EstadosConvocatoria.CERRADA));
+        } else if (convocatoria.getEstado().tieneNombre(EstadosConvocatoria.CERRADA)
                 && !convocatoria.getFechaCierre().isBefore(LocalDate.now())) {
-            convocatoria.setEstado(buscarEstado(ESTADO_ABIERTA));
+            convocatoria.setEstado(buscadorEstados.deConvocatoria(EstadosConvocatoria.ABIERTA));
         }
 
         Convocatoria convocatoriaActualizada = convocatoriaRepository.save(convocatoria);
@@ -209,11 +174,6 @@ public class ConvocatoriaService {
         if (fechaCierre.isBefore(LocalDate.now())) {
             throw new ErrorLogicaNegocioException("La fecha de cierre ya pasó.");
         }
-    }
-
-    private Estado buscarEstado(String nombre) {
-        return estadoRepository.findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(CategoriasEstado.CONVOCATORIA, nombre)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", nombre));
     }
 
     /**

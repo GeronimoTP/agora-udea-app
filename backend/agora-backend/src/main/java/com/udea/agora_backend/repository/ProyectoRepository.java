@@ -6,9 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-@Repository 
+@Repository
 public interface ProyectoRepository extends JpaRepository<Proyecto, Integer> {
 
     List<Proyecto> findBySemilleroId(Integer semilleroId);
-    
+
 }

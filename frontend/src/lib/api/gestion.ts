@@ -159,6 +159,66 @@ export interface NuevoReconocimiento {
   urlCertificado: string;
 }
 
+/** GET /api/analitica/semillero/{id}: indicadores del semillero (Servicio 3). */
+export interface AnaliticaSemillero {
+  idSemillero: number;
+  nombreSemillero: string;
+  integrantesActivos: number;
+  integrantesRetirados: number;
+  postulacionesActivas: number;
+  totalPostulaciones: number;
+  /** Estado → cantidad, en el orden del flujo (Pendiente … Expirada). */
+  postulacionesPorEstado: Record<string, number>;
+  tasaDemanda: number;
+  demandaPorConvocatoria: {
+    idConvocatoria: number;
+    titulo: string;
+    estado: string | null;
+    cuposTotales: number;
+    cuposDisponibles: number;
+    postulacionesRecibidas: number;
+    tasaDemanda: number;
+  }[];
+  tiempoRespuesta: {
+    totalPostulacionesEvaluadas: number;
+    promedioHoras: number;
+  };
+  tasaRetencion: {
+    ofertasAceptadas: number;
+    ofertasRechazadasPorEstudiante: number;
+    ofertasExpiradas: number;
+    totalOfertasProcesadas: number;
+    porcentajeRetencion: number;
+  };
+  conversionProyectos: {
+    totalProyectos: number;
+    totalPublicaciones: number;
+    promedioPublicacionesPorProyecto: number;
+  };
+  participacionEstudiantil: {
+    totalAutoresRegistrados: number;
+    porcentajeParticipacionEstudiantil: number;
+  };
+  impactoReconocimientos: {
+    totalReconocimientos: number;
+    distribucionPorEntidad: Record<string, number>;
+  };
+  habilidadesEmergentes: { habilidad: string; frecuencia: number }[];
+  interdisciplinariedad: {
+    totalEstudiantesVinculados: number;
+    porcentajeInterdisciplinariedad: number;
+  };
+  /** Los mismos indicadores para toda la universidad, para comparar. */
+  referenciaInstitucional: {
+    tasaDemandaPromedio: number;
+    porcentajeRetencion: number;
+    promedioHorasRespuesta: number;
+    promedioPublicacionesPorProyecto: number;
+    porcentajeParticipacionEstudiantil: number;
+    porcentajeInterdisciplinariedad: number;
+  };
+}
+
 export interface EstadoCatalogo {
   id: number;
   nombre: string;
@@ -190,6 +250,8 @@ const hoy = () => {
 export const gestionService = {
   semillero: (id: number) =>
     apiRequest<SemilleroDetalle>(`/api/semilleros/${id}`),
+  analitica: (id: number) =>
+    apiRequest<AnaliticaSemillero>(`/api/analitica/semillero/${id}`),
   actualizarSemillero: (id: number, datos: DatosSemillero) =>
     apiRequest<SemilleroDetalle>(`/api/semilleros/${id}`, {
       method: "PUT",
@@ -394,6 +456,12 @@ export const gestionQueries = {
     queryOptions({
       queryKey: [...claveGestion(id), "reconocimientos"],
       queryFn: () => gestionService.reconocimientos(id),
+    }),
+  // Bajo la clave de la gestión: cualquier cambio en el semillero la recalcula
+  analitica: (id: number) =>
+    queryOptions({
+      queryKey: [...claveGestion(id), "analitica"],
+      queryFn: () => gestionService.analitica(id),
     }),
 };
 

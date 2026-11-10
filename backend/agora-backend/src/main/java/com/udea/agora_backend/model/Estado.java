@@ -25,4 +25,9 @@ public class Estado {
 
     @Column(nullable = false)
     private String descripcion;
+
+    /** Compara el nombre sin distinguir mayúsculas, como se guardan en tbl_estados. */
+    public boolean tieneNombre(String nombreEstado) {
+        return nombre != null && nombre.equalsIgnoreCase(nombreEstado);
+    }
 }

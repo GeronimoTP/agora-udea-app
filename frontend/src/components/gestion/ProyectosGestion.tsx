@@ -18,9 +18,9 @@ import {
   claseBotonPrimario,
   claseBotonSecundario,
   claseCampo,
-  formatearFecha,
   useAccionGestion,
 } from "./comunes";
+import { formatearFecha } from "@/lib/formato";
 
 const formatoPesos = new Intl.NumberFormat("es-CO", {
   style: "currency",

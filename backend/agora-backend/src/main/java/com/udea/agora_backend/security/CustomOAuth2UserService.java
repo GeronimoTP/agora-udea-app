@@ -1,5 +1,6 @@
 package com.udea.agora_backend.security;
 
+import com.udea.agora_backend.dominio.NombresRol;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -20,7 +21,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oAuth2User = super.loadUser(userRequest);
-        
+
         String email = oAuth2User.getAttribute("email");
         String oauthId = oAuth2User.getAttribute("sub");
 
@@ -36,7 +37,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         // (ver OAuth2LoginSuccessHandler); las demás cuentas no pueden cambiar de `sub`.
         boolean correoAsociadoAOtraCuenta = usuarioRepository.findWithRolByEmail(email)
             .filter(usuario -> !oauthId.equals(usuario.getOauthId()))
-            .filter(usuario -> !(correoVerificado && "Administrador".equals(usuario.getRol().getNombre())))
+            .filter(usuario -> !(correoVerificado && NombresRol.ADMINISTRADOR.equals(usuario.getRol().getNombre())))
             .isPresent();
         if (correoAsociadoAOtraCuenta) {
             throw new OAuth2AuthenticationException(

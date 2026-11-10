@@ -18,9 +18,9 @@ import {
   claseBotonSecundario,
   claseCampo,
   fechaHoy,
-  formatearFecha,
   useAccionGestion,
 } from "./comunes";
+import { formatearFecha } from "@/lib/formato";
 
 export function PublicacionesGestion({ idSemillero }: { idSemillero: number }) {
   const { data: publicaciones } = useSuspenseQuery(

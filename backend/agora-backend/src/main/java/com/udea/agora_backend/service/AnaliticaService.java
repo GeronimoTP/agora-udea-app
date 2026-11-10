@@ -1,393 +1,198 @@
 package com.udea.agora_backend.service;
 
-import com.udea.agora_backend.model.*;
-import com.udea.agora_backend.repository.*;
-import lombok.Builder;
-import lombok.Data;
+import com.udea.agora_backend.dto.response.analitica.AnaliticaSemilleroDTO;
+import com.udea.agora_backend.dto.response.analitica.ConversionProyectoPublicacionDTO;
+import com.udea.agora_backend.dto.response.analitica.DashboardResumenDTO;
+import com.udea.agora_backend.dto.response.analitica.DistribucionImpactoReconocimientosDTO;
+import com.udea.agora_backend.dto.response.analitica.HabilidadFrecuenciaDTO;
+import com.udea.agora_backend.dto.response.analitica.InterdisciplinariedadDTO;
+import com.udea.agora_backend.dto.response.analitica.ParticipacionEstudiantilDTO;
+import com.udea.agora_backend.dto.response.analitica.ReferenciaInstitucionalDTO;
+import com.udea.agora_backend.dto.response.analitica.TasaDemandaSemilleroDTO;
+import com.udea.agora_backend.dto.response.analitica.TasaRetencionOfertasDTO;
+import com.udea.agora_backend.dto.response.analitica.TiempoPromedioRespuestaDTO;
+import com.udea.agora_backend.exception.RecursoNoEncontradoException;
+import com.udea.agora_backend.model.EstudianteSemillero;
+import com.udea.agora_backend.model.Semillero;
+import com.udea.agora_backend.repository.ConvocatoriaRepository;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
+import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
+import com.udea.agora_backend.repository.PostulacionRepository;
+import com.udea.agora_backend.repository.ProyectoRepository;
+import com.udea.agora_backend.repository.PublicacionRepository;
+import com.udea.agora_backend.repository.PublicacionUsuarioRepository;
+import com.udea.agora_backend.repository.ReconocimientoSemilleroRepository;
+import com.udea.agora_backend.repository.SemilleroRepository;
+import com.udea.agora_backend.service.analitica.CalculadoraIndicadores;
+import com.udea.agora_backend.service.analitica.DatosAnalitica;
+import com.udea.agora_backend.util.Redondeo;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.ZonedDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.HashSet;
+import java.util.List;
 
 /**
- * SERVICIO 3: Módulo de Analítica e Indicadores de Impacto Institucional (Dashboard)
- * 
- * Calcula métricas institucionales de atracción, productividad científica,
- * impacto de reconocimientos, tendencias de habilidades e interdisciplinariedad.
+ * SERVICIO 3: analítica e indicadores de impacto.
+ *
+ * <p>Carga los datos de cada alcance y delega las fórmulas en {@link CalculadoraIndicadores}:
+ * <ul>
+ *   <li>Institucional (administrador): todos los semilleros.</li>
+ *   <li>Por semillero (sus líderes y tutores): solo los datos de ese semillero, más la
+ *       referencia institucional para comparar.</li>
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-@Slf4j
 public class AnaliticaService {
 
-    private static final String ESTADO_ACEPTADA = "Aceptada";
-    private static final String ESTADO_RECHAZADA_ESTUDIANTE = "Rechazada por Estudiante";
-    private static final String ESTADO_CANCELADA = "Cancelada en cascada";
-    private static final String ESTADO_EXPIRADA = "Expirada";
-
+    private final CalculadoraIndicadores calculadora;
+    private final SemilleroRepository semilleroRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final PostulacionRepository postulacionRepository;
+    private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final ProyectoRepository proyectoRepository;
     private final PublicacionRepository publicacionRepository;
     private final PublicacionUsuarioRepository publicacionUsuarioRepository;
     private final ReconocimientoSemilleroRepository reconocimientoRepository;
-    private final PostulacionHabilidadRepository postulacionHabilidadRepository;
-    private final SemilleroRepository semilleroRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
-    private final ProfesorSemilleroRepository profesorSemilleroRepository;
     private final EstudianteRepository estudianteRepository;
 
-    /**
-     * 1. Tasa de Demanda por Semillero: Total postulaciones recibidas / Total cupos ofertados
-     */
-    public List<TasaDemandaSemilleroDTO> calcularTasaDemandaPorSemillero() {
-        List<Semillero> semilleros = semilleroRepository.findAll();
-        List<Convocatoria> convocatorias = convocatoriaRepository.findAll();
-        List<Postulacion> postulaciones = postulacionRepository.findAll();
+    // ==========================================
+    // VISTA INSTITUCIONAL (administrador)
+    // ==========================================
 
-        List<TasaDemandaSemilleroDTO> resultado = new ArrayList<>();
-
-        for (Semillero s : semilleros) {
-            List<Convocatoria> convocatoriasSemillero = convocatorias.stream()
-                    .filter(c -> c.getSemillero() != null && c.getSemillero().getId().equals(s.getId()))
-                    .toList();
-
-            int cuposTotales = convocatoriasSemillero.stream()
-                    .mapToInt(Convocatoria::getCuposTotales)
-                    .sum();
-
-            long totalPostulaciones = postulaciones.stream()
-                    .filter(p -> p.getConvocatoria() != null && p.getConvocatoria().getSemillero() != null
-                            && p.getConvocatoria().getSemillero().getId().equals(s.getId()))
-                    .count();
-
-            double tasaDemanda = cuposTotales > 0 ? (double) totalPostulaciones / cuposTotales : 0.0;
-
-            resultado.add(TasaDemandaSemilleroDTO.builder()
-                    .idSemillero(s.getId())
-                    .nombreSemillero(s.getNombre())
-                    .cuposOfertados(cuposTotales)
-                    .postulacionesRecibidas(totalPostulaciones)
-                    .tasaDemanda(Math.round(tasaDemanda * 100.0) / 100.0)
-                    .build());
-        }
-
-        return resultado;
-    }
-
-    /**
-     * 2. Tiempo Promedio de Respuesta del Estudiante (en horas / días)
-     * Desde que el líder emite la oferta (fechaPreAprobacion) hasta que el estudiante la
-     * acepta o la rechaza. No incluye rechazos del líder, cancelaciones en cascada ni expiraciones.
-     */
-    public TiempoPromedioRespuestaDTO calcularTiempoPromedioRespuesta() {
-        List<Postulacion> postulacionesDecididas = postulacionRepository.findAll().stream()
-                .filter(p -> p.getFechaPreAprobacion() != null && p.getFechaDecisionEstudiante() != null)
-                .filter(p -> tieneEstado(p, ESTADO_ACEPTADA) || tieneEstado(p, ESTADO_RECHAZADA_ESTUDIANTE))
-                .toList();
-
-        if (postulacionesDecididas.isEmpty()) {
-            return TiempoPromedioRespuestaDTO.builder()
-                    .totalPostulacionesEvaluadas(0)
-                    .promedioHoras(0.0)
-                    .promedioDias(0.0)
-                    .build();
-        }
-
-        double totalHoras = 0.0;
-        for (Postulacion p : postulacionesDecididas) {
-            Duration duration = Duration.between(p.getFechaPreAprobacion(), p.getFechaDecisionEstudiante());
-            totalHoras += Math.max(0, duration.toHours());
-        }
-
-        double promedioHoras = totalHoras / postulacionesDecididas.size();
-        double promedioDias = promedioHoras / 24.0;
-
-        return TiempoPromedioRespuestaDTO.builder()
-                .totalPostulacionesEvaluadas(postulacionesDecididas.size())
-                .promedioHoras(Math.round(promedioHoras * 100.0) / 100.0)
-                .promedioDias(Math.round(promedioDias * 100.0) / 100.0)
-                .build();
-    }
-
-    /**
-     * 3. Tasa de Retención vs. Rechazo de Ofertas
-     * Solo cuenta ofertas reales (postulaciones que el líder pre-aprobó):
-     * - Aceptadas.
-     * - Rechazadas: declinadas por el estudiante, o canceladas en cascada después de recibir oferta.
-     * - Expiradas: con oferta emitida que el estudiante no respondió a tiempo.
-     * Las postulaciones que nunca recibieron oferta (Pendiente cancelada/expirada) no son ofertas.
-     */
-    public TasaRetencionOfertasDTO calcularTasaRetencionRechazo() {
-        List<Postulacion> postulaciones = postulacionRepository.findAll();
-
-        long aceptadas = postulaciones.stream()
-                .filter(p -> tieneEstado(p, ESTADO_ACEPTADA))
-                .count();
-
-        long rechazadasEstudiante = postulaciones.stream()
-                .filter(p -> tieneEstado(p, ESTADO_RECHAZADA_ESTUDIANTE)
-                        || (tieneEstado(p, ESTADO_CANCELADA) && p.getFechaPreAprobacion() != null))
-                .count();
-
-        long expiradas = postulaciones.stream()
-                .filter(p -> tieneEstado(p, ESTADO_EXPIRADA) && p.getFechaPreAprobacion() != null)
-                .count();
-
-        long totalOfertasEmitidas = aceptadas + rechazadasEstudiante + expiradas;
-
-        double tasaRetencion = totalOfertasEmitidas > 0 ? ((double) aceptadas / totalOfertasEmitidas) * 100.0 : 0.0;
-        double tasaRechazo = totalOfertasEmitidas > 0 ? (((double) (rechazadasEstudiante + expiradas)) / totalOfertasEmitidas) * 100.0 : 0.0;
-
-        return TasaRetencionOfertasDTO.builder()
-                .ofertasAceptadas(aceptadas)
-                .ofertasRechazadasPorEstudiante(rechazadasEstudiante)
-                .ofertasExpiradas(expiradas)
-                .totalOfertasProcesadas(totalOfertasEmitidas)
-                .porcentajeRetencion(Math.round(tasaRetencion * 100.0) / 100.0)
-                .porcentajeRechazoYExpiracion(Math.round(tasaRechazo * 100.0) / 100.0)
-                .build();
-    }
-
-    /**
-     * 4. Índice de Conversión Proyecto-Publicación
-     */
-    public ConversionProyectoPublicacionDTO calcularConversionProyectoPublicacion() {
-        List<Proyecto> proyectos = proyectoRepository.findAll();
-        List<Publicacion> publicaciones = publicacionRepository.findAll();
-
-        long totalProyectos = proyectos.size();
-        long totalPublicaciones = publicaciones.size();
-
-        double promedio = totalProyectos > 0 ? (double) totalPublicaciones / totalProyectos : 0.0;
-
-        return ConversionProyectoPublicacionDTO.builder()
-                .totalProyectos(totalProyectos)
-                .totalPublicaciones(totalPublicaciones)
-                .promedioPublicacionesPorProyecto(Math.round(promedio * 100.0) / 100.0)
-                .build();
-    }
-
-    /**
-     * 5. Índice de Participación Estudiantil en Autorías
-     */
-    public ParticipacionEstudiantilDTO calcularParticipacionEstudiantil() {
-        List<PublicacionUsuario> autores = publicacionUsuarioRepository.findAll();
-        Set<Integer> usuariosEstudiantes = estudianteRepository.findAll().stream()
-                .map(e -> e.getUsuario().getId())
-                .collect(Collectors.toSet());
-
-        long totalAutores = autores.size();
-        long totalAutoresEstudiantes = autores.stream()
-                .filter(pu -> usuariosEstudiantes.contains(pu.getUsuario().getId())
-                        || (pu.getRolAutor() != null && pu.getRolAutor().getNombre().toLowerCase().contains("estudiante")))
-                .count();
-
-        double porcentaje = totalAutores > 0 ? ((double) totalAutoresEstudiantes / totalAutores) * 100.0 : 0.0;
-
-        return ParticipacionEstudiantilDTO.builder()
-                .totalAutoresRegistrados(totalAutores)
-                .totalAutoresEstudiantes(totalAutoresEstudiantes)
-                .porcentajeParticipacionEstudiantil(Math.round(porcentaje * 100.0) / 100.0)
-                .build();
-    }
-
-    /**
-     * 6. Distribución del Impacto de Reconocimientos (por Entidad y Tipo)
-     */
-    public DistribucionImpactoReconocimientosDTO calcularDistribucionImpactoReconocimientos() {
-        List<ReconocimientoSemillero> reconocimientos = reconocimientoRepository.findAll();
-
-        Map<String, Long> porEntidad = reconocimientos.stream()
-                .collect(Collectors.groupingBy(
-                        r -> r.getEntidadOtorgante() != null ? r.getEntidadOtorgante().getNombre() : "Sin Entidad",
-                        Collectors.counting()
-                ));
-
-        Map<String, Long> porTipo = reconocimientos.stream()
-                .collect(Collectors.groupingBy(
-                        r -> r.getTipoReconocimiento() != null ? r.getTipoReconocimiento().getNombre() : "Sin Tipo",
-                        Collectors.counting()
-                ));
-
-        return DistribucionImpactoReconocimientosDTO.builder()
-                .totalReconocimientos(reconocimientos.size())
-                .distribucionPorEntidad(porEntidad)
-                .distribucionPorTipo(porTipo)
-                .build();
-    }
-
-    /**
-     * 7. Mapa de Habilidades Emergentes (Skill Trend en postulaciones aceptadas)
-     */
-    public List<HabilidadFrecuenciaDTO> calcularMapaHabilidadesEmergentes() {
-        List<PostulacionHabilidad> postulacionHabilidades = postulacionHabilidadRepository.findAll();
-
-        Map<String, Long> conteo = postulacionHabilidades.stream()
-                .filter(ph -> ph.getPostulacion() != null
-                        && ph.getPostulacion().getEstado() != null
-                        && ph.getPostulacion().getEstado().getNombre().equalsIgnoreCase("Aceptada"))
-                .collect(Collectors.groupingBy(
-                        ph -> ph.getHabilidad().getNombre(),
-                        Collectors.counting()
-                ));
-
-        return conteo.entrySet().stream()
-                .map(entry -> HabilidadFrecuenciaDTO.builder()
-                        .habilidad(entry.getKey())
-                        .frecuencia(entry.getValue())
-                        .build())
-                .sorted(Comparator.comparingLong(HabilidadFrecuenciaDTO::getFrecuencia).reversed())
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * 8. Índice de Interdisciplinariedad: % de estudiantes cuyo id_programa difiere del programa del semillero / tutor
-     */
-    public InterdisciplinariedadDTO calcularIndiceInterdisciplinariedad() {
-        List<EstudianteSemillero> vinculaciones = estudianteSemilleroRepository.findAll();
-
-        if (vinculaciones.isEmpty()) {
-            return InterdisciplinariedadDTO.builder()
-                    .totalEstudiantesVinculados(0)
-                    .estudiantesInterdisciplinarios(0L)
-                    .porcentajeInterdisciplinariedad(0.0)
-                    .build();
-        }
-
-        long interdisciplinarios = vinculaciones.stream()
-                .filter(es -> {
-                    if (es.getEstudiante() == null || es.getEstudiante().getPrograma() == null || es.getSemillero() == null || es.getSemillero().getPrograma() == null) {
-                        return false;
-                    }
-                    return !es.getEstudiante().getPrograma().getId().equals(es.getSemillero().getPrograma().getId());
-                })
-                .count();
-
-        double porcentaje = ((double) interdisciplinarios / vinculaciones.size()) * 100.0;
-
-        return InterdisciplinariedadDTO.builder()
-                .totalEstudiantesVinculados(vinculaciones.size())
-                .estudiantesInterdisciplinarios(interdisciplinarios)
-                .porcentajeInterdisciplinariedad(Math.round(porcentaje * 100.0) / 100.0)
-                .build();
-    }
-
-    private static boolean tieneEstado(Postulacion postulacion, String nombreEstado) {
-        return postulacion.getEstado() != null && postulacion.getEstado().getNombre().equalsIgnoreCase(nombreEstado);
-    }
-
-    /**
-     * Resumen completo de todos los KPIs institucionales para el Dashboard
-     */
     public DashboardResumenDTO obtenerResumenDashboard() {
+        DatosAnalitica datos = datosInstitucionales();
         return DashboardResumenDTO.builder()
-                .postulacionesActivas(postulacionRepository.findAll().stream()
-                        .filter(postulacion -> postulacion.getEstado() != null
-                                && (postulacion.getEstado().getNombre().equalsIgnoreCase("Pendiente")
-                                || postulacion.getEstado().getNombre().equalsIgnoreCase("Pre-aprobada")))
-                        .count())
-                .tasasDemanda(calcularTasaDemandaPorSemillero())
-                .tiempoRespuesta(calcularTiempoPromedioRespuesta())
-                .tasaRetencion(calcularTasaRetencionRechazo())
-                .conversionProyectos(calcularConversionProyectoPublicacion())
-                .participacionEstudiantil(calcularParticipacionEstudiantil())
-                .impactoReconocimientos(calcularDistribucionImpactoReconocimientos())
-                .habilidadesEmergentes(calcularMapaHabilidadesEmergentes())
-                .interdisciplinariedad(calcularIndiceInterdisciplinariedad())
+                .postulacionesActivas(calculadora.postulacionesActivas(datos))
+                .tasasDemanda(calculadora.demandaPorSemillero(semilleroRepository.findAll(), datos))
+                .tiempoRespuesta(calculadora.tiempoPromedioRespuesta(datos))
+                .tasaRetencion(calculadora.tasaRetencion(datos))
+                .conversionProyectos(calculadora.conversionProyectoPublicacion(datos))
+                .participacionEstudiantil(calculadora.participacionEstudiantil(datos))
+                .impactoReconocimientos(calculadora.distribucionReconocimientos(datos))
+                .habilidadesEmergentes(calculadora.habilidadesEmergentes(datos))
+                .interdisciplinariedad(calculadora.interdisciplinariedad(datos))
+                .build();
+    }
+
+    public List<TasaDemandaSemilleroDTO> calcularTasaDemandaPorSemillero() {
+        return calculadora.demandaPorSemillero(semilleroRepository.findAll(), datosInstitucionales());
+    }
+
+    public TiempoPromedioRespuestaDTO calcularTiempoPromedioRespuesta() {
+        return calculadora.tiempoPromedioRespuesta(datosInstitucionales());
+    }
+
+    public TasaRetencionOfertasDTO calcularTasaRetencionRechazo() {
+        return calculadora.tasaRetencion(datosInstitucionales());
+    }
+
+    public ConversionProyectoPublicacionDTO calcularConversionProyectoPublicacion() {
+        return calculadora.conversionProyectoPublicacion(datosInstitucionales());
+    }
+
+    public ParticipacionEstudiantilDTO calcularParticipacionEstudiantil() {
+        return calculadora.participacionEstudiantil(datosInstitucionales());
+    }
+
+    public DistribucionImpactoReconocimientosDTO calcularDistribucionImpactoReconocimientos() {
+        return calculadora.distribucionReconocimientos(datosInstitucionales());
+    }
+
+    public List<HabilidadFrecuenciaDTO> calcularMapaHabilidadesEmergentes() {
+        return calculadora.habilidadesEmergentes(datosInstitucionales());
+    }
+
+    public InterdisciplinariedadDTO calcularIndiceInterdisciplinariedad() {
+        return calculadora.interdisciplinariedad(datosInstitucionales());
+    }
+
+    // ==========================================
+    // VISTA DE UN SEMILLERO (líderes y tutores)
+    // ==========================================
+
+    public AnaliticaSemilleroDTO obtenerAnaliticaSemillero(Integer idSemillero) {
+        Semillero semillero = semilleroRepository.findById(idSemillero)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", idSemillero));
+        DatosAnalitica datos = datosDeSemillero(idSemillero);
+        int integrantesActivos = (int) datos.vinculaciones().stream().filter(EstudianteSemillero::estaActiva).count();
+
+        return AnaliticaSemilleroDTO.builder()
+                .idSemillero(semillero.getId())
+                .nombreSemillero(semillero.getNombre())
+                .integrantesActivos(integrantesActivos)
+                .integrantesRetirados(datos.vinculaciones().size() - integrantesActivos)
+                .postulacionesActivas(calculadora.postulacionesActivas(datos))
+                .totalPostulaciones((long) datos.postulaciones().size())
+                .postulacionesPorEstado(calculadora.postulacionesPorEstado(datos))
+                .tasaDemanda(calculadora.tasaDemandaGlobal(datos))
+                .demandaPorConvocatoria(calculadora.demandaPorConvocatoria(datos))
+                .tiempoRespuesta(calculadora.tiempoPromedioRespuesta(datos))
+                .tasaRetencion(calculadora.tasaRetencion(datos))
+                .conversionProyectos(calculadora.conversionProyectoPublicacion(datos))
+                .participacionEstudiantil(calculadora.participacionEstudiantil(datos))
+                .impactoReconocimientos(calculadora.distribucionReconocimientos(datos))
+                .habilidadesEmergentes(calculadora.habilidadesEmergentes(datos))
+                .interdisciplinariedad(calculadora.interdisciplinariedad(datos))
+                .referenciaInstitucional(referenciaInstitucional())
+                .build();
+    }
+
+    /**
+     * Valores de toda la universidad para comparar. La tasa de demanda es el promedio de las
+     * tasas por semillero, igual que en la vista del administrador.
+     */
+    private ReferenciaInstitucionalDTO referenciaInstitucional() {
+        DatosAnalitica datos = datosInstitucionales();
+        double demandaPromedio = calculadora.demandaPorSemillero(semilleroRepository.findAll(), datos).stream()
+                .mapToDouble(TasaDemandaSemilleroDTO::getTasaDemanda)
+                .average()
+                .orElse(0.0);
+        return ReferenciaInstitucionalDTO.builder()
+                .tasaDemandaPromedio(Redondeo.dosDecimales(demandaPromedio))
+                .porcentajeRetencion(calculadora.tasaRetencion(datos).getPorcentajeRetencion())
+                .promedioHorasRespuesta(calculadora.tiempoPromedioRespuesta(datos).getPromedioHoras())
+                .promedioPublicacionesPorProyecto(
+                        calculadora.conversionProyectoPublicacion(datos).getPromedioPublicacionesPorProyecto())
+                .porcentajeParticipacionEstudiantil(
+                        calculadora.participacionEstudiantil(datos).getPorcentajeParticipacionEstudiantil())
+                .porcentajeInterdisciplinariedad(
+                        calculadora.interdisciplinariedad(datos).getPorcentajeInterdisciplinariedad())
                 .build();
     }
 
     // ==========================================
-    // DTOs DE ANALÍTICA
+    // CARGA DE DATOS POR ALCANCE
     // ==========================================
 
-    @Data
-    @Builder
-    public static class TasaDemandaSemilleroDTO {
-        private Integer idSemillero;
-        private String nombreSemillero;
-        private Integer cuposOfertados;
-        private Long postulacionesRecibidas;
-        private Double tasaDemanda;
+    private DatosAnalitica datosInstitucionales() {
+        return new DatosAnalitica(
+                convocatoriaRepository.findAll(),
+                postulacionRepository.findAll(),
+                postulacionHabilidadRepository.findAll(),
+                proyectoRepository.findAll(),
+                publicacionRepository.findAll(),
+                publicacionUsuarioRepository.findAll(),
+                reconocimientoRepository.findAll(),
+                estudianteSemilleroRepository.findAll(),
+                new HashSet<>(estudianteRepository.findIdsUsuario()));
     }
 
-    @Data
-    @Builder
-    public static class TiempoPromedioRespuestaDTO {
-        private Integer totalPostulacionesEvaluadas;
-        private Double promedioHoras;
-        private Double promedioDias;
-    }
-
-    @Data
-    @Builder
-    public static class TasaRetencionOfertasDTO {
-        private Long ofertasAceptadas;
-        private Long ofertasRechazadasPorEstudiante;
-        private Long ofertasExpiradas;
-        private Long totalOfertasProcesadas;
-        private Double porcentajeRetencion;
-        private Double porcentajeRechazoYExpiracion;
-    }
-
-    @Data
-    @Builder
-    public static class ConversionProyectoPublicacionDTO {
-        private Long totalProyectos;
-        private Long totalPublicaciones;
-        private Double promedioPublicacionesPorProyecto;
-    }
-
-    @Data
-    @Builder
-    public static class ParticipacionEstudiantilDTO {
-        private Long totalAutoresRegistrados;
-        private Long totalAutoresEstudiantes;
-        private Double porcentajeParticipacionEstudiantil;
-    }
-
-    @Data
-    @Builder
-    public static class DistribucionImpactoReconocimientosDTO {
-        private Integer totalReconocimientos;
-        private Map<String, Long> distribucionPorEntidad;
-        private Map<String, Long> distribucionPorTipo;
-    }
-
-    @Data
-    @Builder
-    public static class HabilidadFrecuenciaDTO {
-        private String habilidad;
-        private Long frecuencia;
-    }
-
-    @Data
-    @Builder
-    public static class InterdisciplinariedadDTO {
-        private Integer totalEstudiantesVinculados;
-        private Long estudiantesInterdisciplinarios;
-        private Double porcentajeInterdisciplinariedad;
-    }
-
-    @Data
-    @Builder
-    public static class DashboardResumenDTO {
-                private Long postulacionesActivas;
-        private List<TasaDemandaSemilleroDTO> tasasDemanda;
-        private TiempoPromedioRespuestaDTO tiempoRespuesta;
-        private TasaRetencionOfertasDTO tasaRetencion;
-        private ConversionProyectoPublicacionDTO conversionProyectos;
-        private ParticipacionEstudiantilDTO participacionEstudiantil;
-        private DistribucionImpactoReconocimientosDTO impactoReconocimientos;
-        private List<HabilidadFrecuenciaDTO> habilidadesEmergentes;
-        private InterdisciplinariedadDTO interdisciplinariedad;
+    private DatosAnalitica datosDeSemillero(Integer idSemillero) {
+        return new DatosAnalitica(
+                convocatoriaRepository.findBySemilleroId(idSemillero),
+                postulacionRepository.findByConvocatoriaSemilleroId(idSemillero),
+                postulacionHabilidadRepository.findBySemilleroId(idSemillero),
+                proyectoRepository.findBySemilleroId(idSemillero),
+                publicacionRepository.findByProyectoSemilleroId(idSemillero),
+                publicacionUsuarioRepository.findByPublicacionProyectoSemilleroId(idSemillero),
+                reconocimientoRepository.findBySemilleroId(idSemillero),
+                estudianteSemilleroRepository.findBySemilleroId(idSemillero),
+                new HashSet<>(estudianteRepository.findIdsUsuario()));
     }
 }

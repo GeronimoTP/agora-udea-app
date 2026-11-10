@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.NombresRol;
 import com.udea.agora_backend.model.Usuario;
 import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
@@ -74,7 +75,7 @@ public class LoginPruebasService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, CREDENCIALES_INVALIDAS);
         }
 
-        boolean perfilCompleto = "Administrador".equals(usuario.getRol().getNombre())
+        boolean perfilCompleto = NombresRol.ADMINISTRADOR.equals(usuario.getRol().getNombre())
             || estudianteRepository.findByUsuarioId(usuario.getId()).isPresent()
             || profesorRepository.findByUsuarioId(usuario.getId()).isPresent();
         if (!perfilCompleto) {

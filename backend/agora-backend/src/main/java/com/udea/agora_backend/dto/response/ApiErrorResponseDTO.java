@@ -16,21 +16,21 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 public class ApiErrorResponseDTO {
-    
+
     private Integer status;
-    
+
     private String error;
-    
+
     private String message;
-    
+
     private String path;
-    
+
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
     private ZonedDateTime timestamp;
-    
+
     // Para errores de validación de campo
     private List<FieldErrorDTO> fieldErrors;
-    
+
     /**
      * DTO auxiliar para errores de validación por campo
      */

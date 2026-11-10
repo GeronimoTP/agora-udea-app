@@ -1,19 +1,21 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dto.request.AreaEspecialidadRequestDTO;
+import com.udea.agora_backend.dto.response.AreaEspecialidadResponseDTO;
+import com.udea.agora_backend.evento.SemillerosModificadosEvent;
+import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.AreaEspecialidad;
 import com.udea.agora_backend.repository.AreaEspecialidadRepository;
-import com.udea.agora_backend.exception.RecursoNoEncontradoException;
-import com.udea.agora_backend.evento.SemillerosModificadosEvent;
-import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * Servicio de gestión de áreas de especialidad.
- * Maneja operaciones CRUD simples de áreas de especialidad.
+ * Catálogo de áreas de especialidad. Cada área es una dimensión del árbol KD de semilleros
+ * similares, así que crear, renombrar o eliminar una invalida ese índice.
  */
 @Service
 @RequiredArgsConstructor
@@ -23,59 +25,56 @@ public class AreaEspecialidadService {
     private final AreaEspecialidadRepository areaRepository;
     private final ApplicationEventPublisher eventos;
 
-    /**
-     * Obtiene todas las áreas de especialidad
-     */
-    public List<AreaEspecialidad> obtenerTodas() {
-        return areaRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<AreaEspecialidadResponseDTO> obtenerTodas() {
+        return areaRepository.findAll().stream().map(this::aResponse).toList();
     }
 
-    /**
-     * Obtiene un área de especialidad por su ID
-     */
-    public AreaEspecialidad obtenerPorId(Integer id) {
+    @Transactional(readOnly = true)
+    public AreaEspecialidadResponseDTO obtenerPorId(Integer id) {
+        return aResponse(buscar(id));
+    }
+
+    @Transactional(readOnly = true)
+    public List<AreaEspecialidadResponseDTO> buscarPorNombre(String nombre) {
+        return areaRepository.findByNombreContainingIgnoreCaseOrderByNombre(nombre).stream()
+                .map(this::aResponse)
+                .toList();
+    }
+
+    public AreaEspecialidadResponseDTO crear(AreaEspecialidadRequestDTO request) {
+        AreaEspecialidad area = AreaEspecialidad.builder()
+                .nombre(request.getNombre())
+                .descripcion(request.getDescripcion())
+                .build();
+        publicarCambioSemilleros();
+        return aResponse(areaRepository.save(area));
+    }
+
+    public AreaEspecialidadResponseDTO actualizar(Integer id, AreaEspecialidadRequestDTO request) {
+        AreaEspecialidad area = buscar(id);
+        area.setNombre(request.getNombre());
+        area.setDescripcion(request.getDescripcion());
+        publicarCambioSemilleros();
+        return aResponse(areaRepository.save(area));
+    }
+
+    public void eliminar(Integer id) {
+        areaRepository.delete(buscar(id));
+        publicarCambioSemilleros();
+    }
+
+    private AreaEspecialidad buscar(Integer id) {
         return areaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Área de Especialidad", id));
     }
 
-    /**
-     * Obtiene áreas de especialidad por nombre (búsqueda parcial)
-     */
-    public List<AreaEspecialidad> obtenerPorNombreContiene(String nombre) {
-        return areaRepository.findAll().stream()
-                .filter(a -> a.getNombre().toLowerCase().contains(nombre.toLowerCase()))
-                .toList();
-    }
-
-    /**
-     * Crea un nueva área de especialidad
-     */
-    public AreaEspecialidad crear(AreaEspecialidad area) {
-        publicarCambioSemilleros();
-        return areaRepository.save(area);
-    }
-
-    /**
-     * Actualiza un área de especialidad existente
-     */
-    public AreaEspecialidad actualizar(Integer id, AreaEspecialidad areaActualizada) {
-        AreaEspecialidad area = areaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Área de Especialidad", id));
-        
-        area.setNombre(areaActualizada.getNombre());
-        area.setDescripcion(areaActualizada.getDescripcion());
-
-        return areaRepository.save(area);
-    }
-
-    /**
-     * Elimina un área de especialidad por su ID
-     */
-    public void eliminar(Integer id) {
-        publicarCambioSemilleros();
-        AreaEspecialidad area = areaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Área de Especialidad", id));
-        areaRepository.delete(area);
+    private AreaEspecialidadResponseDTO aResponse(AreaEspecialidad area) {
+        return AreaEspecialidadResponseDTO.builder()
+                .id(area.getId())
+                .nombre(area.getNombre())
+                .descripcion(area.getDescripcion())
+                .build();
     }
 
     // Invalida el árbol KD de semilleros similares. El índice escucha el evento después del

@@ -13,4 +13,6 @@ public interface PublicacionUsuarioRepository extends JpaRepository<PublicacionU
     void deleteByPublicacionId(Integer publicacionId);
     List<PublicacionUsuario> findByUsuarioId(Integer usuarioId);
     Optional<PublicacionUsuario> findByPublicacionIdAndUsuarioId(Integer publicacionId, Integer usuarioId);
+
+    List<PublicacionUsuario> findByPublicacionProyectoSemilleroId(Integer semilleroId);
 }

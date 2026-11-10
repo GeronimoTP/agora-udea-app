@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.NombresRol;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.Convocatoria;
 import com.udea.agora_backend.model.Postulacion;
@@ -36,8 +37,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AutorizacionService {
-
-    private static final String ROL_ADMINISTRADOR = "Administrador";
 
     private final UsuarioRepository usuarioRepository;
     private final EstudianteRepository estudianteRepository;
@@ -89,6 +88,12 @@ public class AutorizacionService {
         Usuario usuario = usuarioActual(email);
         return esAdministrador(usuario)
                 || liderazgoSemilleroService.obtenerSemillerosLiderados(usuario).contains(idSemillero);
+    }
+
+    public void validarLiderOAdministrador(String email, Integer idSemillero) {
+        if (!esLiderOAdministrador(email, idSemillero)) {
+            throw new AccessDeniedException("Solo los líderes y tutores del semillero pueden ver esta información");
+        }
     }
 
     /** Un integrante activo puede ver a sus compañeros (no a los retirados). */
@@ -161,7 +166,7 @@ public class AutorizacionService {
     }
 
     private boolean esAdministrador(Usuario usuario) {
-        return ROL_ADMINISTRADOR.equals(usuario.getRol().getNombre());
+        return NombresRol.ADMINISTRADOR.equals(usuario.getRol().getNombre());
     }
 
     private Usuario usuarioActual(String email) {

@@ -1,16 +1,17 @@
 package com.udea.agora_backend.controller;
 
+import com.udea.agora_backend.dto.response.SemilleroRecomendadoDTO;
 import com.udea.agora_backend.dto.response.SemillerosSimilaresResponseDTO;
+import com.udea.agora_backend.service.AutorizacionService;
 import com.udea.agora_backend.service.MotorRecomendacionService;
 import com.udea.agora_backend.service.SemillerosSimilaresService;
-import com.udea.agora_backend.service.AutorizacionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,7 +35,7 @@ public class RecomendacionController {
             @ApiResponse(responseCode = "404", description = "Estudiante no encontrado")
     })
     @GetMapping("/estudiante/{idEstudiante}")
-    public ResponseEntity<List<MotorRecomendacionService.SemilleroRecomendadoDTO>> calcularAfinidad(
+    public ResponseEntity<List<SemilleroRecomendadoDTO>> calcularAfinidad(
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
         autorizacionService.validarEstudianteActual(authentication.getName(), idEstudiante);

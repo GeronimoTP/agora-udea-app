@@ -1,5 +1,7 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.CategoriasEstado;
+import com.udea.agora_backend.dominio.EstadosProyecto;
 import com.udea.agora_backend.dto.request.ProyectoRequestDTO;
 import com.udea.agora_backend.dto.request.VinculacionProyectoRequestDTO;
 import com.udea.agora_backend.dto.response.ProyectoResponseDTO;
@@ -7,8 +9,19 @@ import com.udea.agora_backend.dto.response.VinculacionProyectoResponseDTO;
 import com.udea.agora_backend.exception.ConflictoException;
 import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
-import com.udea.agora_backend.model.*;
-import com.udea.agora_backend.repository.*;
+import com.udea.agora_backend.model.Estado;
+import com.udea.agora_backend.model.Estudiante;
+import com.udea.agora_backend.model.EstudianteProyecto;
+import com.udea.agora_backend.model.Proyecto;
+import com.udea.agora_backend.model.RolEstudianteProyecto;
+import com.udea.agora_backend.model.Semillero;
+import com.udea.agora_backend.repository.EstudianteProyectoRepository;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
+import com.udea.agora_backend.repository.ProyectoRepository;
+import com.udea.agora_backend.repository.PublicacionRepository;
+import com.udea.agora_backend.repository.RolEstudianteProyectoRepository;
+import com.udea.agora_backend.repository.SemilleroRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +42,7 @@ public class ProyectoService {
 
     private final ProyectoRepository proyectoRepository;
     private final SemilleroRepository semilleroRepository;
-    private final EstadoRepository estadoRepository;
+    private final BuscadorEstados buscadorEstados;
     private final EstudianteRepository estudianteRepository;
     private final RolEstudianteProyectoRepository rolEstudianteProyectoRepository;
     private final EstudianteProyectoRepository estudianteProyectoRepository;
@@ -75,9 +88,7 @@ public class ProyectoService {
         validarFechas(request);
 
         // Estado inicial del proyecto
-        Estado estado = estadoRepository
-                .findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(CategoriasEstado.PROYECTO, "En ejecución")
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", "En ejecución"));
+        Estado estado = buscadorEstados.porNombre(CategoriasEstado.PROYECTO, EstadosProyecto.EN_EJECUCION);
 
         // Crear proyecto
         Proyecto proyecto = Proyecto.builder()
@@ -126,11 +137,7 @@ public class ProyectoService {
         Proyecto proyecto = proyectoRepository.findById(idProyecto)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Proyecto", idProyecto));
 
-        Estado nuevoEstado = estadoRepository.findById(idEstado)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", idEstado));
-        if (!CategoriasEstado.PROYECTO.equalsIgnoreCase(nuevoEstado.getCategoriaEstado().getNombre())) {
-            throw new ErrorLogicaNegocioException("El estado '" + nuevoEstado.getNombre() + "' no es un estado de proyecto.");
-        }
+        Estado nuevoEstado = buscadorEstados.porIdEnCategoria(CategoriasEstado.PROYECTO, idEstado);
 
         proyecto.setEstado(nuevoEstado);
         Proyecto proyectoActualizado = proyectoRepository.save(proyecto);

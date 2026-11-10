@@ -1,5 +1,10 @@
 package com.udea.agora_backend.security;
 
+import com.udea.agora_backend.dominio.NombresRol;
+import com.udea.agora_backend.model.Usuario;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.ProfesorRepository;
+import com.udea.agora_backend.repository.UsuarioRepository;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -10,10 +15,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
-import com.udea.agora_backend.model.Usuario;
-import com.udea.agora_backend.repository.EstudianteRepository;
-import com.udea.agora_backend.repository.ProfesorRepository;
-import com.udea.agora_backend.repository.UsuarioRepository;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -32,9 +33,9 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
     private String frontendUrl;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, 
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
-        
+
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String email = oAuth2User.getAttribute("email");
         String oauthId = oAuth2User.getAttribute("sub");
@@ -43,7 +44,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
             .orElseGet(() -> vincularAdministrador(email, oauthId));
         // El administrador no tiene perfil de estudiante/profesor y no pasa por onboarding
         boolean perfilCompleto = usuario != null && (
-            "Administrador".equals(usuario.getRol().getNombre())
+            NombresRol.ADMINISTRADOR.equals(usuario.getRol().getNombre())
                 || estudianteRepository.findByUsuarioId(usuario.getId()).isPresent()
                 || profesorRepository.findByUsuarioId(usuario.getId()).isPresent());
         boolean onboarding = !perfilCompleto;
@@ -70,7 +71,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
     // En su primer inicio de sesión se vincula por el correo verificado por Google.
     private Usuario vincularAdministrador(String email, String oauthId) {
         return usuarioRepository.findWithRolByEmail(email)
-            .filter(usuario -> "Administrador".equals(usuario.getRol().getNombre()))
+            .filter(usuario -> NombresRol.ADMINISTRADOR.equals(usuario.getRol().getNombre()))
             .map(usuario -> {
                 usuario.setOauthId(oauthId);
                 return usuarioRepository.save(usuario);

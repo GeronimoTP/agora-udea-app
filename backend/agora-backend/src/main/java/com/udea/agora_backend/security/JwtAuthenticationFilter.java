@@ -1,12 +1,12 @@
 package com.udea.agora_backend.security;
 
+import com.udea.agora_backend.repository.UsuarioRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
-import  org.jspecify.annotations.NonNull ;
+import org.jspecify.annotations.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -43,13 +43,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // Extraer el token (quitando "Bearer ")
         jwt = authHeader.substring(7);
-        
+
         try {
             String correoUsuario = jwtService.extraerCorreo(jwt);
-            
+
             // Si el correo existe en el token y no hay autenticación actual en el contexto
             if (correoUsuario != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                
+
                 if (jwtService.validarToken(jwt)) {
                     // Crear objeto de autenticación
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
@@ -57,9 +57,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             null,
                             obtenerAutoridades(jwt, correoUsuario)
                     );
-                    
+
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    
+
                     // Guardar el usuario en el contexto de seguridad de Spring
                     SecurityContextHolder.getContext().setAuthentication(authToken);
 

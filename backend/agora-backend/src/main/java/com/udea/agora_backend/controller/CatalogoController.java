@@ -1,6 +1,14 @@
 package com.udea.agora_backend.controller;
 
-import com.udea.agora_backend.dto.response.*;
+import com.udea.agora_backend.dto.response.CategoriaEstadoResponseDTO;
+import com.udea.agora_backend.dto.response.EntidadOtorganteResponseDTO;
+import com.udea.agora_backend.dto.response.FacultadResponseDTO;
+import com.udea.agora_backend.dto.response.OauthProveedorResponseDTO;
+import com.udea.agora_backend.dto.response.ProgramaAcademicoResponseDTO;
+import com.udea.agora_backend.dto.response.RolAutorResponseDTO;
+import com.udea.agora_backend.dto.response.RolEstudianteProyectoResponseDTO;
+import com.udea.agora_backend.dto.response.RolResponseDTO;
+import com.udea.agora_backend.dto.response.TipoReconocimientoResponseDTO;
 import com.udea.agora_backend.service.CatalogoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

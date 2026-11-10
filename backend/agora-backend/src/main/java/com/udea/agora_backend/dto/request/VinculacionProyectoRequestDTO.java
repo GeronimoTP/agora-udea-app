@@ -14,6 +14,6 @@ public class VinculacionProyectoRequestDTO {
 
     @NotNull(message = "El rol dentro del proyecto es obligatorio")
     private Integer idRolProyecto;
-    
+
     // La fecha de vinculación se puede generar automáticamente en el Service con LocalDate.now()
 }

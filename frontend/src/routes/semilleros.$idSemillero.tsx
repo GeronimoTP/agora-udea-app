@@ -24,6 +24,7 @@ import {
 } from "@/lib/api/queries";
 import { postulacionesService } from "@/lib/api/services";
 import type { Convocatoria, Proyecto, Publicacion } from "@/types/api";
+import { formatearFecha } from "@/lib/formato";
 
 export const Route = createFileRoute("/semilleros/$idSemillero")({
   // Las consultas usan el token de localStorage: solo pueden ejecutarse en el navegador
@@ -60,7 +61,9 @@ function SemilleroDetallePage() {
   const { idSemillero } = Route.useParams();
   const id = Number(idSemillero);
   const { data: semillero } = useSuspenseQuery(semilleroQuery(id));
-  const { data: convocatorias } = useSuspenseQuery(convocatoriasSemilleroQuery(id));
+  const { data: convocatorias } = useSuspenseQuery(
+    convocatoriasSemilleroQuery(id),
+  );
   const { data: proyectos } = useSuspenseQuery(proyectosQuery(id));
   const { data: publicaciones } = useSuspenseQuery(publicacionesQuery(id));
   // Solo los estudiantes pueden postularse a convocatorias
@@ -162,7 +165,10 @@ function SemilleroDetallePage() {
       </section>
 
       <section aria-labelledby="proyectos" className="mb-10">
-        <h2 id="proyectos" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="proyectos"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Proyectos de investigación
         </h2>
         <DataTable<Proyecto>
@@ -173,7 +179,10 @@ function SemilleroDetallePage() {
       </section>
 
       <section aria-labelledby="publicaciones">
-        <h2 id="publicaciones" className="mb-3 font-display text-sm font-semibold text-foreground">
+        <h2
+          id="publicaciones"
+          className="mb-3 font-display text-sm font-semibold text-foreground"
+        >
           Producción académica
         </h2>
         <DataTable<Publicacion>
@@ -377,11 +386,17 @@ function ConvocatoriaItem({
       <dl className="mt-4 grid gap-4 border-t border-border pt-4 text-sm sm:grid-cols-3">
         <div>
           <dt className="label-caps">Apertura</dt>
-          <dd className="mt-1">{formatearFecha(convocatoria.fechaApertura)}</dd>
+          <dd className="mt-1">
+            {formatearFecha(convocatoria.fechaApertura, {
+              siVacio: "En curso",
+            })}
+          </dd>
         </div>
         <div>
           <dt className="label-caps">Cierre</dt>
-          <dd className="mt-1">{formatearFecha(convocatoria.fechaCierre)}</dd>
+          <dd className="mt-1">
+            {formatearFecha(convocatoria.fechaCierre, { siVacio: "En curso" })}
+          </dd>
         </div>
         <div>
           <dt className="label-caps">Cupos disponibles</dt>
@@ -521,10 +536,19 @@ function ConvocatoriaItem({
 }
 
 const columnasProyectos: Columna<Proyecto>[] = [
-  { header: "Proyecto", cell: (row) => <span className="font-medium">{row.titulo}</span> },
+  {
+    header: "Proyecto",
+    cell: (row) => <span className="font-medium">{row.titulo}</span>,
+  },
   { header: "Estado", cell: (row) => <EstadoBadge estado={row.estado} /> },
-  { header: "Inicio", cell: (row) => formatearFecha(row.fechaInicio) },
-  { header: "Finalización", cell: (row) => formatearFecha(row.fechaFin) },
+  {
+    header: "Inicio",
+    cell: (row) => formatearFecha(row.fechaInicio, { siVacio: "En curso" }),
+  },
+  {
+    header: "Finalización",
+    cell: (row) => formatearFecha(row.fechaFin, { siVacio: "En curso" }),
+  },
   {
     header: "Presupuesto",
     align: "right",
@@ -539,7 +563,10 @@ const columnasProyectos: Columna<Proyecto>[] = [
 ];
 
 const columnasPublicaciones: Columna<Publicacion>[] = [
-  { header: "Título", cell: (row) => <span className="font-medium">{row.titulo}</span> },
+  {
+    header: "Título",
+    cell: (row) => <span className="font-medium">{row.titulo}</span>,
+  },
   { header: "Tipo", cell: (row) => row.tipo },
   { header: "Año", align: "right", cell: (row) => row.anio },
   {
@@ -573,12 +600,3 @@ const columnasPublicaciones: Columna<Publicacion>[] = [
       ),
   },
 ];
-
-function formatearFecha(valor?: string | null) {
-  if (!valor) return "En curso";
-  return new Date(valor).toLocaleDateString("es-CO", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}

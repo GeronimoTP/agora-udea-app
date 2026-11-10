@@ -2,6 +2,7 @@ package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.request.PostulacionHabilidadRequestDTO;
 import com.udea.agora_backend.dto.request.PostulacionRequestDTO;
+import com.udea.agora_backend.dto.response.CandidatoPriorizadoDTO;
 import com.udea.agora_backend.dto.response.PostulacionHabilidadResponseDTO;
 import com.udea.agora_backend.dto.response.PostulacionResponseDTO;
 import com.udea.agora_backend.service.AutorizacionService;
@@ -14,9 +15,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -69,7 +70,7 @@ public class PostulacionController {
     @Operation(summary = "Priorizar los candidatos en proceso de las convocatorias de un semillero (Servicio 2)")
     @ApiResponse(responseCode = "200", description = "Candidatos ordenados por puntaje dentro de cada convocatoria")
     @GetMapping("/semillero/{idSemillero}/priorizacion")
-    public ResponseEntity<List<PriorizacionCandidatosService.CandidatoPriorizadoDTO>> priorizarCandidatos(
+    public ResponseEntity<List<CandidatoPriorizadoDTO>> priorizarCandidatos(
             @PathVariable Integer idSemillero, Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
         return ResponseEntity.ok(priorizacionCandidatosService.priorizarPorSemillero(idSemillero));

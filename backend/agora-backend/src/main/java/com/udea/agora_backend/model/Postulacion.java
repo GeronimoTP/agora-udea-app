@@ -2,6 +2,7 @@ package com.udea.agora_backend.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 
@@ -65,5 +66,9 @@ public class Postulacion {
         if (fechaPostulacion == null) {
             fechaPostulacion = LocalDate.now();
         }
+    }
+
+    public boolean tieneEstado(String nombreEstado) {
+        return estado != null && estado.tieneNombre(nombreEstado);
     }
 }

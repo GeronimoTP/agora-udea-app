@@ -2,6 +2,7 @@ package com.udea.agora_backend.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;

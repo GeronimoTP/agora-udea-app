@@ -178,19 +178,6 @@ export function BadgeEstado({ nombre }: { nombre: string | null | undefined }) {
   return <EstadoBadge estado={ESTADOS_CON_TONO.has(clave) ? clave : nombre} />;
 }
 
-export function formatearFecha(valor?: string | null) {
-  if (!valor) return "—";
-  // Las fechas LocalDate llegan como "AAAA-MM-DD": se interpretan en hora local
-  const fecha = /^\d{4}-\d{2}-\d{2}$/.test(valor)
-    ? new Date(`${valor}T00:00:00`)
-    : new Date(valor);
-  return fecha.toLocaleDateString("es-CO", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
 export const fechaHoy = () => {
   const ahora = new Date();
   const desfase = ahora.getTimezoneOffset() * 60000;

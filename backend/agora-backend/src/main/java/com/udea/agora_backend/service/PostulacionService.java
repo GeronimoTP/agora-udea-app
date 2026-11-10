@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.EstadosPostulacion;
 import com.udea.agora_backend.dto.request.PostulacionHabilidadRequestDTO;
 import com.udea.agora_backend.dto.request.PostulacionRequestDTO;
 import com.udea.agora_backend.dto.response.PostulacionHabilidadResponseDTO;
@@ -7,9 +8,18 @@ import com.udea.agora_backend.dto.response.PostulacionResponseDTO;
 import com.udea.agora_backend.exception.ConflictoException;
 import com.udea.agora_backend.exception.ErrorLogicaNegocioException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
-import com.udea.agora_backend.model.*;
-import com.udea.agora_backend.repository.*;
-
+import com.udea.agora_backend.model.Convocatoria;
+import com.udea.agora_backend.model.Estado;
+import com.udea.agora_backend.model.Estudiante;
+import com.udea.agora_backend.model.Habilidad;
+import com.udea.agora_backend.model.Postulacion;
+import com.udea.agora_backend.model.PostulacionHabilidad;
+import com.udea.agora_backend.repository.ConvocatoriaRepository;
+import com.udea.agora_backend.repository.EstudianteRepository;
+import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
+import com.udea.agora_backend.repository.HabilidadRepository;
+import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
+import com.udea.agora_backend.repository.PostulacionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,13 +42,11 @@ public class PostulacionService {
     private final PostulacionRepository postulacionRepository;
     private final EstudianteRepository estudianteRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
-    private final EstadoRepository estadoRepository;
+    private final BuscadorEstados buscadorEstados;
     private final HabilidadRepository habilidadRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final PlazoOfertasService plazoOfertasService;
-
-    private static final String ESTADO_PENDIENTE = "Pendiente";
 
     /**
      * Obtiene todas las postulaciones
@@ -87,41 +95,11 @@ public class PostulacionService {
     }
 
     /**
-     * Obtiene postulaciones de un estudiante por su estado
-     */
-    public List<PostulacionResponseDTO> obtenerPorEstudianteYEstado(Integer idEstudiante, Integer idEstado) {
-        return postulacionRepository.findByEstudianteIdAndEstadoId(idEstudiante, idEstado)
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
      * Obtiene postulaciones activas de un estudiante (aún sin resolver: en
      * revisión del líder o esperando confirmación del estudiante)
      */
     public List<PostulacionResponseDTO> obtenerPostulacionesActivasByEstudiante(Integer idEstudiante) {
-        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, ESTADO_PENDIENTE, "Pre-aprobada")
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Obtiene postulaciones de una convocatoria con estado especificado
-     */
-    public List<PostulacionResponseDTO> obtenerPorConvocatoriaYEstado(Integer idConvocatoria, String... estadoNombres) {
-        return postulacionRepository.findPostulacionesByConvocatoriaAndEstado(idConvocatoria, estadoNombres)
-                .stream()
-                .map(this::mapeoAResponseDTO)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Obtiene postulaciones sin respuesta que han expirado
-     */
-    public List<PostulacionResponseDTO> obtenerPostulacionesSinRespuestaExpiradas() {
-        return postulacionRepository.findPostulacionesSinRespuestaExpiradas()
+        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, EstadosPostulacion.PENDIENTE, "Pre-aprobada")
                 .stream()
                 .map(this::mapeoAResponseDTO)
                 .collect(Collectors.toList());
@@ -147,9 +125,7 @@ public class PostulacionService {
         validarConvocatoriaDisponible(convocatoria, estudiante);
 
         // Obtener estado inicial (Pendiente)
-        Estado estado = estadoRepository
-                .findByCategoriaEstadoNombreIgnoreCaseAndNombreIgnoreCase(CategoriasEstado.POSTULACION, ESTADO_PENDIENTE)
-                .orElseThrow(() -> new RecursoNoEncontradoException("Estado", "nombre", ESTADO_PENDIENTE));
+        Estado estado = buscadorEstados.dePostulacion(EstadosPostulacion.PENDIENTE);
 
         // Crear postulación
         Postulacion postulacion = Postulacion.builder()
@@ -312,10 +288,10 @@ public class PostulacionService {
 
     // Reglas para postularse: convocatoria abierta, vigente, con cupos y de un semillero que el estudiante no lidera
     private void validarConvocatoriaDisponible(Convocatoria convocatoria, Estudiante estudiante) {
-        if (!"Abierta".equalsIgnoreCase(convocatoria.getEstado().getNombre())) {
+        if (!convocatoria.estaAbierta()) {
             throw new ErrorLogicaNegocioException("La convocatoria no está abierta para postulaciones.");
         }
-        if (convocatoria.getCuposDisponibles() == null || convocatoria.getCuposDisponibles() <= 0) {
+        if (!convocatoria.tieneCuposDisponibles()) {
             throw new ErrorLogicaNegocioException("La convocatoria no tiene cupos disponibles.");
         }
         LocalDate hoy = LocalDate.now();
@@ -335,7 +311,7 @@ public class PostulacionService {
 
     // Una postulación solo puede modificarse o retirarse mientras sigue en revisión del líder
     private void validarEditable(Postulacion postulacion) {
-        if (!ESTADO_PENDIENTE.equalsIgnoreCase(postulacion.getEstado().getNombre())) {
+        if (!postulacion.tieneEstado(EstadosPostulacion.PENDIENTE)) {
             throw new ErrorLogicaNegocioException(
                     "Solo se puede modificar o retirar una postulación en estado 'Pendiente'. Estado actual: "
                             + postulacion.getEstado().getNombre());

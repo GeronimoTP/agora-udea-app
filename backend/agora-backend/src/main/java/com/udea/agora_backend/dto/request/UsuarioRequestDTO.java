@@ -15,7 +15,7 @@ public class UsuarioRequestDTO {
     @NotBlank(message = "El correo es obligatorio")
     @Email(message = "El formato del correo es inválido")
     @Pattern(
-        regexp = "^[a-zA-Z0-9._%+-]+@udea\\.edu\\.co$", 
+        regexp = "^[a-zA-Z0-9._%+-]+@udea\\.edu\\.co$",
         message = "Debe registrarse con un correo institucional de la Universidad de Antioquia"
     )
     private String email;

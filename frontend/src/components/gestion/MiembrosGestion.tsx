@@ -9,9 +9,9 @@ import {
   Vacio,
   claseBotonPeligro,
   claseBotonSecundario,
-  formatearFecha,
   useAccionGestion,
 } from "./comunes";
+import { formatearFecha } from "@/lib/formato";
 
 export function MiembrosGestion({ idSemillero }: { idSemillero: number }) {
   return (

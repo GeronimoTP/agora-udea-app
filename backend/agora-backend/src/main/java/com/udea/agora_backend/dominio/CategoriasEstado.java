@@ -1,4 +1,4 @@
-package com.udea.agora_backend.service;
+package com.udea.agora_backend.dominio;
 
 /**
  * Nombres de las categorías de tbl_categorias_estado.

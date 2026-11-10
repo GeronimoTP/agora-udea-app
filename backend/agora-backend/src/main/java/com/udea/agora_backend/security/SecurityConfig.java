@@ -1,6 +1,5 @@
 package com.udea.agora_backend.security;
 
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +31,14 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
+    // Catálogos que solo el administrador puede crear, editar o eliminar
+    private static final String[] CATALOGOS_ADMINISTRABLES = {
+        "/api/areas-especialidad", "/api/areas-especialidad/**",
+        "/api/lineas-investigacion", "/api/lineas-investigacion/**",
+        "/api/habilidades", "/api/habilidades/**",
+        "/api/estados", "/api/estados/**"
+    };
+
     // Orígenes autorizados para llamar a la API desde el navegador (separados por coma)
     @Value("${app.cors.allowed-origins}")
     private String origenesPermitidos;
@@ -45,17 +52,20 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
 
                 .requestMatchers(
-                    "/api/public/**", 
-                    "/", 
-                    "/error", 
-                    "/v3/api-docs/**", 
-                    "/swagger-ui/**", 
+                    "/api/public/**",
+                    "/",
+                    "/error",
+                    "/v3/api-docs/**",
+                    "/swagger-ui/**",
                     "/swagger-ui.html"
                 ).permitAll()
 
                 // Login de pruebas: público, pero apagado si no hay clave (ver LoginPruebasService)
                 .requestMatchers("/api/auth/login-pruebas").permitAll()
 
+                // Analítica de un semillero: la ven sus líderes, tutores y el administrador
+                // (AutorizacionService). Debe ir antes de la regla general de analítica.
+                .requestMatchers(HttpMethod.GET, "/api/analitica/semillero/*").authenticated()
                 .requestMatchers("/api/analitica/**").hasRole("Administrador")
 
                 // Sesión propia: disponible para cualquier usuario autenticado
@@ -67,6 +77,13 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/estudiantes", "/api/profesores").hasRole("Administrador")
                 .requestMatchers(HttpMethod.GET, "/api/postulaciones").hasRole("Administrador")
                 .requestMatchers(HttpMethod.POST, "/api/convocatorias/procesar-expiradas").hasRole("Administrador")
+
+                // Catálogos: cualquier usuario autenticado los lee, solo el administrador los modifica.
+                // Renombrar o borrar un estado o una línea rompería convocatorias, recomendaciones y analítica.
+                .requestMatchers(HttpMethod.POST, CATALOGOS_ADMINISTRABLES).hasRole("Administrador")
+                .requestMatchers(HttpMethod.PUT, CATALOGOS_ADMINISTRABLES).hasRole("Administrador")
+                .requestMatchers(HttpMethod.PATCH, CATALOGOS_ADMINISTRABLES).hasRole("Administrador")
+                .requestMatchers(HttpMethod.DELETE, CATALOGOS_ADMINISTRABLES).hasRole("Administrador")
 
                 // Acciones del estudiante: postularse, ver recomendaciones y decidir sobre una oferta
                 .requestMatchers(HttpMethod.POST, "/api/postulaciones").hasRole("Estudiante")
@@ -105,7 +122,7 @@ public class SecurityConfig {
             )
 
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-            
+
         return http.build();
     }
 

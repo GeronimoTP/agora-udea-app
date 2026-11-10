@@ -12,16 +12,13 @@ import { AppShell } from "@/components/layout/AppShell";
 import { PageHeader } from "@/components/common/PageHeader";
 import { StatCard } from "@/components/common/StatCard";
 import { DataTable, type Columna } from "@/components/common/DataTable";
+import { BarraProporcion } from "@/components/common/BarraProporcion";
 import {
   analiticaQuery,
   esAdministrador,
   usuarioSesionQuery,
 } from "@/lib/api/queries";
-import type {
-  DemandaSemillero,
-  DistribucionReconocimientos,
-  HabilidadEmergente,
-} from "@/types/api";
+import type { DemandaSemillero, HabilidadEmergente } from "@/types/api";
 
 export const Route = createFileRoute("/analitica")({
   head: () => ({
@@ -163,10 +160,11 @@ function AnaliticaPage() {
           <div className="panel p-5">
             <ul className="space-y-4">
               {reconocimientos.map((item) => (
-                <BarraReconocimiento
+                <BarraProporcion
                   key={item.nombre}
-                  item={item}
-                  total={totalReconocimientos || 1}
+                  etiqueta={item.nombre}
+                  cantidad={item.total}
+                  total={totalReconocimientos}
                 />
               ))}
             </ul>
@@ -203,32 +201,6 @@ function AnaliticaPage() {
         </section>
       </div>
     </AppShell>
-  );
-}
-
-function BarraReconocimiento({
-  item,
-  total,
-}: {
-  item: DistribucionReconocimientos;
-  total: number;
-}) {
-  const porcentaje = (item.total / total) * 100;
-  return (
-    <li>
-      <div className="flex items-baseline justify-between text-sm">
-        <span className="font-medium text-foreground">{item.nombre}</span>
-        <span className="tabular-nums text-muted-foreground">
-          {item.total} · {porcentaje.toFixed(1)}%
-        </span>
-      </div>
-      <div className="mt-1.5 h-2 w-full overflow-hidden rounded-sm bg-secondary">
-        <div
-          className="h-full bg-primary"
-          style={{ width: `${porcentaje}%` }}
-        />
-      </div>
-    </li>
   );
 }
 

@@ -6,7 +6,14 @@ Agora UdeA administra semilleros de investigación de la Universidad de Antioqui
 Este documento describe el código y flujo revisados. Cuando exista una diferencia entre esta guía y la implementación, prevalece el código actual; actualiza la guía junto con el cambio.
 
 ## Estructura
-- `backend/agora-backend`: API Spring Boot, entidades JPA, repositorios, servicios, controladores y seguridad.
+- `backend/agora-backend`: API Spring Boot organizada por capas (`controller` → `service` → `repository` → `model`), más `dto`, `security`, `exception`, `config` y estos paquetes de apoyo:
+  - `dominio`: nombres de estados y roles del catálogo (`EstadosPostulacion`, `EstadosConvocatoria`, `EstadosSemillero`, `EstadosVinculacion`, `EstadosProyecto`, `CategoriasEstado`, `NombresRol`).
+  - `estructuras`: estructuras de datos propias (`KdTree`).
+  - `evento`: eventos de aplicación (`SemillerosModificadosEvent`).
+  - `service/analitica`: fórmulas de indicadores (`CalculadoraIndicadores`, `DatosAnalitica`).
+  - `service/mapper`: conversión de entidades a DTOs (`SemilleroMapper`).
+  - `util`: utilidades sin estado (`Redondeo`).
+- `docs/ARQUITECTURA_Y_REFACTORIZACION.md`: análisis de la arquitectura actual, auditoría SOLID y clean code, refactorización aplicada y opciones de evolución.
 - `frontend`: aplicación React con TanStack Start, TanStack Router y React Query.
 - `Dockerfile` y `docker-compose.yml`: ejecución local del backend y PostgreSQL.
 - `frontend/src/routeTree.gen.ts`: archivo generado; no editar manualmente.
@@ -49,7 +56,7 @@ El proyecto se organiza en tres servicios de procesamiento: cada uno toma datos 
 | --- | --- | --- | --- |
 | 1. Motor de recomendación | `MotorRecomendacionService`, `SemillerosSimilaresService`, `IndiceSemillerosKdService`, `estructuras/KdTree`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores, convocatorias vigentes e historial de semilleros del estudiante | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante; **semilleros similares a los suyos** (vecinos más cercanos en un árbol KD) |
 | 2. Gestor de convocatorias | `GestorConvocatoriasService`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cascada, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria |
-| 3. Analítica institucional | `AnaliticaService`, `AnaliticaController` | Todas las postulaciones, proyectos, publicaciones, reconocimientos y vinculaciones | 8 indicadores: demanda, tiempo de respuesta, retención de ofertas, conversión proyecto-publicación, participación estudiantil, reconocimientos, habilidades emergentes e interdisciplinariedad |
+| 3. Analítica | `AnaliticaService`, `CalculadoraIndicadores`, `AnaliticaController` | Postulaciones, convocatorias, proyectos, publicaciones, reconocimientos y vinculaciones (de toda la universidad o de un semillero) | 8 indicadores: demanda, tiempo de respuesta, retención de ofertas, conversión proyecto-publicación, participación estudiantil, reconocimientos, habilidades emergentes e interdisciplinariedad. Vista institucional para el administrador y **vista por semillero** para sus líderes y tutores, con embudo de postulaciones, demanda por convocatoria y comparación con la universidad |
 
 Las reglas de cada servicio están en "Recomendaciones", "Semilleros similares a los tuyos (árbol KD)", "Postulaciones y cupos" (incluida "Priorización de candidatos") y "Analítica".
 
@@ -112,14 +119,16 @@ La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `
 | `/compatibilidad` | "Semilleros similares a los tuyos" (árbol KD: similitud, áreas y líneas en común, "Parecido a…", datos de la búsqueda) y ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
 | `/analitica` | Redirige a `/` | Redirige a `/` | KPIs institucionales |
 
-La gestión (`/gestion/$idSemillero?seccion=...`) tiene pestañas: Información (datos, líneas, estado, transferir liderazgo, eliminar), Convocatorias (crear, editar, cerrar, cancelar, eliminar), Integrantes y tutores (retirar integrantes, agregar/quitar tutores), Proyectos (CRUD, estado, integrantes con rol), Publicaciones (CRUD y autores) y Reconocimientos (CRUD). Se entra desde "Semilleros que lideras" en el tablero, el ítem "Mi semillero" del menú (si lidera exactamente uno) o el botón "Gestionar" del detalle público. Usa los DTOs del backend sin mapear (`frontend/src/lib/api/gestion.ts`) y todas sus consultas cuelgan de la clave `["gestion", id]`.
+La gestión (`/gestion/$idSemillero?seccion=...`) tiene pestañas: Información (datos, líneas, estado, transferir liderazgo, eliminar), Convocatorias (crear, editar, cerrar, cancelar, eliminar), Integrantes y tutores (retirar integrantes, agregar/quitar tutores), Proyectos (CRUD, estado, integrantes con rol), Publicaciones (CRUD y autores), Reconocimientos (CRUD) e Indicadores (Servicio 3 del semillero; se consulta solo al abrir la pestaña). Se entra desde "Semilleros que lideras" en el tablero, el ítem "Mi semillero" del menú (si lidera exactamente uno) o el botón "Gestionar" del detalle público. Usa los DTOs del backend sin mapear (`frontend/src/lib/api/gestion.ts`) y todas sus consultas cuelgan de la clave `["gestion", id]`.
 
 Ocultar en el frontend no es seguridad: cada restricción tiene su regla equivalente en el backend.
 
 ### Autorización (backend)
 - `JwtAuthenticationFilter` carga el rol del usuario desde la BD y lo expone como autoridad `ROLE_<nombre del rol>` (por ejemplo `ROLE_Administrador`). El token de onboarding no recibe autoridades.
 - `SecurityConfig`:
-  - `/api/analitica/**` → `Administrador`.
+  - `GET /api/analitica/semillero/*` → autenticado, y además líder, tutor o administrador (`AutorizacionService.validarLiderOAdministrador`). Va antes de la regla general de analítica.
+  - Resto de `/api/analitica/**` → `Administrador`.
+  - Catálogos (`/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades`, `/api/estados`): lectura para cualquier usuario autenticado; `POST`, `PUT`, `PATCH` y `DELETE` solo `Administrador` (`CATALOGOS_ADMINISTRABLES`). Antes cualquier usuario podía renombrar un estado y romper convocatorias, recomendaciones y analítica.
   - `POST /api/postulaciones`, `POST /api/postulaciones/*/confirmar-aceptacion`, `POST /api/postulaciones/*/rechazar-estudiante`, `/api/recomendaciones/**` → `Estudiante`.
   - `POST /api/postulaciones/*/pre-aprobar`, `POST /api/postulaciones/*/rechazar-lider` → `Estudiante` o `Profesor`, y además el usuario debe ser líder del semillero de la postulación (ver abajo).
   - `POST /api/semilleros`, `POST /api/convocatorias` → `Estudiante` o `Profesor`.
@@ -139,6 +148,8 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 | Retirar integrantes y transferir el liderazgo | Líder del semillero |
 | Ver los integrantes del semillero (`GET /api/semilleros/{id}/estudiantes`, incluye correos) | Líder, tutor o administrador (activos y retirados); un integrante activo solo ve a los activos; cualquier otro recibe 403 |
 | Ver postulaciones de un semillero o convocatoria, y su priorización de candidatos; pre-aprobar o rechazar | Líder del semillero |
+| Ver los indicadores del semillero (`GET /api/analitica/semillero/{id}`) | Líder, tutor o administrador |
+| Crear, editar o eliminar áreas, líneas, habilidades y estados del catálogo | Administrador |
 | Crear, editar, retirar una postulación y sus habilidades; aceptar o declinar una oferta | El estudiante postulado |
 | Ver una postulación concreta | El estudiante postulado, un líder del semillero o el administrador |
 | Ver postulaciones o recomendaciones de un estudiante | Ese estudiante |
@@ -282,6 +293,16 @@ En el ejemplo, buscar el vecino más cercano a (9,2): F (distancia² 4) → baja
 - **Explicación al estudiante:** áreas en común, líneas en común, "Parecido a" (el semillero de su historial con mayor similitud coseno al recomendado) y si tiene convocatoria abierta. La respuesta incluye los datos de la búsqueda (dimensiones, semilleros en el árbol, profundidad, candidatos y nodos visitados), que `/compatibilidad` muestra al pie de la sección.
 
 ### Analítica
+`AnaliticaService` carga los datos de un alcance en un `DatosAnalitica` y `CalculadoraIndicadores` aplica las fórmulas; las fórmulas no saben si los datos son de toda la universidad o de un semillero, así que ambos alcances dan resultados comparables.
+
+- **Vista institucional** (`/analitica`, administrador): `GET /api/analitica/dashboard` y los KPIs individuales bajo `/api/analitica/*`.
+- **Vista de un semillero** (pestaña Indicadores de la gestión, líderes y tutores): `GET /api/analitica/semillero/{id}` devuelve los mismos 8 indicadores con los datos del semillero, más:
+  - integrantes activos y retirados;
+  - postulaciones en proceso y embudo por estado, en el orden del flujo (`Pendiente` → `Expirada`);
+  - tasa de demanda global (postulaciones / cupos de todas sus convocatorias) y demanda por convocatoria;
+  - `referenciaInstitucional`: los valores de toda la universidad para comparar. La demanda de referencia es el promedio de las tasas por semillero, igual que en la vista del administrador.
+
+Reglas de cálculo:
 - Tiempo de respuesta del estudiante: va de `fechaPreAprobacion` a `fechaDecisionEstudiante`, solo en postulaciones `Aceptada` o `Rechazada por Estudiante`.
 - Retención de ofertas: solo cuenta ofertas reales.
   - Aceptadas.
@@ -302,7 +323,8 @@ En el ejemplo, buscar el vecino más cercano a (9,2): F (distancia² 4) → baja
 - Convocatorias: `/api/convocatorias`, `/api/convocatorias/activas`, `/api/convocatorias/semillero/{id}`.
 - Postulaciones: `/api/postulaciones`, `/api/postulaciones/estudiante/{id}`, `/api/postulaciones/semillero/{id}`, `/api/postulaciones/semillero/{id}/priorizacion` y las acciones del flujo de doble vía. El DTO incluye `fechaLimiteRespuesta`.
 - Recomendaciones (solo estudiante, solo los propios datos): `/api/recomendaciones/estudiante/{id}` (ranking ponderado) y `/api/recomendaciones/estudiante/{id}/similares?limite=5` (semilleros similares, árbol KD).
-- Analítica (solo administrador): `/api/analitica/dashboard` y KPIs bajo `/api/analitica/*`.
+- Analítica: `/api/analitica/dashboard` y KPIs bajo `/api/analitica/*` (administrador); `/api/analitica/semillero/{id}` (líderes, tutores y administrador).
+- Catálogos administrables: `/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades` y `/api/estados` reciben y devuelven DTOs (`*RequestDTO` con validación, `*ResponseDTO`), nunca entidades JPA. Las líneas incluyen `idAreaEspecialidad` y `nombreAreaEspecialidad`; los estados, `nombreCategoria`. `GET .../buscar?nombre=` filtra en la base de datos y ordena por nombre.
 
 Los servicios frontend adaptan los DTO del backend a tipos de vista con funciones `mapear*` en `services.ts`. Toda respuesta debe pasar por un mapeador: no tipar la respuesta cruda del backend con un tipo de vista. Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). El registro heredado por email (`AuthController`, `/api/auth/register/**`, `/api/auth/check-email`) se eliminó: el único alta de cuentas es el onboarding OAuth con identidad firmada.
 
@@ -314,11 +336,22 @@ Los servicios frontend adaptan los DTO del backend a tipos de vista con funcione
 - **Errores 500**: el cliente recibe un mensaje genérico; el detalle se registra en el log del servidor (sin `printStackTrace`).
 - **Swagger**: apagado en producción (`springdoc.*.enabled`) salvo `APP_SWAGGER_HABILITADO=true`.
 - **Actuator** (si se agrega la dependencia): solo `health`, sin detalles.
-- **Registro heredado eliminado**: no hay endpoints que creen cuentas sin la metadata OAuth.
+- **Registro heredado eliminado**: no hay endpoints ni métodos de servicio que creen cuentas sin la metadata OAuth (se borraron las sobrecargas `crear(email, nombre, ...)` y `registrarEstudiante`).
+- **Catálogos**: solo el administrador los modifica (ver Autorización).
 - Pendiente conocido: el JWT vive en `localStorage` (accesible a JavaScript). La defensa es no introducir XSS: no usar `dangerouslySetInnerHTML` con datos de usuarios.
 
 ## Convenciones Técnicas para Agentes
-- Backend: seguir controller → service → repository → entity; validar requests con Jakarta Validation y usar DTOs para la API.
+- Backend: seguir controller → service → repository → entity; validar requests con Jakarta Validation y usar DTOs para la API. Un controlador nunca recibe ni devuelve entidades JPA, y no filtra ni transforma datos: eso es del servicio.
+- Nombres de estado y de rol: usar las constantes de `dominio` (`EstadosPostulacion.ACEPTADA`, `NombresRol.ADMINISTRADOR`…). No declarar constantes `ESTADO_*` locales ni escribir el nombre como texto.
+- Obtener un estado: `BuscadorEstados` (`dePostulacion`, `deConvocatoria`, `deSemillero`, `deVinculacion`, `porNombre`, `porIdEnCategoria`). No repetir la consulta `findByCategoriaEstadoNombre...` en cada servicio.
+- Preguntas sobre el estado de una entidad: métodos de dominio en el modelo (`Estado.tieneNombre`, `Postulacion.tieneEstado`, `Convocatoria.estaAbierta / estaVigente / tieneCuposDisponibles / recibePostulaciones`, `Semillero.estaActivo`, `EstudianteSemillero.estaActiva`) y `ConvocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones`. No repetir la condición a mano.
+- Una clase, una responsabilidad: `SemilleroService` (datos del semillero, estado, líneas), `MiembrosSemilleroService` (tutores, integrantes, liderazgo), `SemilleroMapper` (DTOs). Si un servicio pasa de ~300 líneas o mezcla temas, dividirlo igual.
+- Los DTOs viven en `dto/request` y `dto/response` (los de analítica en `dto/response/analitica`), no como clases anidadas en servicios.
+- Redondeo de valores de la API: `util.Redondeo` (`unDecimal`, `dosDecimales`, `tresDecimales`).
+- No capturar `Exception` para devolver un valor por defecto: oculta errores reales. Dejar que llegue a `ManejadorExcepcionesGlobal`.
+- Imports explícitos (sin `com.udea.agora_backend.*.*`), sin imports sin uso.
+- Frontend: fechas con `formatearFecha` / `formatearFechaHora` de `lib/formato.ts` (interpreta `AAAA-MM-DD` en hora local; `new Date("2026-11-28")` mostraría el día anterior en Colombia). Sesión en loaders protegidos con `requerirSesion()` de `lib/api/sesion.ts`. Barras de proporción con `components/common/BarraProporcion`.
+- Formato: `npx prettier --write` y `npx eslint src` sin errores en el frontend.
 - Persistencia de varias entidades de un mismo flujo: usar `@Transactional`.
 - Las asociaciones JPA `LAZY` deben cargarse en consulta o transacción antes de leerlas fuera del servicio. Para `Usuario.rol`, usar consultas `findWithRol...` con `@EntityGraph`.
 - Mantener nombres de dominio en español y respetar nombres/capitalización de catálogos, estados y roles.
@@ -360,4 +393,5 @@ cd backend/agora-backend
 
 cd frontend
 npx tsc --noEmit
+npx eslint src      # sin errores (incluye el formato de Prettier)
 ```

@@ -5,10 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import java.util.List;
 import java.util.Optional;
 
-@Repository 
+@Repository
 public interface SemilleroRepository extends JpaRepository<Semillero, Integer>{
 
     Optional<Semillero> findByCodigoIdentificador(String codigoIdentificador);
@@ -18,5 +19,5 @@ public interface SemilleroRepository extends JpaRepository<Semillero, Integer>{
 
     @Query("SELECT s.id FROM Semillero s WHERE s.estudianteLider.id = :idEstudiante")
     List<Integer> findIdsByEstudianteLiderId(@Param("idEstudiante") Integer idEstudiante);
-    
+
 }

@@ -1,5 +1,7 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.CategoriasEstado;
+import com.udea.agora_backend.dominio.EstadosSemillero;
 import com.udea.agora_backend.estructuras.KdTree;
 import com.udea.agora_backend.evento.SemillerosModificadosEvent;
 import com.udea.agora_backend.model.AreaEspecialidad;
@@ -46,8 +48,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class IndiceSemillerosKdService {
-
-    private static final String ESTADO_SEMILLERO_ACTIVO = "Activo";
 
     private final AreaEspecialidadRepository areaRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
@@ -122,7 +122,7 @@ public class IndiceSemillerosKdService {
         // Una sola consulta: (semillero, área) por cada línea de cada semillero activo
         Map<Integer, List<Integer>> areasPorSemillero = agruparPorSemillero(
                 semilleroLineaRepository.findAreasDeSemillerosPorEstado(
-                        ESTADO_SEMILLERO_ACTIVO, CategoriasEstado.SEMILLERO));
+                        EstadosSemillero.ACTIVO, CategoriasEstado.SEMILLERO));
 
         // Sin áreas en el catálogo el árbol queda vacío (con una dimensión nominal)
         int k = Math.max(1, dimensiones.size());

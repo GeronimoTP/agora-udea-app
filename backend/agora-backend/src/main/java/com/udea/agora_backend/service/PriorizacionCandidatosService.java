@@ -1,5 +1,7 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.EstadosPostulacion;
+import com.udea.agora_backend.dto.response.CandidatoPriorizadoDTO;
 import com.udea.agora_backend.model.Convocatoria;
 import com.udea.agora_backend.model.Postulacion;
 import com.udea.agora_backend.repository.EstudianteLineaInvestigacionRepository;
@@ -7,13 +9,11 @@ import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
 import com.udea.agora_backend.repository.PostulacionRepository;
 import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
-import lombok.Builder;
-import lombok.Data;
+import com.udea.agora_backend.util.Redondeo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -50,13 +50,6 @@ public class PriorizacionCandidatosService {
     private static final double VALOR_NEUTRAL = 50.0;
     private static final int HORAS_MAXIMO_PUNTAJE = 12;
 
-    private static final String ESTADO_PENDIENTE = "Pendiente";
-    private static final String ESTADO_PRE_APROBADA = "Pre-aprobada";
-    private static final String ESTADO_ACEPTADA = "Aceptada";
-    private static final String ESTADO_RECHAZADA_ESTUDIANTE = "Rechazada por Estudiante";
-    private static final String ESTADO_CANCELADA = "Cancelada en cascada";
-    private static final String ESTADO_EXPIRADA = "Expirada";
-
     private final PostulacionRepository postulacionRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
@@ -69,13 +62,13 @@ public class PriorizacionCandidatosService {
                 .map(sl -> sl.getLineaInvestigacion().getId())
                 .collect(Collectors.toSet());
         Set<Integer> habilidadesSemillero = postulacionHabilidadRepository
-                .findBySemilleroIdAndEstadoNombre(idSemillero, ESTADO_ACEPTADA).stream()
+                .findBySemilleroIdAndEstadoNombre(idSemillero, EstadosPostulacion.ACEPTADA).stream()
                 .map(ph -> ph.getHabilidad().getId())
                 .collect(Collectors.toSet());
 
         Map<Integer, List<Postulacion>> enProcesoPorConvocatoria = postulacionRepository
                 .findByConvocatoriaSemilleroId(idSemillero).stream()
-                .filter(p -> tieneEstado(p, ESTADO_PENDIENTE) || tieneEstado(p, ESTADO_PRE_APROBADA))
+                .filter(p -> p.tieneEstado(EstadosPostulacion.PENDIENTE) || p.tieneEstado(EstadosPostulacion.PRE_APROBADA))
                 .collect(Collectors.groupingBy(p -> p.getConvocatoria().getId(), LinkedHashMap::new, Collectors.toList()));
 
         ZonedDateTime ahora = ZonedDateTime.now();
@@ -83,7 +76,7 @@ public class PriorizacionCandidatosService {
         enProcesoPorConvocatoria.values().forEach(postulaciones -> {
             Convocatoria convocatoria = postulaciones.get(0).getConvocatoria();
             long ofertasVigentes = postulacionRepository.contarOfertasVigentes(
-                    convocatoria.getId(), ESTADO_PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora));
+                    convocatoria.getId(), EstadosPostulacion.PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora));
 
             List<CandidatoPriorizadoDTO> candidatos = postulaciones.stream()
                     .map(p -> evaluar(p, lineasSemillero, habilidadesSemillero, idSemillero, convocatoria, ofertasVigentes))
@@ -117,7 +110,7 @@ public class PriorizacionCandidatosService {
             observaciones.add("Sin historial de ofertas anteriores");
         }
         otras.stream()
-                .filter(p -> tieneEstado(p, ESTADO_PRE_APROBADA))
+                .filter(p -> p.tieneEstado(EstadosPostulacion.PRE_APROBADA))
                 .forEach(p -> observaciones.add("Tiene otra oferta vigente en "
                         + p.getConvocatoria().getSemillero().getNombre()));
         long otrosSemilleros = estudianteSemilleroRepository.findByEstudianteIdAndFechaSalidaIsNull(idEstudiante).stream()
@@ -137,11 +130,11 @@ public class PriorizacionCandidatosService {
                 .cuposDisponibles(convocatoria.getCuposDisponibles())
                 .ofertasVigentes(ofertasVigentes)
                 .fechaPostulacion(postulacion.getFechaPostulacion())
-                .puntaje(redondear(puntaje))
-                .afinidadTematica(redondear(tematica))
-                .habilidades(redondear(habilidades))
-                .disponibilidad(redondear(disponibilidad))
-                .compromiso(redondear(compromiso))
+                .puntaje(Redondeo.unDecimal(puntaje))
+                .afinidadTematica(Redondeo.unDecimal(tematica))
+                .habilidades(Redondeo.unDecimal(habilidades))
+                .disponibilidad(Redondeo.unDecimal(disponibilidad))
+                .compromiso(Redondeo.unDecimal(compromiso))
                 .observaciones(observaciones)
                 .build();
     }
@@ -174,9 +167,9 @@ public class PriorizacionCandidatosService {
         List<Double> respuestas = otras.stream()
                 .filter(this::recibioOfertaResuelta)
                 .map(p -> {
-                    if (tieneEstado(p, ESTADO_ACEPTADA)) return 100.0;
-                    if (tieneEstado(p, ESTADO_CANCELADA)) return 75.0;
-                    if (tieneEstado(p, ESTADO_RECHAZADA_ESTUDIANTE)) return 50.0;
+                    if (p.tieneEstado(EstadosPostulacion.ACEPTADA)) return 100.0;
+                    if (p.tieneEstado(EstadosPostulacion.CANCELADA_EN_CASCADA)) return 75.0;
+                    if (p.tieneEstado(EstadosPostulacion.RECHAZADA_POR_ESTUDIANTE)) return 50.0;
                     return 0.0; // Expirada con oferta: no respondió
                 })
                 .toList();
@@ -187,34 +180,8 @@ public class PriorizacionCandidatosService {
 
     // Ofertas reales ya resueltas: mismo criterio que la retención de ofertas de la analítica
     private boolean recibioOfertaResuelta(Postulacion p) {
-        return p.getFechaPreAprobacion() != null && (tieneEstado(p, ESTADO_ACEPTADA) || tieneEstado(p, ESTADO_RECHAZADA_ESTUDIANTE)
-                || tieneEstado(p, ESTADO_CANCELADA) || tieneEstado(p, ESTADO_EXPIRADA));
+        return p.getFechaPreAprobacion() != null && (p.tieneEstado(EstadosPostulacion.ACEPTADA) || p.tieneEstado(EstadosPostulacion.RECHAZADA_POR_ESTUDIANTE)
+                || p.tieneEstado(EstadosPostulacion.CANCELADA_EN_CASCADA) || p.tieneEstado(EstadosPostulacion.EXPIRADA));
     }
 
-    private static boolean tieneEstado(Postulacion postulacion, String nombre) {
-        return postulacion.getEstado() != null && postulacion.getEstado().getNombre().equalsIgnoreCase(nombre);
-    }
-
-    private static double redondear(double valor) {
-        return Math.round(valor * 10.0) / 10.0;
-    }
-
-    @Data
-    @Builder
-    public static class CandidatoPriorizadoDTO {
-        private Integer idPostulacion;
-        private Integer idConvocatoria;
-        private String tituloConvocatoria;
-        // Posición dentro de su convocatoria (1 = mejor candidato)
-        private Integer posicion;
-        private Integer cuposDisponibles;
-        private Long ofertasVigentes;
-        private LocalDate fechaPostulacion;
-        private Double puntaje;
-        private Double afinidadTematica;
-        private Double habilidades;
-        private Double disponibilidad;
-        private Double compromiso;
-        private List<String> observaciones;
-    }
 }

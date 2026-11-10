@@ -16,14 +16,14 @@ import { MiembrosGestion } from "@/components/gestion/MiembrosGestion";
 import { ProyectosGestion } from "@/components/gestion/ProyectosGestion";
 import { PublicacionesGestion } from "@/components/gestion/PublicacionesGestion";
 import { ReconocimientosGestion } from "@/components/gestion/ReconocimientosGestion";
+import { IndicadoresSemillero } from "@/components/gestion/IndicadoresSemillero";
 import { catalogoGestionQuery, gestionQueries } from "@/lib/api/gestion";
 import {
   catalogoSemilleroQuery,
   profesoresQuery,
   usuarioSesionQuery,
 } from "@/lib/api/queries";
-import { ApiError, apiRequest } from "@/lib/api/client";
-import type { UsuarioSesion } from "@/types/api";
+import { requerirSesion } from "@/lib/api/sesion";
 
 const SECCIONES = [
   { valor: "informacion", etiqueta: "Información" },
@@ -32,6 +32,7 @@ const SECCIONES = [
   { valor: "proyectos", etiqueta: "Proyectos" },
   { valor: "publicaciones", etiqueta: "Publicaciones" },
   { valor: "reconocimientos", etiqueta: "Reconocimientos" },
+  { valor: "indicadores", etiqueta: "Indicadores" },
 ] as const;
 
 type Seccion = (typeof SECCIONES)[number]["valor"];
@@ -49,23 +50,12 @@ export const Route = createFileRoute("/gestion/$idSemillero")({
       {
         name: "description",
         content:
-          "Gestión del semillero: datos, convocatorias, integrantes, tutores, proyectos, publicaciones y reconocimientos.",
+          "Gestión del semillero: datos, convocatorias, integrantes, tutores, proyectos, publicaciones, reconocimientos e indicadores.",
       },
     ],
   }),
   loader: async ({ context, params }) => {
-    if (!localStorage.getItem("access_token")) {
-      throw redirect({ to: "/auth/login" });
-    }
-    let sesion: UsuarioSesion;
-    try {
-      sesion = await apiRequest<UsuarioSesion>("/api/usuarios/me");
-    } catch (error) {
-      if (error instanceof ApiError && [403, 404].includes(error.status)) {
-        throw redirect({ to: "/auth/select-role" });
-      }
-      throw error;
-    }
+    const sesion = await requerirSesion();
     const id = Number(params.idSemillero);
     // Solo un líder del semillero (estudiante líder o profesor tutor) entra a la gestión;
     // el backend valida lo mismo en cada acción
@@ -169,6 +159,9 @@ function GestionSemilleroPage() {
         </TabsContent>
         <TabsContent value="reconocimientos">
           <ReconocimientosGestion idSemillero={id} />
+        </TabsContent>
+        <TabsContent value="indicadores">
+          <IndicadoresSemillero idSemillero={id} />
         </TabsContent>
       </Tabs>
     </AppShell>

@@ -8,18 +8,19 @@ import com.udea.agora_backend.dto.response.EstudianteSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroResponseDTO;
-import com.udea.agora_backend.service.SemilleroService;
 import com.udea.agora_backend.service.AutorizacionService;
+import com.udea.agora_backend.service.MiembrosSemilleroService;
+import com.udea.agora_backend.service.SemilleroService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -32,6 +33,7 @@ import java.util.List;
 public class SemilleroController {
 
     private final SemilleroService semilleroService;
+    private final MiembrosSemilleroService miembrosSemilleroService;
     private final AutorizacionService autorizacionService;
 
     @Operation(summary = "Obtener todos los semilleros")
@@ -185,7 +187,7 @@ public class SemilleroController {
     @ApiResponse(responseCode = "200", description = "Lista de profesores tutores obtenida exitosamente")
     @GetMapping("/{id}/profesores")
     public ResponseEntity<List<ProfesorSemilleroResponseDTO>> obtenerProfesores(@PathVariable Integer id) {
-        return ResponseEntity.ok(semilleroService.obtenerProfesores(id));
+        return ResponseEntity.ok(miembrosSemilleroService.obtenerProfesores(id));
     }
 
     @Operation(summary = "Asignar un profesor como tutor o co-tutor del semillero")
@@ -200,7 +202,7 @@ public class SemilleroController {
             @Valid @RequestBody ProfesorSemilleroRequestDTO request,
             Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
-        ProfesorSemilleroResponseDTO creada = semilleroService.asignarProfesor(request);
+        ProfesorSemilleroResponseDTO creada = miembrosSemilleroService.asignarProfesor(request);
         return new ResponseEntity<>(creada, HttpStatus.CREATED);
     }
 
@@ -215,7 +217,7 @@ public class SemilleroController {
             @PathVariable Integer idProfesor,
             Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
-        semilleroService.removerProfesor(idSemillero, idProfesor);
+        miembrosSemilleroService.removerProfesor(idSemillero, idProfesor);
         return ResponseEntity.noContent().build();
     }
 
@@ -234,12 +236,10 @@ public class SemilleroController {
             @PathVariable Integer id, Authentication authentication) {
         // Incluye correos: solo lo ven quienes pertenecen al semillero
         if (autorizacionService.esLiderOAdministrador(authentication.getName(), id)) {
-            return ResponseEntity.ok(semilleroService.obtenerEstudiantes(id));
+            return ResponseEntity.ok(miembrosSemilleroService.obtenerEstudiantes(id));
         }
         autorizacionService.validarIntegranteActivo(authentication.getName(), id);
-        return ResponseEntity.ok(semilleroService.obtenerEstudiantes(id).stream()
-                .filter(vinculacion -> vinculacion.getFechaSalida() == null)
-                .toList());
+        return ResponseEntity.ok(miembrosSemilleroService.obtenerIntegrantesActivos(id));
     }
 
     @Operation(summary = "Vincular un estudiante a un semillero")
@@ -254,7 +254,7 @@ public class SemilleroController {
             @Valid @RequestBody EstudianteSemilleroRequestDTO request,
             Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), request.getIdSemillero());
-        EstudianteSemilleroResponseDTO vinculacion = semilleroService.vincularEstudiante(request);
+        EstudianteSemilleroResponseDTO vinculacion = miembrosSemilleroService.vincularEstudiante(request);
         return new ResponseEntity<>(vinculacion, HttpStatus.CREATED);
     }
 
@@ -271,7 +271,7 @@ public class SemilleroController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaSalida,
             Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
-        return ResponseEntity.ok(semilleroService.actualizarVinculacionEstudiante(idSemillero, idEstudiante, idEstado, fechaSalida));
+        return ResponseEntity.ok(miembrosSemilleroService.actualizarVinculacionEstudiante(idSemillero, idEstudiante, idEstado, fechaSalida));
     }
 
     @Operation(summary = "Retirar a un integrante del semillero (queda como historial con fecha de salida)")
@@ -285,7 +285,7 @@ public class SemilleroController {
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), idSemillero);
-        return ResponseEntity.ok(semilleroService.retirarEstudiante(idSemillero, idEstudiante));
+        return ResponseEntity.ok(miembrosSemilleroService.retirarEstudiante(idSemillero, idEstudiante));
     }
 
     @Operation(summary = "Transferir el liderazgo estudiantil a un integrante activo")
@@ -299,6 +299,6 @@ public class SemilleroController {
             @PathVariable Integer idEstudiante,
             Authentication authentication) {
         autorizacionService.validarLiderSemillero(authentication.getName(), id);
-        return ResponseEntity.ok(semilleroService.transferirLiderazgo(id, idEstudiante));
+        return ResponseEntity.ok(miembrosSemilleroService.transferirLiderazgo(id, idEstudiante));
     }
 }
