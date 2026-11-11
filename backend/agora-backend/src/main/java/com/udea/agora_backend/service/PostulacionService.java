@@ -167,6 +167,9 @@ public class PostulacionService {
             // Eliminar anteriores
             List<PostulacionHabilidad> anteriores = postulacionHabilidadRepository.findByPostulacionId(id);
             postulacionHabilidadRepository.deleteAll(anteriores);
+            // Hibernate ejecuta los INSERT antes que los DELETE: sin el flush, conservar un elemento
+            // que ya estaba lo insertaría de nuevo y violaría el UNIQUE de la tabla
+            postulacionHabilidadRepository.flush();
 
             // Guardar nuevas
             for (Integer idHabilidad : request.getIdHabilidades()) {

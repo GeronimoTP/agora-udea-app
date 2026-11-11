@@ -227,6 +227,9 @@ public class SemilleroService {
             // Eliminar anteriores
             List<SemilleroLineaInvestigacion> anteriores = semilleroLineaRepository.findBySemilleroId(id);
             semilleroLineaRepository.deleteAll(anteriores);
+            // Hibernate ejecuta los INSERT antes que los DELETE: sin el flush, conservar un elemento
+            // que ya estaba lo insertaría de nuevo y violaría el UNIQUE de la tabla
+            semilleroLineaRepository.flush();
 
             // Guardar nuevas
             for (Integer idLinea : request.getIdLineasInvestigacion()) {

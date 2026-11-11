@@ -168,6 +168,9 @@ public class EstudianteService {
             List<EstudianteLineaInvestigacion> anteriores = estudianteLineaRepository
                     .findByEstudianteId(id);
             estudianteLineaRepository.deleteAll(anteriores);
+            // Hibernate ejecuta los INSERT antes que los DELETE: sin el flush, conservar un elemento
+            // que ya estaba lo insertaría de nuevo y violaría el UNIQUE de la tabla
+            estudianteLineaRepository.flush();
 
             // Guardar nuevas
             for (Integer idLinea : request.getIdLineasInvestigacion()) {

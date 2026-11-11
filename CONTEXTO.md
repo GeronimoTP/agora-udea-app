@@ -410,6 +410,7 @@ El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dom
 - Frontend: fechas con `formatearFecha` / `formatearFechaHora` de `lib/formato.ts` (interpreta `AAAA-MM-DD` en hora local; `new Date("2026-11-28")` mostraría el día anterior en Colombia). Sesión en loaders protegidos con `requerirSesion()` de `lib/api/sesion.ts`. Barras de proporción con `components/common/BarraProporcion`.
 - Formato: `npx prettier --write` y `npx eslint src` sin errores en el frontend.
 - Persistencia de varias entidades de un mismo flujo: usar `@Transactional`.
+- Reemplazar asociaciones de una tabla con UNIQUE (líneas, áreas, habilidades): `deleteAll(anteriores)` y luego `flush()` antes de insertar las nuevas. Hibernate ejecuta los INSERT antes que los DELETE; sin el `flush`, conservar un elemento que ya estaba viola el UNIQUE (`duplicate key`). Las tablas de vínculo de Supabase tienen esos índices aunque la entidad no los declare.
 - Las asociaciones JPA `LAZY` deben cargarse en consulta o transacción antes de leerlas fuera del servicio. Para `Usuario.rol`, usar consultas `findWithRol...` con `@EntityGraph`.
 - Mantener nombres de dominio en español y respetar nombres/capitalización de catálogos, estados y roles.
 - No añadir acceso a datos demo ni IDs fijos. El usuario actual se obtiene con `/api/usuarios/me`.

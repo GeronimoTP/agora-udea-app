@@ -146,6 +146,9 @@ public class ProfesorService {
             // Eliminar anteriores
             List<ProfesorAreaEspecialidad> anteriores = profesorAreaRepository.findByProfesorId(id);
             profesorAreaRepository.deleteAll(anteriores);
+            // Hibernate ejecuta los INSERT antes que los DELETE: sin el flush, conservar un elemento
+            // que ya estaba lo insertaría de nuevo y violaría el UNIQUE de la tabla
+            profesorAreaRepository.flush();
 
             // Guardar nuevas
             for (Integer idArea : request.getIdAreasEspecialidad()) {
