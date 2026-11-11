@@ -27,4 +27,7 @@ public class PostulacionResponseDTO {
     private ZonedDateTime fechaDecisionEstudiante;
     private String estadoPostulacion;
     private List<String> habilidades;
+    // Cada requisito de la convocatoria y si la postulación lo cumple
+    private List<RequisitoEvaluadoDTO> requisitos;
+    private boolean cumpleObligatorios;
 }

@@ -10,10 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdministracionRouteImport } from './routes/administracion'
 import { Route as AnaliticaRouteImport } from './routes/analitica'
 import { Route as CompatibilidadRouteImport } from './routes/compatibilidad'
 import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as PostulacionesRouteImport } from './routes/postulaciones'
+import { Route as SolicitudesRouteImport } from './routes/solicitudes'
 import { Route as AuthCompleteProfileRouteImport } from './routes/auth.complete-profile'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthSelectRoleRouteImport } from './routes/auth.select-role'
@@ -26,6 +28,11 @@ import { Route as SemillerosNuevoRouteImport } from './routes/semilleros.nuevo'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdministracionRoute = AdministracionRouteImport.update({
+  id: '/administracion',
+  path: '/administracion',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnaliticaRoute = AnaliticaRouteImport.update({
@@ -46,6 +53,11 @@ const PerfilRoute = PerfilRouteImport.update({
 const PostulacionesRoute = PostulacionesRouteImport.update({
   id: '/postulaciones',
   path: '/postulaciones',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SolicitudesRoute = SolicitudesRouteImport.update({
+  id: '/solicitudes',
+  path: '/solicitudes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCompleteProfileRoute = AuthCompleteProfileRouteImport.update({
@@ -91,10 +103,12 @@ const SemillerosNuevoRoute = SemillerosNuevoRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/administracion': typeof AdministracionRoute
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
   '/perfil': typeof PerfilRoute
   '/postulaciones': typeof PostulacionesRoute
+  '/solicitudes': typeof SolicitudesRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/select-role': typeof AuthSelectRoleRoute
@@ -106,10 +120,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/administracion': typeof AdministracionRoute
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
   '/perfil': typeof PerfilRoute
   '/postulaciones': typeof PostulacionesRoute
+  '/solicitudes': typeof SolicitudesRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/select-role': typeof AuthSelectRoleRoute
@@ -122,10 +138,12 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/administracion': typeof AdministracionRoute
   '/analitica': typeof AnaliticaRoute
   '/compatibilidad': typeof CompatibilidadRoute
   '/perfil': typeof PerfilRoute
   '/postulaciones': typeof PostulacionesRoute
+  '/solicitudes': typeof SolicitudesRoute
   '/auth/complete-profile': typeof AuthCompleteProfileRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/select-role': typeof AuthSelectRoleRoute
@@ -139,10 +157,12 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/administracion'
     | '/analitica'
     | '/compatibilidad'
     | '/perfil'
     | '/postulaciones'
+    | '/solicitudes'
     | '/auth/complete-profile'
     | '/auth/login'
     | '/auth/select-role'
@@ -154,10 +174,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/administracion'
     | '/analitica'
     | '/compatibilidad'
     | '/perfil'
     | '/postulaciones'
+    | '/solicitudes'
     | '/auth/complete-profile'
     | '/auth/login'
     | '/auth/select-role'
@@ -169,10 +191,12 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/administracion'
     | '/analitica'
     | '/compatibilidad'
     | '/perfil'
     | '/postulaciones'
+    | '/solicitudes'
     | '/auth/complete-profile'
     | '/auth/login'
     | '/auth/select-role'
@@ -185,10 +209,12 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdministracionRoute: typeof AdministracionRoute
   AnaliticaRoute: typeof AnaliticaRoute
   CompatibilidadRoute: typeof CompatibilidadRoute
   PerfilRoute: typeof PerfilRoute
   PostulacionesRoute: typeof PostulacionesRoute
+  SolicitudesRoute: typeof SolicitudesRoute
   AuthCompleteProfileRoute: typeof AuthCompleteProfileRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthSelectRoleRoute: typeof AuthSelectRoleRoute
@@ -206,6 +232,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/administracion': {
+      id: '/administracion'
+      path: '/administracion'
+      fullPath: '/administracion'
+      preLoaderRoute: typeof AdministracionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analitica': {
@@ -234,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/postulaciones'
       fullPath: '/postulaciones'
       preLoaderRoute: typeof PostulacionesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/solicitudes': {
+      id: '/solicitudes'
+      path: '/solicitudes'
+      fullPath: '/solicitudes'
+      preLoaderRoute: typeof SolicitudesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/complete-profile': {
@@ -297,10 +337,12 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdministracionRoute: AdministracionRoute,
   AnaliticaRoute: AnaliticaRoute,
   CompatibilidadRoute: CompatibilidadRoute,
   PerfilRoute: PerfilRoute,
   PostulacionesRoute: PostulacionesRoute,
+  SolicitudesRoute: SolicitudesRoute,
   AuthCompleteProfileRoute: AuthCompleteProfileRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthSelectRoleRoute: AuthSelectRoleRoute,

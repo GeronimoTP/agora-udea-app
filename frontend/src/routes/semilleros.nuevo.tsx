@@ -24,7 +24,6 @@ import {
   esProfesor,
   estudiantesQuery,
   profesoresQuery,
-  semillerosQuery,
 } from "@/lib/api/queries";
 import type { EstudianteResumen, Profesor } from "@/lib/api/perfiles";
 import { semillerosService } from "@/lib/api/semilleros";
@@ -55,10 +54,7 @@ export const Route = createFileRoute("/semilleros/nuevo")({
       context.queryClient.ensureQueryData(profesoresQuery()),
       context.queryClient.ensureQueryData(catalogoSemilleroQuery()),
       ...(profesor
-        ? [
-            context.queryClient.ensureQueryData(estudiantesQuery()),
-            context.queryClient.ensureQueryData(semillerosQuery()),
-          ]
+        ? [context.queryClient.ensureQueryData(estudiantesQuery())]
         : []),
     ]);
     const programaInicial = profesor
@@ -66,7 +62,7 @@ export const Route = createFileRoute("/semilleros/nuevo")({
         null)
       : (
           await apiRequest<{ nombrePrograma: string | null }>(
-            `/api/estudiantes/${sesion.idEstudiante}`,
+            "/api/estudiantes/me",
           )
         ).nombrePrograma;
     return { sesion, programaInicial };
@@ -87,12 +83,10 @@ function NuevoSemilleroPage() {
     ...estudiantesQuery(),
     enabled: esProfesorActual,
   });
-  const { data: semilleros = [] } = useQuery({
-    ...semillerosQuery(),
-    enabled: esProfesorActual,
-  });
-  // Un estudiante lidera como máximo un semillero: no se ofrecen los que ya lideran uno
-  const lideresOcupados = semilleros.map((s) => s.idEstudianteLider);
+  // Un estudiante lidera como máximo un semillero (aprobado o no): no se ofrecen los que ya lideran uno
+  const lideresOcupados = estudiantes
+    .filter((e) => e.lideraSemillero)
+    .map((e) => e.id);
 
   const programaInicial = catalogo.programas.find(
     (p) => p.nombre === nombreProgramaInicial,
@@ -155,9 +149,7 @@ function NuevoSemilleroPage() {
         idProfesores: seleccionados.map((p) => p.id),
       });
       toast.success(
-        esProfesorActual
-          ? `Semillero "${creado.nombre}" registrado. Quedaste como profesor tutor.`
-          : `Semillero "${creado.nombre}" registrado. Ahora eres su líder.`,
+        `Semillero "${creado.nombre}" enviado al administrador. Podrás abrir convocatorias y vincular integrantes cuando lo apruebe.`,
       );
       // La sesión cambia: ahora tiene un semillero liderado y el tablero pasa a vista de líder
       await Promise.all([
@@ -191,8 +183,8 @@ function NuevoSemilleroPage() {
         title="Registrar un semillero de investigación"
         description={
           esProfesorActual
-            ? "Registra el semillero con los datos de su aval institucional. Quedas vinculado como profesor tutor y eliges al estudiante líder, que debe estar registrado en Agora UdeA y no liderar otro semillero."
-            : "Registra el semillero con los datos de su aval institucional. Al crearlo quedas como estudiante líder y el semillero debe tener al menos un profesor tutor registrado en Agora UdeA."
+            ? "Registra el semillero con los datos de su aval institucional. Quedas vinculado como profesor tutor y eliges al estudiante líder, que debe estar registrado en Agora UdeA y no liderar otro semillero. El administrador revisará la solicitud antes de que el semillero sea público."
+            : "Registra el semillero con los datos de su aval institucional. Quedas como estudiante líder y el semillero debe tener al menos un profesor tutor registrado en Agora UdeA. El administrador revisará la solicitud antes de que el semillero sea público."
         }
       />
 
@@ -389,7 +381,8 @@ function NuevoSemilleroPage() {
               <span className="label-caps mr-2">Seleccionado</span>
               {lider ? (
                 <span className="text-foreground">
-                  {lider.nombreCompleto} · {lider.email}
+                  {lider.nombreCompleto}
+                  {lider.nombrePrograma ? ` · ${lider.nombrePrograma}` : ""}
                 </span>
               ) : (
                 <span className="text-muted-foreground">

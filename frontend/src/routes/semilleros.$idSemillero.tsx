@@ -4,7 +4,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { ArrowLeft, ExternalLink, Mail } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ExternalLink, Mail } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
@@ -23,7 +23,17 @@ import {
   semilleroQuery,
 } from "@/lib/api/queries";
 import { postulacionesService } from "@/lib/api/postulaciones";
-import type { Convocatoria, Proyecto, Publicacion } from "@/types/api";
+import {
+  ESTADO_SOLICITUD_PENDIENTE,
+  solicitudesQueries,
+  solicitudesService,
+} from "@/lib/api/solicitudes";
+import type {
+  Convocatoria,
+  Proyecto,
+  Publicacion,
+  Semillero,
+} from "@/types/api";
 import { formatearFecha } from "@/lib/formato";
 
 export const Route = createFileRoute("/semilleros/$idSemillero")({
@@ -74,6 +84,7 @@ function SemilleroDetallePage() {
   // El equipo (con correos) solo lo ven integrantes activos, el líder y los tutores
   const perteneceAlEquipo =
     esIntegrante || (sesion?.idSemillerosLiderados.includes(id) ?? false);
+  const esLider = sesion?.idSemillerosLiderados.includes(id) ?? false;
   const motivoSinPostulacion =
     idEstudiante === null
       ? null
@@ -119,6 +130,8 @@ function SemilleroDetallePage() {
         }
       />
 
+      <AvisoAprobacion semillero={semillero} />
+
       <section aria-labelledby="lineas" className="mb-10">
         <h2 id="lineas" className="label-caps mb-2">
           Líneas de investigación
@@ -137,6 +150,10 @@ function SemilleroDetallePage() {
 
       {perteneceAlEquipo && (
         <EquipoSemillero idSemillero={id} nombreLider={semillero.nombreLider} />
+      )}
+
+      {esIntegrante && !esLider && (
+        <RetiroVoluntario idSemillero={id} nombreSemillero={semillero.nombre} />
       )}
 
       <section aria-labelledby="convocatorias-semillero" className="mb-10">
@@ -192,6 +209,158 @@ function SemilleroDetallePage() {
         />
       </section>
     </AppShell>
+  );
+}
+
+/** Solo lo ven sus líderes y el administrador: para los demás el semillero no existe. */
+function AvisoAprobacion({ semillero }: { semillero: Semillero }) {
+  if (semillero.estado === "PENDIENTE_APROBACION") {
+    return (
+      <p className="mb-8 rounded-sm border border-warning/40 bg-warning/10 p-4 text-sm text-foreground">
+        Este semillero está pendiente de aprobación del administrador. Solo lo
+        ven sus líderes; cuando lo apruebe será público y podrá abrir
+        convocatorias.
+      </p>
+    );
+  }
+  if (semillero.estado === "RECHAZADO") {
+    return (
+      <div className="mb-8 rounded-sm border border-destructive/40 bg-destructive/10 p-4 text-sm text-foreground">
+        <p className="font-medium">El administrador rechazó este semillero.</p>
+        {semillero.motivoRechazo && (
+          <p className="mt-1">Motivo: {semillero.motivoRechazo}</p>
+        )}
+        <p className="mt-1 text-muted-foreground">
+          Corrige los datos y reenvíalo desde la gestión del semillero.
+        </p>
+      </div>
+    );
+  }
+  return null;
+}
+
+/**
+ * Retiro voluntario: el integrante no sale de inmediato; envía una solicitud que un líder o
+ * tutor aprueba o rechaza, para hablar antes con él.
+ */
+function RetiroVoluntario({
+  idSemillero,
+  nombreSemillero,
+}: {
+  idSemillero: number;
+  nombreSemillero: string;
+}) {
+  const queryClient = useQueryClient();
+  const { data: solicitudes = [] } = useQuery(solicitudesQueries.misRetiros());
+  const ultima = solicitudes.find((s) => s.idSemillero === idSemillero);
+  const pendiente = ultima?.estado === ESTADO_SOLICITUD_PENDIENTE;
+  const [abierto, setAbierto] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  async function solicitar() {
+    setEnviando(true);
+    try {
+      await solicitudesService.solicitarRetiro(idSemillero, motivo.trim());
+      toast.success(
+        "Solicitud enviada. El líder y los tutores la verán en la gestión del semillero.",
+      );
+      await queryClient.invalidateQueries({ queryKey: ["solicitudes"] });
+      setAbierto(false);
+      setMotivo("");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar la solicitud.",
+      );
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="retiro" className="mb-10">
+      <h2
+        id="retiro"
+        className="mb-1 font-display text-sm font-semibold text-foreground"
+      >
+        Retirarme del semillero
+      </h2>
+      <div className="panel p-5 text-sm">
+        {pendiente && ultima ? (
+          <p>
+            Enviaste una solicitud de retiro el{" "}
+            {formatearFecha(ultima.fechaSolicitud)}. Sigues siendo integrante
+            hasta que un líder o tutor la responda; es posible que quieran
+            hablar contigo antes.
+          </p>
+        ) : (
+          <>
+            {ultima?.estado === "Rechazada" && (
+              <p className="mb-3 rounded-sm border border-border bg-secondary p-3">
+                Tu última solicitud fue rechazada por{" "}
+                {ultima.nombreQuienResponde ?? "un líder"}
+                {ultima.comentarioRespuesta
+                  ? `: "${ultima.comentarioRespuesta}"`
+                  : "."}{" "}
+                Puedes volver a solicitarlo.
+              </p>
+            )}
+            {abierto ? (
+              <div>
+                <label
+                  htmlFor="motivo-retiro"
+                  className="label-caps mb-1.5 block"
+                >
+                  ¿Por qué quieres retirarte de {nombreSemillero}?
+                </label>
+                <textarea
+                  id="motivo-retiro"
+                  value={motivo}
+                  onChange={(event) => setMotivo(event.target.value)}
+                  rows={3}
+                  maxLength={1000}
+                  className="w-full rounded-sm border border-input bg-surface p-3 text-sm outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                  placeholder="Tu motivo le ayuda al líder a entender tu situación."
+                />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={solicitar}
+                    disabled={enviando || motivo.trim().length < 10}
+                    className="rounded-sm bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground transition-colors hover:opacity-90 disabled:opacity-50"
+                  >
+                    {enviando ? "Enviando" : "Enviar solicitud de retiro"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAbierto(false)}
+                    className="rounded-sm border border-border-strong px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-muted-foreground">
+                  Tu retiro no es inmediato: el líder y los tutores reciben tu
+                  solicitud y deciden, para poder hablar contigo antes.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setAbierto(true)}
+                  className="rounded-sm border border-destructive/60 px-4 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+                >
+                  Solicitar retiro
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -267,7 +436,7 @@ function Persona({
 }: {
   nombre: string;
   detalle?: string;
-  email: string;
+  email: string | null;
 }) {
   return (
     <li className="min-w-0">
@@ -275,13 +444,15 @@ function Persona({
       {detalle && (
         <p className="truncate text-xs text-muted-foreground">{detalle}</p>
       )}
-      <a
-        href={`mailto:${email}`}
-        className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-accent underline-offset-4 hover:underline"
-      >
-        <Mail className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-        <span className="truncate">{email}</span>
-      </a>
+      {email && (
+        <a
+          href={`mailto:${email}`}
+          className="mt-0.5 inline-flex max-w-full items-center gap-1.5 text-xs text-accent underline-offset-4 hover:underline"
+        >
+          <Mail className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+          <span className="truncate">{email}</span>
+        </a>
+      )}
     </li>
   );
 }
@@ -300,6 +471,10 @@ function ConvocatoriaItem({
   const [experiencia, setExperiencia] = useState("");
   const [horas, setHoras] = useState(4);
   const [idHabilidades, setIdHabilidades] = useState<number[]>([]);
+  // Requisitos de texto que el estudiante declara cumplir
+  const [idRequisitosCumplidos, setIdRequisitosCumplidos] = useState<number[]>(
+    [],
+  );
   const [enviando, setEnviando] = useState(false);
   const [abierto, setAbierto] = useState(false);
   const { data: habilidades = [] } = useQuery({
@@ -332,6 +507,23 @@ function ConvocatoriaItem({
     horas >= 2 &&
     idHabilidades.length > 0;
 
+  // Los de habilidad se cumplen con las habilidades elegidas; los de texto, con la declaración
+  const cumple = (requisito: Convocatoria["requisitos"][number]) =>
+    requisito.idHabilidad !== null
+      ? idHabilidades.includes(requisito.idHabilidad)
+      : idRequisitosCumplidos.includes(requisito.id);
+  const obligatoriosIncumplidos = convocatoria.requisitos.filter(
+    (r) => r.obligatorio && !cumple(r),
+  );
+
+  function alternarRequisito(idRequisito: number) {
+    setIdRequisitosCumplidos((actuales) =>
+      actuales.includes(idRequisito)
+        ? actuales.filter((idActual) => idActual !== idRequisito)
+        : [...actuales, idRequisito],
+    );
+  }
+
   function alternarHabilidad(idHabilidad: number) {
     setIdHabilidades((actuales) =>
       actuales.includes(idHabilidad)
@@ -351,6 +543,7 @@ function ConvocatoriaItem({
         experienciaPrevia: experiencia.trim(),
         disponibilidadHorasSemana: horas,
         idHabilidades,
+        idRequisitosCumplidos,
       });
       toast.success("Postulación registrada correctamente.");
       await queryClient.invalidateQueries({ queryKey: ["postulaciones"] });
@@ -358,6 +551,7 @@ function ConvocatoriaItem({
       setMotivacion("");
       setExperiencia("");
       setIdHabilidades([]);
+      setIdRequisitosCumplidos([]);
     } catch (error) {
       toast.error(
         error instanceof Error && error.message
@@ -406,16 +600,24 @@ function ConvocatoriaItem({
         </div>
       </dl>
 
-      {convocatoria.habilidadesRequeridas.length > 0 && (
+      {convocatoria.requisitos.length > 0 && (
         <div className="mt-4">
-          <p className="label-caps mb-1.5">Habilidades requeridas</p>
+          <p className="label-caps mb-1.5">Requisitos</p>
           <ul className="flex flex-wrap gap-1.5">
-            {convocatoria.habilidadesRequeridas.map((habilidad) => (
+            {convocatoria.requisitos.map((requisito) => (
               <li
-                key={habilidad}
-                className="rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                key={requisito.id}
+                className={
+                  requisito.obligatorio
+                    ? "rounded-sm border border-primary bg-primary/10 px-2 py-0.5 text-xs text-foreground"
+                    : "rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                }
               >
-                {habilidad}
+                {requisito.texto}
+                <span className="ml-1 text-muted-foreground">
+                  ({requisito.obligatorio ? "obligatorio" : "opcional"}
+                  {requisito.idHabilidad !== null ? ", habilidad" : ""})
+                </span>
               </li>
             ))}
           </ul>
@@ -497,6 +699,58 @@ function ConvocatoriaItem({
                   })}
                 </ul>
               </fieldset>
+
+              {convocatoria.requisitos.some((r) => r.idHabilidad === null) && (
+                <fieldset className="mt-4">
+                  <legend className="label-caps mb-1.5">
+                    Requisitos que cumples
+                  </legend>
+                  <ul className="space-y-1.5">
+                    {convocatoria.requisitos
+                      .filter((r) => r.idHabilidad === null)
+                      .map((requisito) => (
+                        <li key={requisito.id}>
+                          <label className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={idRequisitosCumplidos.includes(
+                                requisito.id,
+                              )}
+                              onChange={() => alternarRequisito(requisito.id)}
+                              className="mt-0.5"
+                            />
+                            <span>
+                              {requisito.texto}
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                (
+                                {requisito.obligatorio
+                                  ? "obligatorio"
+                                  : "opcional"}
+                                )
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                  </ul>
+                </fieldset>
+              )}
+
+              {obligatoriosIncumplidos.length > 0 && (
+                <p className="mt-4 flex items-start gap-2 rounded-sm border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
+                  <AlertTriangle
+                    className="mt-0.5 size-4 shrink-0"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                  <span>
+                    No cumples estos requisitos obligatorios:{" "}
+                    {obligatoriosIncumplidos.map((r) => r.texto).join(", ")}.
+                    Puedes postularte igual, pero el líder lo verá y tu
+                    postulación quedará después de las que sí los cumplen.
+                  </span>
+                </p>
+              )}
 
               <div className="mt-3 flex gap-2">
                 <button

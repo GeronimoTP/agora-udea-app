@@ -17,8 +17,8 @@ import com.udea.agora_backend.repository.ConvocatoriaRepository;
 import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.ProyectoRepository;
 import com.udea.agora_backend.repository.PublicacionRepository;
-import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository.LineaDeSemillero;
+import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -113,6 +113,9 @@ public class SemilleroMapper {
                 .totalPublicaciones(totalPublicaciones)
                 .totalIntegrantes(totalIntegrantes)
                 .convocatoriaAbierta(convocatoriaAbierta)
+                .fechaSolicitud(semillero.getFechaSolicitud())
+                .fechaRevision(semillero.getFechaRevision())
+                .motivoRechazo(semillero.getMotivoRechazo())
                 .build();
     }
 

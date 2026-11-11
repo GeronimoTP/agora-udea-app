@@ -7,8 +7,8 @@ import { claseCampo, normalizar } from "./comunes";
 const MAX_RESULTADOS = 30;
 
 /**
- * Lista de estudiantes registrados con filtros por nombre/correo y programa.
- * Lo que se hace con cada estudiante lo decide `renderAccion`.
+ * Lista de estudiantes registrados con filtros por nombre y programa. El listado no trae
+ * correos (datos personales). Lo que se hace con cada estudiante lo decide `renderAccion`.
  */
 export function BuscadorEstudiantes({
   estudiantes,
@@ -29,9 +29,7 @@ export function BuscadorEstudiantes({
     return estudiantes.filter(
       (e) =>
         !excluir.includes(e.id) &&
-        (!texto ||
-          normalizar(e.nombreCompleto).includes(texto) ||
-          normalizar(e.email).includes(texto)) &&
+        (!texto || normalizar(e.nombreCompleto).includes(texto)) &&
         (!programa || e.nombrePrograma === programa),
     );
   }, [estudiantes, excluir, busqueda, programa]);
@@ -48,8 +46,8 @@ export function BuscadorEstudiantes({
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o correo"
-            aria-label="Buscar estudiante por nombre o correo"
+            placeholder="Buscar por nombre"
+            aria-label="Buscar estudiante por nombre"
             className={`${claseCampo} pl-8`}
           />
         </div>
@@ -81,8 +79,7 @@ export function BuscadorEstudiantes({
                 {e.nombreCompleto}
               </p>
               <p className="text-xs text-muted-foreground">
-                {e.email}
-                {e.nombrePrograma ? ` · ${e.nombrePrograma}` : ""} · Semestre{" "}
+                {e.nombrePrograma ? `${e.nombrePrograma} · ` : ""}Semestre{" "}
                 {e.semestre}
               </p>
             </div>

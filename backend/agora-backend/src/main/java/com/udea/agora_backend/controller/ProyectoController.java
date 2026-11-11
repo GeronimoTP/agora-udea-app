@@ -110,10 +110,15 @@ public class ProyectoController {
     // VINCULACIÓN DE ESTUDIANTES AL PROYECTO
     // ==========================================
 
-    @Operation(summary = "Obtener los estudiantes vinculados a un proyecto con sus roles de trabajo")
-    @ApiResponse(responseCode = "200", description = "Lista de estudiantes vinculados obtenida exitosamente")
+    @Operation(summary = "Estudiantes vinculados a un proyecto con sus roles (integrantes y líderes del semillero)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista de estudiantes vinculados obtenida exitosamente"),
+            @ApiResponse(responseCode = "403", description = "No pertenece al semillero del proyecto")
+    })
     @GetMapping("/{id}/estudiantes")
-    public ResponseEntity<List<VinculacionProyectoResponseDTO>> obtenerEstudiantesVinculados(@PathVariable Integer id) {
+    public ResponseEntity<List<VinculacionProyectoResponseDTO>> obtenerEstudiantesVinculados(
+            @PathVariable Integer id, Authentication authentication) {
+        autorizacionSemillero.validarLecturaIntegrantesProyecto(authentication.getName(), id);
         return ResponseEntity.ok(proyectoService.obtenerEstudiantesVinculados(id));
     }
 

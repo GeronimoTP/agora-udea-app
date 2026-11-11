@@ -1,6 +1,7 @@
 package com.udea.agora_backend.service;
 
 import com.udea.agora_backend.dominio.CategoriasEstado;
+import com.udea.agora_backend.dominio.EstadosSolicitud;
 import com.udea.agora_backend.dominio.EstadosVinculacion;
 import com.udea.agora_backend.dto.request.EstudianteSemilleroRequestDTO;
 import com.udea.agora_backend.dto.request.ProfesorSemilleroRequestDTO;
@@ -21,6 +22,7 @@ import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
 import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
+import com.udea.agora_backend.repository.SolicitudRetiroRepository;
 import com.udea.agora_backend.service.mapper.SemilleroMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,6 +53,7 @@ public class MiembrosSemilleroService {
     private final BuscadorEstados buscadorEstados;
     private final LiderazgoSemilleroService liderazgoSemilleroService;
     private final SemilleroMapper semilleroMapper;
+    private final SolicitudRetiroRepository solicitudRetiroRepository;
 
     // ==========================================
     // CO-TUTORÍA Y GOBERNANZA (PROFESORES)
@@ -103,6 +107,7 @@ public class MiembrosSemilleroService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Estudiante", request.getIdEstudiante()));
 
         Estado estado = buscadorEstados.porIdEnCategoria(CategoriasEstado.VINCULACION, request.getIdEstado());
+        validarAprobado(semillero);
 
         if (semillero.getEstudianteLider().getId().equals(estudiante.getId())) {
             throw new ErrorLogicaNegocioException("El estudiante líder no se vincula como integrante.");
@@ -188,6 +193,7 @@ public class MiembrosSemilleroService {
         }
         vinculacion.setFechaSalida(LocalDate.now());
         vinculacion.setEstado(buscadorEstados.deVinculacion(EstadosVinculacion.INACTIVA));
+        resolverSolicitudesDeRetiroPendientes(vinculacion);
         return semilleroMapper.aVinculacion(estudianteSemilleroRepository.save(vinculacion));
     }
 
@@ -198,6 +204,7 @@ public class MiembrosSemilleroService {
     public SemilleroResponseDTO transferirLiderazgo(Integer idSemillero, Integer idNuevoLider) {
         Semillero semillero = semilleroRepository.findById(idSemillero)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", idSemillero));
+        validarAprobado(semillero);
         Estudiante liderActual = semillero.getEstudianteLider();
         if (liderActual.getId().equals(idNuevoLider)) {
             throw new ErrorLogicaNegocioException("El estudiante ya es el líder del semillero.");
@@ -223,5 +230,25 @@ public class MiembrosSemilleroService {
 
         semillero.setEstudianteLider(nuevoLider);
         return semilleroMapper.aResponse(semilleroRepository.save(semillero));
+    }
+
+    // Si el líder retira directamente a quien había pedido salir, su solicitud queda aprobada
+    private void resolverSolicitudesDeRetiroPendientes(EstudianteSemillero vinculacion) {
+        solicitudRetiroRepository.findByVinculacionYEstado(vinculacion.getId(), EstadosSolicitud.PENDIENTE)
+                .forEach(solicitud -> {
+                    solicitud.setEstado(buscadorEstados.deSolicitud(EstadosSolicitud.APROBADA));
+                    solicitud.setFechaRespuesta(ZonedDateTime.now());
+                    if (solicitud.getComentarioRespuesta() == null) {
+                        solicitud.setComentarioRespuesta("Retirado por un líder del semillero.");
+                    }
+                    solicitudRetiroRepository.save(solicitud);
+                });
+    }
+
+    // Un semillero sin aprobar no tiene integrantes: solo sus líderes lo gestionan
+    private static void validarAprobado(Semillero semillero) {
+        if (!semillero.estaAprobado()) {
+            throw new ErrorLogicaNegocioException("El semillero aún no ha sido aprobado por el administrador.");
+        }
     }
 }

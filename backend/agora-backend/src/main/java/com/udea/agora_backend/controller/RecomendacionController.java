@@ -4,7 +4,7 @@ import com.udea.agora_backend.dto.response.SemilleroRecomendadoDTO;
 import com.udea.agora_backend.dto.response.SemillerosSimilaresResponseDTO;
 import com.udea.agora_backend.service.MotorRecomendacionService;
 import com.udea.agora_backend.service.SemillerosSimilaresService;
-import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
+import com.udea.agora_backend.service.autorizacion.UsuarioAutenticadoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -24,7 +24,7 @@ public class RecomendacionController {
 
     private final MotorRecomendacionService motorRecomendacionService;
     private final SemillerosSimilaresService semillerosSimilaresService;
-    private final AutorizacionPerfilService autorizacionPerfil;
+    private final UsuarioAutenticadoService usuarioAutenticado;
 
     @Operation(
             summary = "Calcular ranking de afinidad de semilleros para un estudiante",
@@ -34,12 +34,10 @@ public class RecomendacionController {
             @ApiResponse(responseCode = "200", description = "Ranking de afinidad calculado exitosamente"),
             @ApiResponse(responseCode = "404", description = "Estudiante no encontrado")
     })
-    @GetMapping("/estudiante/{idEstudiante}")
-    public ResponseEntity<List<SemilleroRecomendadoDTO>> calcularAfinidad(
-            @PathVariable Integer idEstudiante,
-            Authentication authentication) {
-        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
-        return ResponseEntity.ok(motorRecomendacionService.calcularAfinidad(idEstudiante));
+    @GetMapping("/mias")
+    public ResponseEntity<List<SemilleroRecomendadoDTO>> calcularAfinidad(Authentication authentication) {
+        return ResponseEntity.ok(motorRecomendacionService.calcularAfinidad(
+                usuarioAutenticado.idEstudianteActual(authentication.getName())));
     }
 
     @Operation(
@@ -53,12 +51,11 @@ public class RecomendacionController {
             @ApiResponse(responseCode = "200", description = "Semilleros similares calculados"),
             @ApiResponse(responseCode = "404", description = "Estudiante no encontrado")
     })
-    @GetMapping("/estudiante/{idEstudiante}/similares")
+    @GetMapping("/mias/similares")
     public ResponseEntity<SemillerosSimilaresResponseDTO> semillerosSimilares(
-            @PathVariable Integer idEstudiante,
             @RequestParam(defaultValue = "5") int limite,
             Authentication authentication) {
-        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
-        return ResponseEntity.ok(semillerosSimilaresService.buscar(idEstudiante, limite));
+        return ResponseEntity.ok(semillerosSimilaresService.buscar(
+                usuarioAutenticado.idEstudianteActual(authentication.getName()), limite));
     }
 }

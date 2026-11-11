@@ -6,7 +6,7 @@
 export type RolUsuario = "ESTUDIANTE" | "PROFESOR" | "ADMINISTRADOR";
 
 export type EstadoSemillero =
-  "ACTIVO" | "EN_PAUSA" | "PENDIENTE_APROBACION" | "INACTIVO";
+  "ACTIVO" | "EN_PAUSA" | "PENDIENTE_APROBACION" | "RECHAZADO" | "INACTIVO";
 
 export type EstadoConvocatoria = "ABIERTA" | "CERRADA" | "BORRADOR";
 
@@ -82,6 +82,9 @@ export interface Semillero {
   totalPublicaciones: number;
   totalIntegrantes: number;
   convocatoriaAbierta: boolean;
+  // Aprobación del administrador: nulos en semilleros anteriores a ella
+  fechaSolicitud: string | null;
+  motivoRechazo: string | null;
 }
 
 /** Equipo visible solo para quienes pertenecen al semillero (incluye correos). */
@@ -96,7 +99,25 @@ export interface IntegranteSemillero {
 export interface TutorSemillero {
   idProfesor: number;
   nombre: string;
-  email: string;
+  // Solo para quienes pertenecen al semillero; nulo para los demás
+  email: string | null;
+}
+
+/** Requisito de una convocatoria: habilidad del catálogo o texto libre. */
+export interface RequisitoConvocatoria {
+  id: number;
+  idHabilidad: number | null;
+  texto: string;
+  obligatorio: boolean;
+}
+
+/** Si una postulación cumple un requisito de su convocatoria. */
+export interface RequisitoEvaluado {
+  idRequisito: number;
+  texto: string;
+  deHabilidad: boolean;
+  obligatorio: boolean;
+  cumple: boolean;
 }
 
 export interface Convocatoria {
@@ -110,7 +131,7 @@ export interface Convocatoria {
   cuposTotales: number;
   cuposDisponibles: number;
   estado: EstadoConvocatoria;
-  habilidadesRequeridas: string[];
+  requisitos: RequisitoConvocatoria[];
 }
 
 export interface Postulacion {
@@ -133,6 +154,8 @@ export interface Postulacion {
   priorizacion?: PriorizacionCandidato;
   habilidades: string[];
   cartaMotivacion?: string;
+  requisitos: RequisitoEvaluado[];
+  cumpleObligatorios: boolean;
 }
 
 /** Servicio 2: priorización de un candidato dentro de su convocatoria (0-100). */
@@ -148,6 +171,9 @@ export interface PriorizacionCandidato {
     compromiso: number;
   };
   observaciones: string[];
+  // Quien no cumple todos los requisitos obligatorios va después de los que sí
+  cumpleObligatorios: boolean;
+  requisitosObligatoriosIncumplidos: string[];
 }
 
 export interface Proyecto {
@@ -180,6 +206,8 @@ export interface ResultadoMatch {
   factoresCoincidencia: string[];
   desglose: {
     habilidades: number;
+    // Habilidades del estudiante que ya tiene el equipo del semillero
+    habilidadesEquipo: number;
     areasEspecialidad: number;
     convocatoriaAbierta: number;
     proximidadTematica: number;

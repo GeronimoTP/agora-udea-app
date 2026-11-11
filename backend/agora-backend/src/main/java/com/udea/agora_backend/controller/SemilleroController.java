@@ -2,14 +2,17 @@ package com.udea.agora_backend.controller;
 
 import com.udea.agora_backend.dto.request.EstudianteSemilleroRequestDTO;
 import com.udea.agora_backend.dto.request.ProfesorSemilleroRequestDTO;
+import com.udea.agora_backend.dto.request.RechazoRequestDTO;
 import com.udea.agora_backend.dto.request.SemilleroLineaInvestigacionRequestDTO;
 import com.udea.agora_backend.dto.request.SemilleroRequestDTO;
 import com.udea.agora_backend.dto.response.EstudianteSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorSemilleroResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.SemilleroResponseDTO;
+import com.udea.agora_backend.service.AprobacionSemillerosService;
 import com.udea.agora_backend.service.MiembrosSemilleroService;
 import com.udea.agora_backend.service.SemilleroService;
+import com.udea.agora_backend.service.VisibilidadSemilleros;
 import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
 import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
 import com.udea.agora_backend.service.autorizacion.UsuarioAutenticadoService;
@@ -39,12 +42,13 @@ public class SemilleroController {
     private final UsuarioAutenticadoService usuarioAutenticado;
     private final AutorizacionPerfilService autorizacionPerfil;
     private final AutorizacionSemilleroService autorizacionSemillero;
+    private final AprobacionSemillerosService aprobacionSemilleros;
 
     @Operation(summary = "Obtener todos los semilleros")
     @ApiResponse(responseCode = "200", description = "Lista de semilleros obtenida exitosamente")
     @GetMapping
-    public ResponseEntity<List<SemilleroResponseDTO>> obtenerTodos() {
-        return ResponseEntity.ok(semilleroService.obtenerTodos());
+    public ResponseEntity<List<SemilleroResponseDTO>> obtenerTodos(Authentication authentication) {
+        return ResponseEntity.ok(semilleroService.obtenerTodos(visibilidad(authentication)));
     }
 
     @Operation(summary = "Obtener un semillero por su ID")
@@ -53,8 +57,8 @@ public class SemilleroController {
             @ApiResponse(responseCode = "404", description = "Semillero no encontrado")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<SemilleroResponseDTO> obtenerPorId(@PathVariable Integer id) {
-        return ResponseEntity.ok(semilleroService.obtenerPorId(id));
+    public ResponseEntity<SemilleroResponseDTO> obtenerPorId(@PathVariable Integer id, Authentication authentication) {
+        return ResponseEntity.ok(semilleroService.obtenerPorId(id, visibilidad(authentication)));
     }
 
     @Operation(summary = "Obtener un semillero por su código identificador")
@@ -63,27 +67,30 @@ public class SemilleroController {
             @ApiResponse(responseCode = "404", description = "Semillero no encontrado")
     })
     @GetMapping("/codigo/{codigo}")
-    public ResponseEntity<SemilleroResponseDTO> obtenerPorCodigo(@PathVariable String codigo) {
-        return ResponseEntity.ok(semilleroService.obtenerPorCodigo(codigo));
+    public ResponseEntity<SemilleroResponseDTO> obtenerPorCodigo(@PathVariable String codigo, Authentication authentication) {
+        return ResponseEntity.ok(semilleroService.obtenerPorCodigo(codigo, visibilidad(authentication)));
     }
 
     @Operation(summary = "Obtener semilleros por programa académico")
     @ApiResponse(responseCode = "200", description = "Lista de semilleros obtenida exitosamente")
     @GetMapping("/programa/{idPrograma}")
-    public ResponseEntity<List<SemilleroResponseDTO>> obtenerPorPrograma(@PathVariable Integer idPrograma) {
-        return ResponseEntity.ok(semilleroService.obtenerPorPrograma(idPrograma));
+    public ResponseEntity<List<SemilleroResponseDTO>> obtenerPorPrograma(@PathVariable Integer idPrograma,
+                                                                         Authentication authentication) {
+        return ResponseEntity.ok(semilleroService.obtenerPorPrograma(idPrograma, visibilidad(authentication)));
     }
 
     @Operation(summary = "Obtener semilleros por estado")
     @ApiResponse(responseCode = "200", description = "Lista de semilleros obtenida exitosamente")
     @GetMapping("/estado/{idEstado}")
-    public ResponseEntity<List<SemilleroResponseDTO>> obtenerPorEstado(@PathVariable Integer idEstado) {
-        return ResponseEntity.ok(semilleroService.obtenerPorEstado(idEstado));
+    public ResponseEntity<List<SemilleroResponseDTO>> obtenerPorEstado(@PathVariable Integer idEstado,
+                                                                       Authentication authentication) {
+        return ResponseEntity.ok(semilleroService.obtenerPorEstado(idEstado, visibilidad(authentication)));
     }
 
-    @Operation(summary = "Crear un nuevo semillero de investigación")
+    @Operation(summary = "Registrar un semillero de investigación",
+            description = "Queda 'Pendiente de aprobación' hasta que el administrador lo apruebe o lo rechace.")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Semillero creado exitosamente"),
+            @ApiResponse(responseCode = "201", description = "Semillero registrado y enviado al administrador"),
             @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos"),
             @ApiResponse(responseCode = "404", description = "Estudiante líder o programa no encontrado"),
             @ApiResponse(responseCode = "409", description = "Código identificador ya registrado")
@@ -115,7 +122,7 @@ public class SemilleroController {
         return ResponseEntity.ok(semilleroService.actualizar(id, request));
     }
 
-    @Operation(summary = "Actualizar el estado de un semillero (Activo, En pausa, etc.)")
+    @Operation(summary = "Cambiar un semillero aprobado entre Activo e Inactivo")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estado del semillero actualizado exitosamente"),
             @ApiResponse(responseCode = "404", description = "Semillero o estado no encontrado")
@@ -139,6 +146,50 @@ public class SemilleroController {
         autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
         semilleroService.eliminar(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ==========================================
+    // APROBACIÓN DEL ADMINISTRADOR
+    // ==========================================
+
+    @Operation(summary = "Semilleros pendientes de aprobación (administrador)")
+    @GetMapping("/pendientes-aprobacion")
+    public ResponseEntity<List<SemilleroResponseDTO>> pendientesDeAprobacion() {
+        return ResponseEntity.ok(aprobacionSemilleros.pendientes());
+    }
+
+    @Operation(summary = "Aprobar un semillero pendiente (administrador): pasa a 'Activo'")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Semillero aprobado"),
+            @ApiResponse(responseCode = "422", description = "El semillero no está pendiente de aprobación")
+    })
+    @PostMapping("/{id}/aprobar")
+    public ResponseEntity<SemilleroResponseDTO> aprobar(@PathVariable Integer id, Authentication authentication) {
+        return ResponseEntity.ok(aprobacionSemilleros.aprobar(id, usuarioAutenticado.usuario(authentication.getName())));
+    }
+
+    @Operation(summary = "Rechazar un semillero pendiente con un motivo (administrador)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Semillero rechazado"),
+            @ApiResponse(responseCode = "422", description = "El semillero no está pendiente de aprobación")
+    })
+    @PostMapping("/{id}/rechazar")
+    public ResponseEntity<SemilleroResponseDTO> rechazar(@PathVariable Integer id,
+                                                         @Valid @RequestBody RechazoRequestDTO request,
+                                                         Authentication authentication) {
+        return ResponseEntity.ok(aprobacionSemilleros.rechazar(
+                id, request.getMotivo(), usuarioAutenticado.usuario(authentication.getName())));
+    }
+
+    @Operation(summary = "Reenviar al administrador un semillero rechazado (líder del semillero)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Semillero reenviado: vuelve a 'Pendiente de aprobación'"),
+            @ApiResponse(responseCode = "422", description = "El semillero no está rechazado")
+    })
+    @PostMapping("/{id}/reenviar")
+    public ResponseEntity<SemilleroResponseDTO> reenviar(@PathVariable Integer id, Authentication authentication) {
+        autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
+        return ResponseEntity.ok(aprobacionSemilleros.reenviar(id));
     }
 
     // ==========================================
@@ -190,8 +241,14 @@ public class SemilleroController {
     @Operation(summary = "Obtener profesores tutores y co-tutores de un semillero")
     @ApiResponse(responseCode = "200", description = "Lista de profesores tutores obtenida exitosamente")
     @GetMapping("/{id}/profesores")
-    public ResponseEntity<List<ProfesorSemilleroResponseDTO>> obtenerProfesores(@PathVariable Integer id) {
-        return ResponseEntity.ok(miembrosSemilleroService.obtenerProfesores(id));
+    public ResponseEntity<List<ProfesorSemilleroResponseDTO>> obtenerProfesores(@PathVariable Integer id,
+                                                                                Authentication authentication) {
+        List<ProfesorSemilleroResponseDTO> tutores = miembrosSemilleroService.obtenerProfesores(id);
+        // Los nombres de los tutores son públicos; el correo, solo para quien pertenece al semillero
+        if (!autorizacionSemillero.perteneceOAdministra(authentication.getName(), id)) {
+            tutores.forEach(tutor -> tutor.setEmail(null));
+        }
+        return ResponseEntity.ok(tutores);
     }
 
     @Operation(summary = "Asignar un profesor como tutor o co-tutor del semillero")
@@ -304,5 +361,12 @@ public class SemilleroController {
             Authentication authentication) {
         autorizacionSemillero.validarLiderSemillero(authentication.getName(), id);
         return ResponseEntity.ok(miembrosSemilleroService.transferirLiderazgo(id, idEstudiante));
+    }
+
+    // Los semilleros sin aprobar solo los ven sus líderes y el administrador
+    private VisibilidadSemilleros visibilidad(Authentication authentication) {
+        return authentication == null
+                ? VisibilidadSemilleros.soloAprobados()
+                : autorizacionSemillero.visibilidad(authentication.getName());
     }
 }

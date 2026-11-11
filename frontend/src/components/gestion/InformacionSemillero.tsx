@@ -1,10 +1,14 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  ESTADOS_SEMILLERO_APROBADO,
+  ESTADO_PENDIENTE_APROBACION,
+  ESTADO_RECHAZADO,
   catalogoGestionQuery,
   gestionQueries,
   gestionService,
 } from "@/lib/api/gestion";
+import { formatearFecha } from "@/lib/formato";
 import { catalogoSemilleroQuery } from "@/lib/api/queries";
 import {
   BadgeEstado,
@@ -45,6 +49,19 @@ export function InformacionSemillero({
   const [idPrograma, setIdPrograma] = useState(String(semillero.idPrograma));
   const [lineas, setLineas] = useState<number[]>(
     lineasActuales.map((l) => l.idLineaInvestigacion),
+  );
+
+  // Mientras el administrador no lo apruebe, el líder solo corrige datos, reenvía o elimina
+  const pendiente =
+    semillero.estadoActual.toLowerCase() ===
+    ESTADO_PENDIENTE_APROBACION.toLowerCase();
+  const rechazado =
+    semillero.estadoActual.toLowerCase() === ESTADO_RECHAZADO.toLowerCase();
+  const aprobado = !pendiente && !rechazado;
+  const estadosElegibles = catalogoGestion.estadosSemillero.filter((e) =>
+    ESTADOS_SEMILLERO_APROBADO.some(
+      (nombre) => nombre.toLowerCase() === e.nombre.toLowerCase(),
+    ),
   );
 
   const estadoActual = catalogoGestion.estadosSemillero.find(
@@ -192,114 +209,169 @@ export function InformacionSemillero({
       </form>
 
       <div className="space-y-6">
-        <section className="panel space-y-3 p-6">
-          <h2 className="font-display text-sm font-semibold text-foreground">
-            Estado
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Estado actual: <BadgeEstado nombre={semillero.estadoActual} />
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Solo un semillero activo publica convocatorias y aparece en las
-            recomendaciones. Para pausarlo o inactivarlo, primero cierra sus
-            convocatorias abiertas.
-          </p>
-          <select
-            value={idEstado}
-            onChange={(e) => setIdEstado(e.target.value)}
-            aria-label="Nuevo estado del semillero"
-            className={claseCampo}
+        {!aprobado && (
+          <section
+            className={`panel space-y-3 p-6 ${rechazado ? "border-destructive/40" : "border-warning/50"}`}
           >
-            {catalogoGestion.estadosSemillero.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
-          <Confirmar
-            titulo={`¿Cambiar el estado a "${nombreEstadoElegido}"?`}
-            descripcion="El cambio afecta la visibilidad del semillero y la posibilidad de abrir convocatorias."
-            textoAccion="Cambiar estado"
-            onConfirmar={() =>
-              void ejecutar(
-                () =>
-                  gestionService.cambiarEstado(idSemillero, Number(idEstado)),
-                `Semillero en estado "${nombreEstadoElegido}".`,
-              )
-            }
-          >
-            <button
-              type="button"
-              disabled={
-                !idEstado || String(estadoActual?.id) === idEstado || enCurso
-              }
-              className={claseBotonSecundario}
-            >
-              Cambiar estado
-            </button>
-          </Confirmar>
-        </section>
-
-        <section className="panel space-y-3 p-6">
-          <h2 className="font-display text-sm font-semibold text-foreground">
-            Liderazgo estudiantil
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Líder actual:{" "}
-            <span className="font-medium text-foreground">
-              {semillero.nombreEstudianteLider}
-            </span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Transfiere el liderazgo a un integrante activo, por ejemplo antes de
-            graduarte. El líder saliente queda como integrante del semillero.
-          </p>
-          {activos.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              El semillero aún no tiene integrantes activos a quienes
-              transferir.
+            <h2 className="font-display text-sm font-semibold text-foreground">
+              Aprobación del administrador
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Estado actual: <BadgeEstado nombre={semillero.estadoActual} />
             </p>
-          ) : (
-            <>
-              <select
-                value={idNuevoLider}
-                onChange={(e) => setIdNuevoLider(e.target.value)}
-                aria-label="Nuevo líder"
-                className={claseCampo}
-              >
-                <option value="">Selecciona un integrante</option>
-                {activos.map((i) => (
-                  <option key={i.idEstudiante} value={i.idEstudiante}>
-                    {i.nombreEstudiante}
-                  </option>
-                ))}
-              </select>
-              <Confirmar
-                titulo={`¿Transferir el liderazgo a ${nombreNuevoLider}?`}
-                descripcion="Si eres el estudiante líder, perderás la gestión del semillero y quedarás como integrante. Los profesores tutores conservan la gestión."
-                textoAccion="Transferir"
-                onConfirmar={() =>
-                  void ejecutar(
-                    () =>
-                      gestionService.transferirLiderazgo(
-                        idSemillero,
-                        Number(idNuevoLider),
-                      ),
-                    `${nombreNuevoLider} es ahora el líder del semillero.`,
-                  ).then((ok) => ok && onLiderazgoPerdido(false))
-                }
-              >
-                <button
-                  type="button"
-                  disabled={!idNuevoLider || enCurso}
-                  className={claseBotonSecundario}
+            {pendiente ? (
+              <p className="text-xs text-muted-foreground">
+                Enviado el {formatearFecha(semillero.fechaSolicitud)}. Mientras
+                el administrador lo revisa, el semillero no es público, no abre
+                convocatorias ni registra integrantes, proyectos o
+                reconocimientos. Puedes corregir sus datos.
+              </p>
+            ) : (
+              <>
+                <p className="rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-sm text-foreground">
+                  {semillero.motivoRechazo ?? "Sin motivo registrado."}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Corrige los datos según el motivo, guarda los cambios y
+                  reenvía el semillero al administrador.
+                </p>
+                <Confirmar
+                  titulo="¿Reenviar el semillero al administrador?"
+                  descripcion="Volverá a quedar pendiente de aprobación. Asegúrate de haber guardado las correcciones."
+                  textoAccion="Reenviar"
+                  onConfirmar={() =>
+                    void ejecutar(
+                      () => gestionService.reenviarSemillero(idSemillero),
+                      "Semillero reenviado al administrador.",
+                    )
+                  }
                 >
-                  Transferir liderazgo
-                </button>
-              </Confirmar>
-            </>
-          )}
-        </section>
+                  <button
+                    type="button"
+                    disabled={enCurso}
+                    className={claseBotonPrimario}
+                  >
+                    Reenviar al administrador
+                  </button>
+                </Confirmar>
+              </>
+            )}
+          </section>
+        )}
+
+        {aprobado && (
+          <section className="panel space-y-3 p-6">
+            <h2 className="font-display text-sm font-semibold text-foreground">
+              Estado
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Estado actual: <BadgeEstado nombre={semillero.estadoActual} />
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Solo un semillero activo publica convocatorias y aparece en las
+              recomendaciones. Para pausarlo o inactivarlo, primero cierra sus
+              convocatorias abiertas.
+            </p>
+            <select
+              value={idEstado}
+              onChange={(e) => setIdEstado(e.target.value)}
+              aria-label="Nuevo estado del semillero"
+              className={claseCampo}
+            >
+              {estadosElegibles.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.nombre}
+                </option>
+              ))}
+            </select>
+            <Confirmar
+              titulo={`¿Cambiar el estado a "${nombreEstadoElegido}"?`}
+              descripcion="El cambio afecta la visibilidad del semillero y la posibilidad de abrir convocatorias."
+              textoAccion="Cambiar estado"
+              onConfirmar={() =>
+                void ejecutar(
+                  () =>
+                    gestionService.cambiarEstado(idSemillero, Number(idEstado)),
+                  `Semillero en estado "${nombreEstadoElegido}".`,
+                )
+              }
+            >
+              <button
+                type="button"
+                disabled={
+                  !idEstado || String(estadoActual?.id) === idEstado || enCurso
+                }
+                className={claseBotonSecundario}
+              >
+                Cambiar estado
+              </button>
+            </Confirmar>
+          </section>
+        )}
+
+        {aprobado && (
+          <section className="panel space-y-3 p-6">
+            <h2 className="font-display text-sm font-semibold text-foreground">
+              Liderazgo estudiantil
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Líder actual:{" "}
+              <span className="font-medium text-foreground">
+                {semillero.nombreEstudianteLider}
+              </span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Transfiere el liderazgo a un integrante activo, por ejemplo antes
+              de graduarte. El líder saliente queda como integrante del
+              semillero.
+            </p>
+            {activos.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                El semillero aún no tiene integrantes activos a quienes
+                transferir.
+              </p>
+            ) : (
+              <>
+                <select
+                  value={idNuevoLider}
+                  onChange={(e) => setIdNuevoLider(e.target.value)}
+                  aria-label="Nuevo líder"
+                  className={claseCampo}
+                >
+                  <option value="">Selecciona un integrante</option>
+                  {activos.map((i) => (
+                    <option key={i.idEstudiante} value={i.idEstudiante}>
+                      {i.nombreEstudiante}
+                    </option>
+                  ))}
+                </select>
+                <Confirmar
+                  titulo={`¿Transferir el liderazgo a ${nombreNuevoLider}?`}
+                  descripcion="Si eres el estudiante líder, perderás la gestión del semillero y quedarás como integrante. Los profesores tutores conservan la gestión."
+                  textoAccion="Transferir"
+                  onConfirmar={() =>
+                    void ejecutar(
+                      () =>
+                        gestionService.transferirLiderazgo(
+                          idSemillero,
+                          Number(idNuevoLider),
+                        ),
+                      `${nombreNuevoLider} es ahora el líder del semillero.`,
+                    ).then((ok) => ok && onLiderazgoPerdido(false))
+                  }
+                >
+                  <button
+                    type="button"
+                    disabled={!idNuevoLider || enCurso}
+                    className={claseBotonSecundario}
+                  >
+                    Transferir liderazgo
+                  </button>
+                </Confirmar>
+              </>
+            )}
+          </section>
+        )}
 
         <section className="panel space-y-3 border-destructive/30 p-6">
           <h2 className="font-display text-sm font-semibold text-destructive">

@@ -4,6 +4,7 @@ import com.udea.agora_backend.dto.request.EstudianteLineaInvestigacionRequestDTO
 import com.udea.agora_backend.dto.request.EstudianteRequestDTO;
 import com.udea.agora_backend.dto.response.EstudianteLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.EstudianteResponseDTO;
+import com.udea.agora_backend.dto.response.EstudianteResumenDTO;
 import com.udea.agora_backend.exception.ConflictoException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.Estudiante;
@@ -19,6 +20,7 @@ import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.HabilidadRepository;
 import com.udea.agora_backend.repository.LineaInvestigacionRepository;
 import com.udea.agora_backend.repository.ProgramaAcademicoRepository;
+import com.udea.agora_backend.repository.SemilleroRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import com.udea.agora_backend.service.mapper.EstudianteMapper;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.ZonedDateTime;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -49,12 +52,27 @@ public class EstudianteService {
     private final HabilidadRepository habilidadRepository;
     private final EstudianteHabilidadRepository estudianteHabilidadRepository;
     private final EstudianteMapper estudianteMapper;
+    private final SemilleroRepository semilleroRepository;
 
     /**
     * Obtiene todos los estudiantes
     */
     public List<EstudianteResponseDTO> obtenerTodos() {
         return estudianteMapper.aResponses(estudianteRepository.findAll());
+    }
+
+    /** Listado sin datos personales para elegir al líder de un semillero (ver {@link EstudianteResumenDTO}). */
+    public List<EstudianteResumenDTO> obtenerResumenes() {
+        Set<Integer> lideres = new HashSet<>(semilleroRepository.findIdsEstudiantesLideres());
+        return estudianteRepository.findAll().stream()
+                .map(e -> EstudianteResumenDTO.builder()
+                        .id(e.getId())
+                        .nombreCompleto(e.getUsuario().getNombreCompleto())
+                        .nombrePrograma(e.getPrograma() != null ? e.getPrograma().getNombre() : null)
+                        .semestre(e.getSemestre())
+                        .lideraSemillero(lideres.contains(e.getId()))
+                        .build())
+                .toList();
     }
 
     /**

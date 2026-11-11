@@ -8,16 +8,17 @@ import com.udea.agora_backend.model.Estudiante;
 import com.udea.agora_backend.model.EstudianteLineaInvestigacion;
 import com.udea.agora_backend.model.Semillero;
 import com.udea.agora_backend.repository.ConvocatoriaRepository;
+import com.udea.agora_backend.repository.EstudianteHabilidadRepository.HabilidadDeEquipo;
 import com.udea.agora_backend.repository.EstudianteHabilidadRepository;
 import com.udea.agora_backend.repository.EstudianteLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
-import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
 import com.udea.agora_backend.repository.PostulacionHabilidadRepository.HabilidadDeSemillero;
-import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
+import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
 import com.udea.agora_backend.repository.ProfesorSemilleroRepository.AreaDeTutor;
-import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
+import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
 import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository.LineaDeSemillero;
+import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.SemilleroRepository;
 import com.udea.agora_backend.util.Redondeo;
 import lombok.RequiredArgsConstructor;
@@ -38,19 +39,25 @@ import java.util.stream.Collectors;
 /**
  * SERVICIO CRÍTICO: Motor de Recomendación de Semilleros
  *
- * Implementa algoritmo de puntuación ponderada con 4 factores (pesos por defecto, configurables
+ * Implementa algoritmo de puntuación ponderada con 5 factores (pesos por defecto, configurables
  * en {@link PesosRecomendacion}):
- * - Factor 1: Habilidades Coincidentes (40%)
- * - Factor 2: Afinidad Áreas de Especialidad (25%)
+ * - Factor 1: Habilidades que el semillero ha seleccionado (30%)
+ * - Factor 5: Habilidades del equipo del semillero (15%)
+ * - Factor 2: Afinidad Áreas de Especialidad de los tutores (20%)
  * - Factor 3: Disponibilidad Convocatorias (20%)
  * - Factor 4: Proximidad Temática y Programa (15%)
+ *
+ * <p>Se diferencia de los semilleros similares (árbol KD): el motor compara al ESTUDIANTE con
+ * cada semillero (sus habilidades, líneas y programa contra lo que tiene el semillero, incluido
+ * su equipo humano) y los recorre todos; el árbol KD compara SEMILLEROS entre sí, buscando los
+ * vecinos más cercanos a aquellos en los que el estudiante ya participa.
  *
  * Solo se recomiendan semilleros activos a los que el estudiante podría postularse:
  * se excluyen los que lidera y aquellos a los que ya pertenece.
  * Retorna ranking ordenado por porcentaje de afinidad (0-100%)
  *
  * <p>Los datos se cargan antes de puntuar: el perfil del estudiante una sola vez y los de todos
- * los semilleros candidatos en cuatro consultas agrupadas ({@link DatosSemilleros}). El número
+ * los semilleros candidatos en seis consultas agrupadas ({@link DatosSemilleros}). El número
  * de consultas no crece con la cantidad de semilleros.
  */
 @Service
@@ -81,6 +88,7 @@ public class MotorRecomendacionService {
     /** Datos de los semilleros candidatos, agrupados por ID de semillero. */
     private record DatosSemilleros(Map<Integer, Set<Integer>> habilidadesAceptadas,
                                    Map<Integer, Set<Integer>> habilidadesRecibidas,
+                                   Map<Integer, Set<Integer>> habilidadesEquipo,
                                    Map<Integer, Set<Integer>> areasTutores,
                                    Map<Integer, Set<Integer>> lineas,
                                    Set<Integer> conConvocatoriaAbierta) {
@@ -155,10 +163,18 @@ public class MotorRecomendacionService {
                 agrupar(historial.stream().filter(h -> EstadosPostulacion.ACEPTADA.equals(h.getEstadoPostulacion())).toList(),
                         HabilidadDeSemillero::getIdSemillero, HabilidadDeSemillero::getIdHabilidad),
                 agrupar(historial, HabilidadDeSemillero::getIdSemillero, HabilidadDeSemillero::getIdHabilidad),
+                habilidadesDelEquipo(ids),
                 agrupar(profesorSemilleroRepository.findAreasDeTutores(ids), AreaDeTutor::getIdSemillero, AreaDeTutor::getIdArea),
                 agrupar(semilleroLineaRepository.findLineasDeSemilleros(ids),
                         LineaDeSemillero::getIdSemillero, LineaDeSemillero::getIdLinea),
                 convocatoriaRepository.idsSemillerosRecibiendoPostulaciones(ids, LocalDate.now()));
+    }
+
+    // Habilidades de perfil de los integrantes activos y del estudiante líder de cada semillero
+    private Map<Integer, Set<Integer>> habilidadesDelEquipo(List<Integer> ids) {
+        List<HabilidadDeEquipo> equipo = new ArrayList<>(estudianteHabilidadRepository.findHabilidadesDeIntegrantes(ids));
+        equipo.addAll(estudianteHabilidadRepository.findHabilidadesDeLideres(ids));
+        return agrupar(equipo, HabilidadDeEquipo::getIdSemillero, HabilidadDeEquipo::getIdHabilidad);
     }
 
     private static <T> Map<Integer, Set<Integer>> agrupar(List<T> filas, Function<T, Integer> semillero,
@@ -186,14 +202,17 @@ public class MotorRecomendacionService {
         double factor3 = datos.conConvocatoriaAbierta().contains(id) ? 100.0 : 0.0;
         double factor4 = calcularFactorProximidadTematica(estudiante, perfil.lineas(), semillero,
                 datos.lineas().getOrDefault(id, Set.of()));
+        double factor5 = calcularFactorHabilidadesEquipo(perfil.habilidades(),
+                datos.habilidadesEquipo().getOrDefault(id, Set.of()));
 
         // Aplicar pesos
-        double porcentajeMatch = factor1 * pesos.habilidades() + factor2 * pesos.areasTutores()
-                + factor3 * pesos.convocatoriaAbierta() + factor4 * pesos.proximidadTematica();
+        double porcentajeMatch = factor1 * pesos.habilidades() + factor5 * pesos.habilidadesIntegrantes()
+                + factor2 * pesos.areasTutores() + factor3 * pesos.convocatoriaAbierta()
+                + factor4 * pesos.proximidadTematica();
         porcentajeMatch = Math.min(100.0, Math.max(0.0, porcentajeMatch)); // Limitar 0-100%
 
-        log.debug("Factores calculados - Habilidades: {}, AreaEsp: {}, Cupos: {}, Temática: {}, Total: {}%",
-                factor1, factor2, factor3, factor4, porcentajeMatch);
+        log.debug("Factores calculados - Habilidades: {}, Equipo: {}, AreaEsp: {}, Cupos: {}, Temática: {}, Total: {}%",
+                factor1, factor5, factor2, factor3, factor4, porcentajeMatch);
 
         return SemilleroRecomendadoDTO.builder()
                 .idSemillero(semillero.getId())
@@ -207,11 +226,12 @@ public class MotorRecomendacionService {
                 .factor2AreaEspecialidad(Redondeo.dosDecimales(factor2))
                 .factor3DisponibilidadConvocatorias(Redondeo.dosDecimales(factor3))
                 .factor4ProximidadTematica(Redondeo.dosDecimales(factor4))
+                .factor5HabilidadesIntegrantes(Redondeo.dosDecimales(factor5))
                 .build();
     }
 
     /**
-     * FACTOR 1 (40%): Calcula coincidencia de habilidades
+     * FACTOR 1 (30%): Calcula coincidencia de habilidades
      * Compara habilidades del estudiante con las que históricamente ha requerido el semillero.
      * Las del estudiante son las de su perfil (tbl_estudiante_x_habilidad, desde el registro)
      * más las que declaró en sus postulaciones.
@@ -247,7 +267,22 @@ public class MotorRecomendacionService {
     }
 
     /**
-     * FACTOR 2 (25%): Calcula afinidad en áreas de especialidad
+     * FACTOR 5 (15%): afinidad con el equipo del semillero. Qué parte de las habilidades del
+     * estudiante ya tienen en su perfil los integrantes activos o el estudiante líder: cuantas
+     * más comparte, mejor encaja con lo que el grupo ya hace. Sin habilidades de un lado o del
+     * otro no hay con qué comparar y se usa el valor neutral, como en el factor 1.
+     */
+    private double calcularFactorHabilidadesEquipo(Set<Integer> idsEstudiante, Set<Integer> habilidadesEquipo) {
+        if (idsEstudiante.isEmpty() || habilidadesEquipo.isEmpty()) {
+            return FACTOR_NEUTRAL_SIN_HISTORIAL;
+        }
+        Set<Integer> interseccion = new HashSet<>(idsEstudiante);
+        interseccion.retainAll(habilidadesEquipo);
+        return (double) interseccion.size() / idsEstudiante.size() * 100.0;
+    }
+
+    /**
+     * FACTOR 2 (20%): Calcula afinidad en áreas de especialidad
      * Compara las áreas de especialidad del estudiante (derivadas de sus líneas de
      * investigación de interés, vía la nueva FK tbl_linea_investigacion.id_area_especialidad)
      * contra las áreas de especialidad declaradas por TODOS los profesores tutores del

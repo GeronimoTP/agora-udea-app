@@ -4,8 +4,10 @@ import com.udea.agora_backend.dto.request.ProfesorAreaEspecialidadRequestDTO;
 import com.udea.agora_backend.dto.request.ProfesorRequestDTO;
 import com.udea.agora_backend.dto.response.ProfesorAreaEspecialidadResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorResponseDTO;
+import com.udea.agora_backend.dto.response.ProfesorResumenDTO;
 import com.udea.agora_backend.service.ProfesorService;
 import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
+import com.udea.agora_backend.service.autorizacion.UsuarioAutenticadoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,25 +29,41 @@ public class ProfesorController {
 
     private final ProfesorService profesorService;
     private final AutorizacionPerfilService autorizacionPerfil;
+    private final UsuarioAutenticadoService usuarioAutenticado;
 
-    @Operation(summary = "Obtener todos los profesores")
+    @Operation(summary = "Listado de profesores sin correo, para elegir tutores")
     @ApiResponse(responseCode = "200", description = "Lista de profesores obtenida exitosamente")
     @GetMapping
-    public ResponseEntity<List<ProfesorResponseDTO>> obtenerTodos() {
-        return ResponseEntity.ok(profesorService.obtenerTodos());
+    public ResponseEntity<List<ProfesorResumenDTO>> obtenerTodos() {
+        return ResponseEntity.ok(profesorService.obtenerResumenes());
     }
 
-    @Operation(summary = "Obtener un profesor por su ID")
+    @Operation(summary = "Mi perfil de profesor (el de la sesión)")
+    @GetMapping("/me")
+    public ResponseEntity<ProfesorResponseDTO> miPerfil(Authentication authentication) {
+        return ResponseEntity.ok(profesorService.obtenerPorId(usuarioAutenticado.idProfesorActual(authentication.getName())));
+    }
+
+    @Operation(summary = "Actualizar mi perfil de profesor (el de la sesión)")
+    @PutMapping("/me")
+    public ResponseEntity<ProfesorResponseDTO> actualizarMiPerfil(@Valid @RequestBody ProfesorRequestDTO request,
+                                                                  Authentication authentication) {
+        Integer idProfesor = usuarioAutenticado.idProfesorActual(authentication.getName());
+        return ResponseEntity.ok(profesorService.actualizar(idProfesor, request));
+    }
+
+    @Operation(summary = "Perfil completo de un profesor (él mismo o el administrador)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Profesor encontrado"),
             @ApiResponse(responseCode = "404", description = "Profesor no encontrado")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<ProfesorResponseDTO> obtenerPorId(@PathVariable Integer id) {
+    public ResponseEntity<ProfesorResponseDTO> obtenerPorId(@PathVariable Integer id, Authentication authentication) {
+        autorizacionPerfil.validarLecturaProfesor(authentication.getName(), id);
         return ResponseEntity.ok(profesorService.obtenerPorId(id));
     }
 
-    @Operation(summary = "Obtener un profesor por el ID de su usuario asociado")
+    @Operation(summary = "Obtener un profesor por el ID de su usuario asociado (administrador)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Profesor encontrado"),
             @ApiResponse(responseCode = "404", description = "Profesor no encontrado para ese usuario")
@@ -68,20 +86,6 @@ public class ProfesorController {
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Actualizar información de un profesor")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Profesor actualizado exitosamente"),
-            @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos"),
-            @ApiResponse(responseCode = "404", description = "Profesor o programa académico no encontrado")
-    })
-    @PutMapping("/{id}")
-    public ResponseEntity<ProfesorResponseDTO> actualizar(
-            @PathVariable Integer id,
-            @Valid @RequestBody ProfesorRequestDTO request,
-            Authentication authentication) {
-        autorizacionPerfil.validarProfesorActual(authentication.getName(), id);
-        return ResponseEntity.ok(profesorService.actualizar(id, request));
-    }
 
     @Operation(summary = "Eliminar un perfil de profesor por su ID")
     @ApiResponses({
@@ -102,7 +106,9 @@ public class ProfesorController {
     @Operation(summary = "Obtener las áreas de especialidad de un profesor")
     @ApiResponse(responseCode = "200", description = "Lista de áreas de especialidad obtenida exitosamente")
     @GetMapping("/{id}/areas-especialidad")
-    public ResponseEntity<List<ProfesorAreaEspecialidadResponseDTO>> obtenerAreasEspecialidad(@PathVariable Integer id) {
+    public ResponseEntity<List<ProfesorAreaEspecialidadResponseDTO>> obtenerAreasEspecialidad(
+            @PathVariable Integer id, Authentication authentication) {
+        autorizacionPerfil.validarLecturaProfesor(authentication.getName(), id);
         return ResponseEntity.ok(profesorService.obtenerAreasEspecialidad(id));
     }
 

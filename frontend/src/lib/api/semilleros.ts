@@ -95,6 +95,8 @@ interface SemilleroApi {
   totalPublicaciones: number;
   totalIntegrantes: number;
   convocatoriaAbierta: boolean;
+  fechaSolicitud: string | null;
+  motivoRechazo: string | null;
 }
 
 // EstudianteSemilleroResponseDTO
@@ -111,7 +113,7 @@ interface IntegranteApi {
 interface TutorApi {
   idProfesor: number;
   nombreProfesor: string;
-  email: string;
+  email: string | null;
 }
 
 interface ProyectoApi {
@@ -152,6 +154,8 @@ function mapearSemillero(semillero: SemilleroApi): Semillero {
     totalPublicaciones: semillero.totalPublicaciones ?? 0,
     totalIntegrantes: semillero.totalIntegrantes ?? 0,
     convocatoriaAbierta: semillero.convocatoriaAbierta ?? false,
+    fechaSolicitud: semillero.fechaSolicitud ?? null,
+    motivoRechazo: semillero.motivoRechazo ?? null,
   };
 }
 
@@ -188,6 +192,8 @@ function mapearPublicacion(
 
 function normalizarEstadoSemillero(estado: string | null): Semillero["estado"] {
   const normalizado = (estado ?? "").toLocaleLowerCase();
+  if (normalizado.includes("rechazado")) return "RECHAZADO";
+  if (normalizado.includes("pendiente")) return "PENDIENTE_APROBACION";
   if (normalizado.includes("inactivo")) return "INACTIVO";
   if (normalizado.includes("activo")) return "ACTIVO";
   if (normalizado.includes("pausa")) return "EN_PAUSA";

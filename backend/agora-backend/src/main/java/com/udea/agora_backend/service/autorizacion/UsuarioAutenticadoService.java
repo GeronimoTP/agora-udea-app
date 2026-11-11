@@ -9,6 +9,7 @@ import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.ProfesorRepository;
 import com.udea.agora_backend.repository.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,17 @@ public class UsuarioAutenticadoService {
 
     public Optional<Integer> obtenerIdProfesor(String email) {
         return profesorRepository.findByUsuarioId(usuario(email).getId()).map(Profesor::getId);
+    }
+
+    /** Rutas "/me" y "/mias": el estudiante sale del token, nunca de un ID en la URL. */
+    public Integer idEstudianteActual(String email) {
+        return obtenerIdEstudiante(email)
+                .orElseThrow(() -> new AccessDeniedException("Esta acción es solo para estudiantes"));
+    }
+
+    public Integer idProfesorActual(String email) {
+        return obtenerIdProfesor(email)
+                .orElseThrow(() -> new AccessDeniedException("Esta acción es solo para profesores"));
     }
 
     public boolean esAdministrador(Usuario usuario) {

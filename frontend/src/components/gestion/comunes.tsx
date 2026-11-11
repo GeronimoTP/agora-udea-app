@@ -137,6 +137,8 @@ export function useAccionGestion(idSemillero: number) {
         queryClient.invalidateQueries({ queryKey: ["semilleros"] }),
         queryClient.invalidateQueries({ queryKey: ["semillero", idSemillero] }),
         queryClient.invalidateQueries({ queryKey: ["convocatorias"] }),
+        // Avisos del menú (solicitudes de retiro respondidas)
+        queryClient.invalidateQueries({ queryKey: ["solicitudes"] }),
         queryClient.invalidateQueries({ queryKey: ["proyectos", idSemillero] }),
         queryClient.invalidateQueries({
           queryKey: ["publicaciones", idSemillero],
@@ -163,6 +165,7 @@ const ESTADOS_CON_TONO = new Set([
   "ACTIVO",
   "EN_PAUSA",
   "INACTIVO",
+  "RECHAZADO",
   "ABIERTA",
   "CERRADA",
 ]);
@@ -175,6 +178,9 @@ export function BadgeEstado({ nombre }: { nombre: string | null | undefined }) {
     .toUpperCase()
     .trim()
     .replace(/\s+/g, "_");
+  if (clave === "PENDIENTE_DE_APROBACION") {
+    return <EstadoBadge estado="PENDIENTE_APROBACION" />;
+  }
   return <EstadoBadge estado={ESTADOS_CON_TONO.has(clave) ? clave : nombre} />;
 }
 

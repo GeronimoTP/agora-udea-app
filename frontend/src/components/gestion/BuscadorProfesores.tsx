@@ -40,9 +40,7 @@ export function BuscadorProfesores({
     return profesores.filter(
       (p) =>
         !excluir.includes(p.id) &&
-        (!texto ||
-          normalizar(p.nombreCompleto).includes(texto) ||
-          normalizar(p.email).includes(texto)) &&
+        (!texto || normalizar(p.nombreCompleto).includes(texto)) &&
         (!idFacultad || String(p.idFacultad) === idFacultad) &&
         (!idPrograma || String(p.idPrograma) === idPrograma) &&
         (!area || p.areasEspecialidad.includes(area)),
@@ -61,8 +59,8 @@ export function BuscadorProfesores({
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre o correo"
-            aria-label="Buscar profesor por nombre o correo"
+            placeholder="Buscar por nombre"
+            aria-label="Buscar profesor por nombre"
             className={`${claseCampo} pl-8`}
           />
         </div>
@@ -122,10 +120,11 @@ export function BuscadorProfesores({
               <p className="text-sm font-medium text-foreground">
                 {p.nombreCompleto}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {p.email}
-                {p.nombrePrograma ? ` · ${p.nombrePrograma}` : ""}
-              </p>
+              {p.nombrePrograma && (
+                <p className="text-xs text-muted-foreground">
+                  {p.nombrePrograma}
+                </p>
+              )}
               {p.areasEspecialidad.length > 0 && (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {p.areasEspecialidad.join(" · ")}

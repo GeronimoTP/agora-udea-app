@@ -4,6 +4,7 @@ import com.udea.agora_backend.dto.request.ProfesorAreaEspecialidadRequestDTO;
 import com.udea.agora_backend.dto.request.ProfesorRequestDTO;
 import com.udea.agora_backend.dto.response.ProfesorAreaEspecialidadResponseDTO;
 import com.udea.agora_backend.dto.response.ProfesorResponseDTO;
+import com.udea.agora_backend.dto.response.ProfesorResumenDTO;
 import com.udea.agora_backend.exception.ConflictoException;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.AreaEspecialidad;
@@ -44,6 +45,21 @@ public class ProfesorService {
     /**
      * Obtiene todos los profesores
      */
+    /** Listado sin correo para elegir tutores (ver {@link ProfesorResumenDTO}). */
+    public List<ProfesorResumenDTO> obtenerResumenes() {
+        return profesorMapper.aResponses(profesorRepository.findAll()).stream()
+                .map(p -> ProfesorResumenDTO.builder()
+                        .id(p.getId())
+                        .nombreCompleto(p.getNombreCompleto())
+                        .idPrograma(p.getIdPrograma())
+                        .nombrePrograma(p.getNombrePrograma())
+                        .idFacultad(p.getIdFacultad())
+                        .nombreFacultad(p.getNombreFacultad())
+                        .areasEspecialidad(p.getAreasEspecialidad())
+                        .build())
+                .toList();
+    }
+
     public List<ProfesorResponseDTO> obtenerTodos() {
         return profesorMapper.aResponses(profesorRepository.findAll());
     }

@@ -9,6 +9,11 @@ public final class EstadosSemillero {
 
     public static final String ACTIVO = "Activo";
     public static final String INACTIVO = "Inactivo";
+    // Aprobación del administrador (migración V4): un semillero recién registrado no es visible
+    // ni opera hasta que el administrador lo aprueba; si lo rechaza, sus líderes pueden
+    // corregirlo y reenviarlo
+    public static final String PENDIENTE_APROBACION = "Pendiente de aprobación";
+    public static final String RECHAZADO = "Rechazado";
 
     private EstadosSemillero() {
     }

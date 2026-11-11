@@ -12,10 +12,13 @@ import com.udea.agora_backend.repository.ProyectoRepository;
 import com.udea.agora_backend.repository.PublicacionRepository;
 import com.udea.agora_backend.repository.ReconocimientoSemilleroRepository;
 import com.udea.agora_backend.service.LiderazgoSemilleroService;
+import com.udea.agora_backend.service.VisibilidadSemilleros;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Set;
 
 /**
  * Solo un líder del semillero (estudiante líder o profesor tutor) gestiona el semillero y su
@@ -34,6 +37,13 @@ public class AutorizacionSemilleroService {
     private final ProyectoRepository proyectoRepository;
     private final PublicacionRepository publicacionRepository;
     private final ReconocimientoSemilleroRepository reconocimientoRepository;
+
+    /** Semilleros no aprobados que puede ver quien hace la petición (ver {@link VisibilidadSemilleros}). */
+    public VisibilidadSemilleros visibilidad(String email) {
+        Usuario usuario = usuarioAutenticado.usuario(email);
+        return new VisibilidadSemilleros(usuarioAutenticado.esAdministrador(usuario),
+                Set.copyOf(liderazgoSemilleroService.obtenerSemillerosLiderados(usuario)));
+    }
 
     public boolean esLider(Usuario usuario, Integer idSemillero) {
         return liderazgoSemilleroService.obtenerSemillerosLiderados(usuario).contains(idSemillero);
@@ -57,14 +67,31 @@ public class AutorizacionSemilleroService {
         }
     }
 
-    /** Un integrante activo puede ver a sus compañeros (no a los retirados). */
-    public void validarIntegranteActivo(String email, Integer idSemillero) {
-        boolean integrante = usuarioAutenticado.obtenerIdEstudiante(email)
+    public boolean esIntegranteActivo(String email, Integer idSemillero) {
+        return usuarioAutenticado.obtenerIdEstudiante(email)
                 .map(idEstudiante -> estudianteSemilleroRepository
                         .existsBySemilleroIdAndEstudianteIdAndFechaSalidaIsNull(idSemillero, idEstudiante))
                 .orElse(false);
-        if (!integrante) {
+    }
+
+    /** Un integrante activo puede ver a sus compañeros (no a los retirados). */
+    public void validarIntegranteActivo(String email, Integer idSemillero) {
+        if (!esIntegranteActivo(email, idSemillero)) {
             throw new AccessDeniedException("Solo los integrantes y líderes del semillero pueden ver sus integrantes");
+        }
+    }
+
+    /** Líderes, tutores, integrantes activos y administrador: quienes ven datos de contacto del equipo. */
+    public boolean perteneceOAdministra(String email, Integer idSemillero) {
+        return esLiderOAdministrador(email, idSemillero) || esIntegranteActivo(email, idSemillero);
+    }
+
+    /** Integrantes de un proyecto: los ve quien pertenece a su semillero o lo administra. */
+    public void validarLecturaIntegrantesProyecto(String email, Integer idProyecto) {
+        Proyecto proyecto = proyectoRepository.findById(idProyecto)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Proyecto", idProyecto));
+        if (!perteneceOAdministra(email, proyecto.getSemillero().getId())) {
+            throw new AccessDeniedException("Solo los integrantes y líderes del semillero pueden ver quién trabaja en el proyecto");
         }
     }
 

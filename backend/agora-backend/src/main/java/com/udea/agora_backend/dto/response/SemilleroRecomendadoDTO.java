@@ -20,4 +20,6 @@ public class SemilleroRecomendadoDTO {
     private Double factor2AreaEspecialidad;
     private Double factor3DisponibilidadConvocatorias;
     private Double factor4ProximidadTematica;
+    // Habilidades del estudiante que ya tiene el equipo del semillero
+    private Double factor5HabilidadesIntegrantes;
 }

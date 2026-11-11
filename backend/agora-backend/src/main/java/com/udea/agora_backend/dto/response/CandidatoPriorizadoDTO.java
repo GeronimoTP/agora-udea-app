@@ -23,4 +23,7 @@ public class CandidatoPriorizadoDTO {
     private Double disponibilidad;
     private Double compromiso;
     private List<String> observaciones;
+    // Requisitos obligatorios de la convocatoria: quien no los cumple va después de los que sí
+    private boolean cumpleObligatorios;
+    private List<String> requisitosObligatoriosIncumplidos;
 }

@@ -3,6 +3,7 @@ package com.udea.agora_backend.dto.response;
 import lombok.Builder;
 import lombok.Data;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Data
@@ -24,4 +25,9 @@ public class SemilleroResponseDTO {
     private Integer totalPublicaciones;
     private Integer totalIntegrantes;
     private Boolean convocatoriaAbierta;
+    // Aprobación del administrador: cuándo se solicitó (o reenvió), cuándo se revisó y, si se
+    // rechazó, por qué. Nulos en los semilleros anteriores a la aprobación.
+    private ZonedDateTime fechaSolicitud;
+    private ZonedDateTime fechaRevision;
+    private String motivoRechazo;
 }

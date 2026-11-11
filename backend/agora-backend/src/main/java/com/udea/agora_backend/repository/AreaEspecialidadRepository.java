@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface AreaEspecialidadRepository extends JpaRepository<AreaEspecialidad, Integer> {
     Optional<AreaEspecialidad> findByNombre(String nombre);
     List<AreaEspecialidad> findByNombreContainingIgnoreCaseOrderByNombre(String nombre);
+
+    boolean existsByNombreIgnoreCase(String nombre);
 }

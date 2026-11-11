@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Servicio de gestión de convocatorias.
@@ -37,15 +36,13 @@ public class ConvocatoriaService {
     private final SemilleroRepository semilleroRepository;
     private final PostulacionRepository postulacionRepository;
     private final ConvocatoriaMapper convocatoriaMapper;
+    private final RequisitosConvocatoriaService requisitosService;
 
     /**
      * Obtiene todas las convocatorias
      */
     public List<ConvocatoriaResponseDTO> obtenerTodas() {
-        return convocatoriaRepository.findAll()
-                .stream()
-                .map(convocatoriaMapper::aResponse)
-                .collect(Collectors.toList());
+        return convocatoriaMapper.aResponses(convocatoriaRepository.findAll());
     }
 
     /**
@@ -61,10 +58,7 @@ public class ConvocatoriaService {
      * Obtiene convocatorias por semillero
      */
     public List<ConvocatoriaResponseDTO> obtenerPorSemillero(Integer idSemillero) {
-        return convocatoriaRepository.findBySemilleroId(idSemillero)
-                .stream()
-                .map(convocatoriaMapper::aResponse)
-                .collect(Collectors.toList());
+        return convocatoriaMapper.aResponses(convocatoriaRepository.findBySemilleroId(idSemillero));
     }
 
     /**
@@ -73,10 +67,7 @@ public class ConvocatoriaService {
     public List<ConvocatoriaResponseDTO> obtenerActivasConCupos() {
         Estado estadoAbierta = buscadorEstados.deConvocatoria(EstadosConvocatoria.ABIERTA);
 
-        return convocatoriaRepository.findActivasConCupos(estadoAbierta.getId())
-                .stream()
-                .map(convocatoriaMapper::aResponse)
-                .collect(Collectors.toList());
+        return convocatoriaMapper.aResponses(convocatoriaRepository.findActivasConCupos(estadoAbierta.getId()));
     }
 
     /**
@@ -111,6 +102,7 @@ public class ConvocatoriaService {
                 .build();
 
         Convocatoria convocatoriaGuardada = convocatoriaRepository.save(convocatoria);
+        requisitosService.definir(convocatoriaGuardada, request.getRequisitos());
         return convocatoriaMapper.aResponse(convocatoriaGuardada);
     }
 
@@ -154,6 +146,7 @@ public class ConvocatoriaService {
         }
 
         Convocatoria convocatoriaActualizada = convocatoriaRepository.save(convocatoria);
+        requisitosService.reemplazar(convocatoriaActualizada, request.getRequisitos());
         return convocatoriaMapper.aResponse(convocatoriaActualizada);
     }
 
@@ -167,6 +160,7 @@ public class ConvocatoriaService {
             throw new ErrorLogicaNegocioException(
                     "No se puede eliminar una convocatoria con postulaciones; ciérrala en su lugar.");
         }
+        requisitosService.eliminarDe(id);
         convocatoriaRepository.delete(convocatoria);
     }
 

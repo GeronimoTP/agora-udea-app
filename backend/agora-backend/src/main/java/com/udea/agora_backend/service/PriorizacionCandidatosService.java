@@ -3,13 +3,18 @@ package com.udea.agora_backend.service;
 import com.udea.agora_backend.config.PesosPriorizacion;
 import com.udea.agora_backend.dominio.EstadosPostulacion;
 import com.udea.agora_backend.dto.response.CandidatoPriorizadoDTO;
+import com.udea.agora_backend.dto.response.RequisitoEvaluadoDTO;
 import com.udea.agora_backend.model.Convocatoria;
 import com.udea.agora_backend.model.EstudianteSemillero;
 import com.udea.agora_backend.model.Postulacion;
+import com.udea.agora_backend.model.RequisitoConvocatoria;
 import com.udea.agora_backend.repository.EstudianteLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
 import com.udea.agora_backend.repository.PostulacionRepository;
+import com.udea.agora_backend.repository.PostulacionRequisitoRepository.RequisitoDeclarado;
+import com.udea.agora_backend.repository.PostulacionRequisitoRepository;
+import com.udea.agora_backend.repository.RequisitoConvocatoriaRepository;
 import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
 import com.udea.agora_backend.util.Redondeo;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +45,9 @@ import java.util.stream.Collectors;
  *     (aceptó 100, aceptó otra 75, declinó 50, la dejó vencer 0). Sin historial, valor neutral.
  * Los empates se resuelven por orden de llegada.
  *
+ * <p>Requisitos de la convocatoria: quien no cumple todos los obligatorios se ubica después de
+ * los que sí los cumplen (sin importar el puntaje) y el líder ve cuáles le faltan.
+ *
  * <p>El historial de todos los aspirantes (líneas, habilidades declaradas, otras postulaciones
  * y semilleros que integran) se carga en cuatro consultas agrupadas ({@link Historial}), sin
  * importar cuántos sean.
@@ -59,12 +67,16 @@ public class PriorizacionCandidatosService {
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final PlazoOfertasService plazoOfertasService;
     private final PesosPriorizacion pesos;
+    private final RequisitoConvocatoriaRepository requisitoRepository;
+    private final PostulacionRequisitoRepository postulacionRequisitoRepository;
 
     /** Datos de los aspirantes en proceso, agrupados por estudiante o por postulación. */
     private record Historial(Map<Integer, Set<Integer>> lineasPorEstudiante,
                              Map<Integer, Set<Integer>> habilidadesPorPostulacion,
                              Map<Integer, List<Postulacion>> postulacionesPorEstudiante,
-                             Map<Integer, List<EstudianteSemillero>> vinculacionesActivasPorEstudiante) {
+                             Map<Integer, List<EstudianteSemillero>> vinculacionesActivasPorEstudiante,
+                             Map<Integer, List<RequisitoConvocatoria>> requisitosPorConvocatoria,
+                             Map<Integer, Set<Integer>> requisitosDeclaradosPorPostulacion) {
     }
 
     public List<CandidatoPriorizadoDTO> priorizarPorSemillero(Integer idSemillero) {
@@ -94,7 +106,8 @@ public class PriorizacionCandidatosService {
             List<CandidatoPriorizadoDTO> candidatos = postulaciones.stream()
                     .map(p -> evaluar(p, lineasSemillero, habilidadesSemillero, idSemillero, convocatoria, ofertasVigentes,
                             historial))
-                    .sorted(Comparator.comparingDouble(CandidatoPriorizadoDTO::getPuntaje).reversed()
+                    .sorted(Comparator.comparing(CandidatoPriorizadoDTO::isCumpleObligatorios).reversed()
+                            .thenComparing(Comparator.comparingDouble(CandidatoPriorizadoDTO::getPuntaje).reversed())
                             .thenComparing(CandidatoPriorizadoDTO::getFechaPostulacion))
                     .toList();
             for (int i = 0; i < candidatos.size(); i++) {
@@ -107,8 +120,9 @@ public class PriorizacionCandidatosService {
 
     private Historial cargarHistorial(List<Postulacion> enProceso) {
         if (enProceso.isEmpty()) {
-            return new Historial(Map.of(), Map.of(), Map.of(), Map.of());
+            return new Historial(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
+        List<Integer> idsPostulacion = enProceso.stream().map(Postulacion::getId).toList();
         Set<Integer> idsEstudiante = enProceso.stream()
                 .map(p -> p.getEstudiante().getId())
                 .collect(Collectors.toSet());
@@ -117,13 +131,19 @@ public class PriorizacionCandidatosService {
                         .collect(Collectors.groupingBy(el -> el.getEstudiante().getId(),
                                 Collectors.mapping(el -> el.getLineaInvestigacion().getId(), Collectors.toSet()))),
                 postulacionHabilidadRepository
-                        .findByPostulacionIdIn(enProceso.stream().map(Postulacion::getId).toList()).stream()
+                        .findByPostulacionIdIn(idsPostulacion).stream()
                         .collect(Collectors.groupingBy(ph -> ph.getPostulacion().getId(),
                                 Collectors.mapping(ph -> ph.getHabilidad().getId(), Collectors.toSet()))),
                 postulacionRepository.findByEstudianteIdIn(idsEstudiante).stream()
                         .collect(Collectors.groupingBy(p -> p.getEstudiante().getId())),
                 estudianteSemilleroRepository.findByEstudianteIdInAndFechaSalidaIsNull(idsEstudiante).stream()
-                        .collect(Collectors.groupingBy(es -> es.getEstudiante().getId())));
+                        .collect(Collectors.groupingBy(es -> es.getEstudiante().getId())),
+                requisitoRepository.findByConvocatoriaIdIn(
+                                enProceso.stream().map(p -> p.getConvocatoria().getId()).distinct().toList()).stream()
+                        .collect(Collectors.groupingBy(r -> r.getConvocatoria().getId())),
+                postulacionRequisitoRepository.findDeclarados(idsPostulacion).stream()
+                        .collect(Collectors.groupingBy(RequisitoDeclarado::getIdPostulacion,
+                                Collectors.mapping(RequisitoDeclarado::getIdRequisito, Collectors.toSet()))));
     }
 
     private CandidatoPriorizadoDTO evaluar(Postulacion postulacion, Set<Integer> lineasSemillero,
@@ -131,6 +151,18 @@ public class PriorizacionCandidatosService {
                                            Convocatoria convocatoria, long ofertasVigentes, Historial historial) {
         Integer idEstudiante = postulacion.getEstudiante().getId();
         List<String> observaciones = new ArrayList<>();
+
+        List<String> incumplidos = RequisitosConvocatoriaService.evaluar(
+                        historial.requisitosPorConvocatoria().getOrDefault(convocatoria.getId(), List.of()),
+                        historial.habilidadesPorPostulacion().getOrDefault(postulacion.getId(), Set.of()),
+                        historial.requisitosDeclaradosPorPostulacion().getOrDefault(postulacion.getId(), Set.of()))
+                .stream()
+                .filter(r -> r.isObligatorio() && !r.isCumple())
+                .map(RequisitoEvaluadoDTO::getTexto)
+                .toList();
+        if (!incumplidos.isEmpty()) {
+            observaciones.add("No cumple requisitos obligatorios: " + String.join(", ", incumplidos));
+        }
 
         double tematica = calcularAfinidadTematica(
                 historial.lineasPorEstudiante().getOrDefault(idEstudiante, Set.of()), lineasSemillero);
@@ -173,6 +205,8 @@ public class PriorizacionCandidatosService {
                 .disponibilidad(Redondeo.unDecimal(disponibilidad))
                 .compromiso(Redondeo.unDecimal(compromiso))
                 .observaciones(observaciones)
+                .cumpleObligatorios(incumplidos.isEmpty())
+                .requisitosObligatoriosIncumplidos(incumplidos)
                 .build();
     }
 

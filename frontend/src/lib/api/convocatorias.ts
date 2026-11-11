@@ -4,7 +4,7 @@
  */
 
 import { apiRequest } from "./client";
-import type { Convocatoria } from "@/types/api";
+import type { Convocatoria, RequisitoConvocatoria } from "@/types/api";
 
 export const convocatoriasService = {
   listarAbiertas: async () =>
@@ -31,6 +31,27 @@ interface ConvocatoriaApi {
   cuposDisponibles: number;
   nombreSemillero: string;
   estadoActual: string;
+  requisitos: RequisitoApi[] | null;
+}
+
+// RequisitoResponseDTO
+export interface RequisitoApi {
+  id: number;
+  idHabilidad: number | null;
+  nombreHabilidad: string | null;
+  descripcion: string | null;
+  obligatorio: boolean;
+}
+
+export function mapearRequisito(
+  requisito: RequisitoApi,
+): RequisitoConvocatoria {
+  return {
+    id: requisito.id,
+    idHabilidad: requisito.idHabilidad,
+    texto: requisito.nombreHabilidad ?? requisito.descripcion ?? "",
+    obligatorio: requisito.obligatorio,
+  };
 }
 
 function mapearConvocatoria(convocatoria: ConvocatoriaApi): Convocatoria {
@@ -45,8 +66,7 @@ function mapearConvocatoria(convocatoria: ConvocatoriaApi): Convocatoria {
     cuposTotales: convocatoria.cuposTotales,
     cuposDisponibles: convocatoria.cuposDisponibles,
     estado: normalizarEstadoConvocatoria(convocatoria.estadoActual),
-    // El modelo de convocatoria no registra habilidades requeridas
-    habilidadesRequeridas: [],
+    requisitos: (convocatoria.requisitos ?? []).map(mapearRequisito),
   };
 }
 

@@ -71,6 +71,10 @@ public class ReconocimientoService {
     public ReconocimientoResponseDTO crear(ReconocimientoRequestDTO request) {
         Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
+        if (!semillero.estaAprobado()) {
+            throw new ErrorLogicaNegocioException(
+                    "El semillero aún no ha sido aprobado por el administrador.");
+        }
 
         TipoReconocimiento tipo = tipoReconocimientoRepository.findById(request.getIdTipoReconocimiento())
                 .orElseThrow(() -> new RecursoNoEncontradoException("TipoReconocimiento", request.getIdTipoReconocimiento()));

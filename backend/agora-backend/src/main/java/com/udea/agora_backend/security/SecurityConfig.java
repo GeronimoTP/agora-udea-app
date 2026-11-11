@@ -77,6 +77,24 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/estudiantes", "/api/profesores").hasRole("Administrador")
                 .requestMatchers(HttpMethod.GET, "/api/postulaciones").hasRole("Administrador")
                 .requestMatchers(HttpMethod.POST, "/api/convocatorias/procesar-expiradas").hasRole("Administrador")
+                // Perfiles por ID de usuario: solo administración (cada quien usa /me)
+                .requestMatchers(HttpMethod.GET, "/api/estudiantes/usuario/*", "/api/profesores/usuario/*")
+                    .hasRole("Administrador")
+
+                // Aprobación de semilleros (el reenvío de uno rechazado es de sus líderes)
+                .requestMatchers(HttpMethod.GET, "/api/semilleros/pendientes-aprobacion").hasRole("Administrador")
+                .requestMatchers(HttpMethod.POST, "/api/semilleros/*/aprobar", "/api/semilleros/*/rechazar")
+                    .hasRole("Administrador")
+
+                // Solicitudes de catálogo: estudiantes y profesores proponen, el administrador decide
+                .requestMatchers(HttpMethod.GET, "/api/solicitudes-catalogo/mias").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/solicitudes-catalogo").hasAnyRole("Estudiante", "Profesor")
+                .requestMatchers("/api/solicitudes-catalogo", "/api/solicitudes-catalogo/**").hasRole("Administrador")
+                // Alta directa de entidades otorgantes y tipos de reconocimiento
+                .requestMatchers(HttpMethod.POST, "/api/catalogos/**").hasRole("Administrador")
+
+                // Retiro voluntario: lo pide el integrante; la propiedad se valida en el servicio
+                .requestMatchers(HttpMethod.POST, "/api/solicitudes-retiro").hasRole("Estudiante")
 
                 // Catálogos: cualquier usuario autenticado los lee, solo el administrador los modifica.
                 // Renombrar o borrar un estado o una línea rompería convocatorias, recomendaciones y analítica.
@@ -85,8 +103,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PATCH, CATALOGOS_ADMINISTRABLES).hasRole("Administrador")
                 .requestMatchers(HttpMethod.DELETE, CATALOGOS_ADMINISTRABLES).hasRole("Administrador")
 
-                // Acciones del estudiante: postularse, ver recomendaciones y decidir sobre una oferta
+                // Acciones del estudiante: postularse, ver recomendaciones y decidir sobre una oferta.
+                // Lo propio va por rutas /me y /mias: el estudiante sale del token, no de la URL
                 .requestMatchers(HttpMethod.POST, "/api/postulaciones").hasRole("Estudiante")
+                .requestMatchers(HttpMethod.GET, "/api/postulaciones/mias", "/api/postulaciones/mias/**").hasRole("Estudiante")
                 .requestMatchers(HttpMethod.POST,
                     "/api/postulaciones/*/confirmar-aceptacion",
                     "/api/postulaciones/*/rechazar-estudiante").hasRole("Estudiante")
@@ -98,7 +118,8 @@ public class SecurityConfig {
                     "/api/postulaciones/*/pre-aprobar",
                     "/api/postulaciones/*/rechazar-lider").hasAnyRole("Estudiante", "Profesor")
 
-                // Crear semilleros y convocatorias (el liderazgo se valida en AutorizacionSemilleroService)
+                // Registrar semilleros (quedan pendientes de aprobación) y crear convocatorias
+                // (el liderazgo se valida en AutorizacionSemilleroService)
                 .requestMatchers(HttpMethod.POST, "/api/semilleros", "/api/convocatorias")
                     .hasAnyRole("Estudiante", "Profesor")
 

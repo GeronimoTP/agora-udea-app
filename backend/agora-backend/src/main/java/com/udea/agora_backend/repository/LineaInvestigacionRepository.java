@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface LineaInvestigacionRepository extends JpaRepository<LineaInvestigacion, Integer> {
     Optional<LineaInvestigacion> findByNombre(String nombre);
     List<LineaInvestigacion> findByNombreContainingIgnoreCaseOrderByNombre(String nombre);
+
+    boolean existsByNombreIgnoreCase(String nombre);
 }

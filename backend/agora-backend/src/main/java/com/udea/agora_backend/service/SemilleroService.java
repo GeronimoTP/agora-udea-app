@@ -45,8 +45,11 @@ import java.util.Set;
 
 /**
  * Datos del semillero: registro, edición, estado, eliminación y líneas de investigación.
- * Tutores, integrantes y liderazgo están en {@link MiembrosSemilleroService}; la conversión
- * a DTOs, en {@link SemilleroMapper}.
+ * Tutores, integrantes y liderazgo están en {@link MiembrosSemilleroService}; la aprobación del
+ * administrador, en {@link AprobacionSemillerosService}; la conversión a DTOs, en {@link SemilleroMapper}.
+ *
+ * <p>Un semillero pendiente de aprobación o rechazado solo lo ven sus líderes y el
+ * administrador ({@link VisibilidadSemilleros}); para los demás no existe (404).
  */
 @Service
 @RequiredArgsConstructor
@@ -69,49 +72,48 @@ public class SemilleroService {
     private final SemilleroMapper semilleroMapper;
     private final ApplicationEventPublisher eventos;
 
-    /**
-     * Obtiene todos los semilleros
-     */
-    public List<SemilleroResponseDTO> obtenerTodos() {
-        return semilleroMapper.aResponses(semilleroRepository.findAll());
+    /** Semilleros aprobados, más los no aprobados que el usuario puede ver. */
+    @Transactional(readOnly = true)
+    public List<SemilleroResponseDTO> obtenerTodos(VisibilidadSemilleros visibilidad) {
+        return semilleroMapper.aResponses(visibles(semilleroRepository.findAll(), visibilidad));
     }
 
-    /**
-     * Obtiene un semillero por su ID
-     */
-    public SemilleroResponseDTO obtenerPorId(Integer id) {
+    @Transactional(readOnly = true)
+    public SemilleroResponseDTO obtenerPorId(Integer id, VisibilidadSemilleros visibilidad) {
         Semillero semillero = semilleroRepository.findById(id)
+                .filter(visibilidad::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", id));
         return semilleroMapper.aResponse(semillero);
     }
 
-    /**
-     * Obtiene un semillero por código identificador
-     */
-    public SemilleroResponseDTO obtenerPorCodigo(String codigo) {
+    @Transactional(readOnly = true)
+    public SemilleroResponseDTO obtenerPorCodigo(String codigo, VisibilidadSemilleros visibilidad) {
         Semillero semillero = semilleroRepository.findByCodigoIdentificador(codigo)
+                .filter(visibilidad::puedeVer)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", "codigo", codigo));
         return semilleroMapper.aResponse(semillero);
     }
 
-    /**
-     * Obtiene semilleros por programa
-     */
-    public List<SemilleroResponseDTO> obtenerPorPrograma(Integer idPrograma) {
-        return semilleroMapper.aResponses(semilleroRepository.findByProgramaId(idPrograma));
+    @Transactional(readOnly = true)
+    public List<SemilleroResponseDTO> obtenerPorPrograma(Integer idPrograma, VisibilidadSemilleros visibilidad) {
+        return semilleroMapper.aResponses(visibles(semilleroRepository.findByProgramaId(idPrograma), visibilidad));
+    }
+
+    @Transactional(readOnly = true)
+    public List<SemilleroResponseDTO> obtenerPorEstado(Integer idEstado, VisibilidadSemilleros visibilidad) {
+        return semilleroMapper.aResponses(visibles(semilleroRepository.findByEstadoId(idEstado), visibilidad));
+    }
+
+    private static List<Semillero> visibles(List<Semillero> semilleros, VisibilidadSemilleros visibilidad) {
+        return semilleros.stream().filter(visibilidad::puedeVer).toList();
     }
 
     /**
-     * Obtiene semilleros por estado
-     */
-    public List<SemilleroResponseDTO> obtenerPorEstado(Integer idEstado) {
-        return semilleroMapper.aResponses(semilleroRepository.findByEstadoId(idEstado));
-    }
-
-    /**
-     * Crea un nuevo semillero con al menos un profesor tutor ya registrado.
+     * Registra un semillero con al menos un profesor tutor ya registrado. Nace "Pendiente de
+     * aprobación": el administrador debe aprobarlo antes de que sea público y opere.
      * Si lo crea un profesor (idProfesorCreador no nulo), queda vinculado como tutor
-     * aunque no venga en la lista. Un estudiante solo puede liderar un semillero.
+     * aunque no venga en la lista. Un estudiante solo puede liderar un semillero (cuentan
+     * también los pendientes y rechazados).
      */
     public SemilleroResponseDTO crear(SemilleroRequestDTO request, Integer idProfesorCreador) {
         publicarCambioSemilleros();
@@ -145,8 +147,7 @@ public class SemilleroService {
         ProgramaAcademico programa = programaRepository.findById(request.getIdPrograma())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Programa Académico", request.getIdPrograma()));
 
-        // Obtener estado inicial (Activo)
-        Estado estado = buscadorEstados.deSemillero(EstadosSemillero.ACTIVO);
+        Estado estado = buscadorEstados.deSemillero(EstadosSemillero.PENDIENTE_APROBACION);
 
         // Crear semillero
         Semillero semillero = Semillero.builder()
@@ -157,6 +158,7 @@ public class SemilleroService {
                 .programa(programa)
                 .estado(estado)
                 .createdAt(ZonedDateTime.now())
+                .fechaSolicitud(ZonedDateTime.now())
                 .build();
 
         Semillero semilleroGuardado = semilleroRepository.save(semillero);
@@ -243,14 +245,22 @@ public class SemilleroService {
     }
 
     /**
-     * Actualiza el estado de un semillero
+     * Cambia el estado de un semillero aprobado entre Activo e Inactivo. La aprobación y el
+     * rechazo son del administrador ({@link AprobacionSemillerosService}).
      */
     public SemilleroResponseDTO actualizarEstado(Integer idSemillero, Integer idEstado) {
         publicarCambioSemilleros();
         Semillero semillero = semilleroRepository.findById(idSemillero)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", idSemillero));
+        if (!semillero.estaAprobado()) {
+            throw new ErrorLogicaNegocioException(
+                    "El semillero aún no ha sido aprobado por el administrador; no se puede cambiar su estado.");
+        }
 
         Estado estado = buscadorEstados.porIdEnCategoria(CategoriasEstado.SEMILLERO, idEstado);
+        if (!estado.tieneNombre(EstadosSemillero.ACTIVO) && !estado.tieneNombre(EstadosSemillero.INACTIVO)) {
+            throw new ErrorLogicaNegocioException("Un semillero aprobado solo puede estar 'Activo' o 'Inactivo'.");
+        }
         if (!EstadosSemillero.ACTIVO.equalsIgnoreCase(estado.getNombre()) && tieneConvocatoriaAbierta(idSemillero)) {
             throw new ErrorLogicaNegocioException(
                     "Cierra o cancela las convocatorias abiertas antes de cambiar el semillero a '" + estado.getNombre() + "'.");

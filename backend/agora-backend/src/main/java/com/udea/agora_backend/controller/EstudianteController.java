@@ -4,8 +4,10 @@ import com.udea.agora_backend.dto.request.EstudianteLineaInvestigacionRequestDTO
 import com.udea.agora_backend.dto.request.EstudianteRequestDTO;
 import com.udea.agora_backend.dto.response.EstudianteLineaInvestigacionResponseDTO;
 import com.udea.agora_backend.dto.response.EstudianteResponseDTO;
+import com.udea.agora_backend.dto.response.EstudianteResumenDTO;
 import com.udea.agora_backend.service.EstudianteService;
 import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
+import com.udea.agora_backend.service.autorizacion.UsuarioAutenticadoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -27,25 +29,51 @@ public class EstudianteController {
 
     private final EstudianteService estudianteService;
     private final AutorizacionPerfilService autorizacionPerfil;
+    private final UsuarioAutenticadoService usuarioAutenticado;
 
-    @Operation(summary = "Obtener todos los estudiantes")
-    @ApiResponse(responseCode = "200", description = "Lista de estudiantes obtenida exitosamente")
+    @Operation(summary = "Listado de estudiantes sin datos personales (profesores, líderes y administrador)",
+            description = "Para elegir al líder de un semillero. No incluye correo.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista de estudiantes obtenida exitosamente"),
+            @ApiResponse(responseCode = "403", description = "Estudiante que no lidera ningún semillero")
+    })
     @GetMapping
-    public ResponseEntity<List<EstudianteResponseDTO>> obtenerTodos() {
-        return ResponseEntity.ok(estudianteService.obtenerTodos());
+    public ResponseEntity<List<EstudianteResumenDTO>> obtenerTodos(Authentication authentication) {
+        autorizacionPerfil.validarListadoEstudiantes(authentication.getName());
+        return ResponseEntity.ok(estudianteService.obtenerResumenes());
     }
 
-    @Operation(summary = "Obtener un estudiante por su ID")
+    @Operation(summary = "Mi perfil de estudiante (el de la sesión)")
+    @GetMapping("/me")
+    public ResponseEntity<EstudianteResponseDTO> miPerfil(Authentication authentication) {
+        return ResponseEntity.ok(estudianteService.obtenerPorId(usuarioAutenticado.idEstudianteActual(authentication.getName())));
+    }
+
+    @Operation(summary = "Actualizar mi perfil de estudiante (el de la sesión)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Perfil actualizado"),
+            @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos")
+    })
+    @PutMapping("/me")
+    public ResponseEntity<EstudianteResponseDTO> actualizarMiPerfil(@Valid @RequestBody EstudianteRequestDTO request,
+                                                                    Authentication authentication) {
+        Integer idEstudiante = usuarioAutenticado.idEstudianteActual(authentication.getName());
+        return ResponseEntity.ok(estudianteService.actualizar(idEstudiante, request));
+    }
+
+    @Operation(summary = "Perfil de un estudiante: él mismo, el administrador o un líder de uno de sus semilleros")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estudiante encontrado"),
+            @ApiResponse(responseCode = "403", description = "Sin relación con el estudiante"),
             @ApiResponse(responseCode = "404", description = "Estudiante no encontrado")
     })
     @GetMapping("/{id}")
-    public ResponseEntity<EstudianteResponseDTO> obtenerPorId(@PathVariable Integer id) {
+    public ResponseEntity<EstudianteResponseDTO> obtenerPorId(@PathVariable Integer id, Authentication authentication) {
+        autorizacionPerfil.validarLecturaEstudiante(authentication.getName(), id);
         return ResponseEntity.ok(estudianteService.obtenerPorId(id));
     }
 
-    @Operation(summary = "Obtener un estudiante por el ID de su usuario asociado")
+    @Operation(summary = "Obtener un estudiante por el ID de su usuario asociado (administrador)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Estudiante encontrado"),
             @ApiResponse(responseCode = "404", description = "Estudiante no encontrado para ese usuario")
@@ -68,21 +96,6 @@ public class EstudianteController {
         return new ResponseEntity<>(creado, HttpStatus.CREATED);
     }
 
-    @Operation(summary = "Actualizar información de un estudiante")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Estudiante actualizado exitosamente"),
-            @ApiResponse(responseCode = "400", description = "Datos de entrada inválidos"),
-            @ApiResponse(responseCode = "404", description = "Estudiante o programa académico no encontrado")
-    })
-    @PutMapping("/{id}")
-    public ResponseEntity<EstudianteResponseDTO> actualizar(
-            @PathVariable Integer id,
-            @Valid @RequestBody EstudianteRequestDTO request,
-            Authentication authentication) {
-        autorizacionPerfil.validarEstudianteActual(authentication.getName(), id);
-        return ResponseEntity.ok(estudianteService.actualizar(id, request));
-    }
-
     @Operation(summary = "Eliminar un perfil de estudiante por su ID")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Estudiante eliminado exitosamente"),
@@ -102,7 +115,9 @@ public class EstudianteController {
     @Operation(summary = "Obtener las líneas de investigación de interés de un estudiante")
     @ApiResponse(responseCode = "200", description = "Lista de líneas de investigación obtenida exitosamente")
     @GetMapping("/{id}/lineas-investigacion")
-    public ResponseEntity<List<EstudianteLineaInvestigacionResponseDTO>> obtenerLineasInvestigacion(@PathVariable Integer id) {
+    public ResponseEntity<List<EstudianteLineaInvestigacionResponseDTO>> obtenerLineasInvestigacion(
+            @PathVariable Integer id, Authentication authentication) {
+        autorizacionPerfil.validarLecturaEstudiante(authentication.getName(), id);
         return ResponseEntity.ok(estudianteService.obtenerLineasInvestigacion(id));
     }
 

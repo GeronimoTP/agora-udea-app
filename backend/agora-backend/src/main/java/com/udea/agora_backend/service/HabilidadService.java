@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.TipoElementoCatalogo;
 import com.udea.agora_backend.dto.request.HabilidadRequestDTO;
 import com.udea.agora_backend.dto.response.HabilidadResponseDTO;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
@@ -18,6 +19,7 @@ import java.util.List;
 public class HabilidadService {
 
     private final HabilidadRepository habilidadRepository;
+    private final NombresCatalogo nombresCatalogo;
 
     @Transactional(readOnly = true)
     public List<HabilidadResponseDTO> obtenerTodas() {
@@ -37,11 +39,13 @@ public class HabilidadService {
     }
 
     public HabilidadResponseDTO crear(HabilidadRequestDTO request) {
+        nombresCatalogo.validarLibre(TipoElementoCatalogo.HABILIDAD, request.getNombre());
         return aResponse(habilidadRepository.save(Habilidad.builder().nombre(request.getNombre()).build()));
     }
 
     public HabilidadResponseDTO actualizar(Integer id, HabilidadRequestDTO request) {
         Habilidad habilidad = buscar(id);
+        nombresCatalogo.validarRenombre(TipoElementoCatalogo.HABILIDAD, habilidad.getNombre(), request.getNombre());
         habilidad.setNombre(request.getNombre());
         return aResponse(habilidadRepository.save(habilidad));
     }

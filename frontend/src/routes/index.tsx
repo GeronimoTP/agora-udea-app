@@ -95,7 +95,8 @@ const accesos: {
   {
     to: "/postulaciones",
     titulo: "Gestionar postulaciones",
-    detalle: "Seguimiento del flujo de doble vía y resolución en cascada.",
+    detalle:
+      "Seguimiento del flujo de doble vía: ofertas del líder y tu decisión.",
     icon: FileText,
   },
 ];
@@ -599,6 +600,18 @@ function SemillerosLiderados({
                 </div>
                 <EstadoBadge estado={semillero.estado} />
               </div>
+              {semillero.estado === "PENDIENTE_APROBACION" && (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Esperando la aprobación del administrador. Mientras tanto no
+                  es público ni puede abrir convocatorias.
+                </p>
+              )}
+              {semillero.estado === "RECHAZADO" && (
+                <p className="mt-3 rounded-sm border border-destructive/30 bg-destructive/10 p-2 text-xs text-foreground">
+                  Rechazado: {semillero.motivoRechazo ?? "sin motivo"}.
+                  Corrígelo y reenvíalo desde la gestión.
+                </p>
+              )}
               <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4 text-sm">
                 <div>
                   <dt className="label-caps">Integrantes</dt>

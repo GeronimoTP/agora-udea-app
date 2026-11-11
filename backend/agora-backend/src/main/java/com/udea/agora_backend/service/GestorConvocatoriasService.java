@@ -30,8 +30,9 @@ import java.util.List;
  * <ol>
  *   <li>Postulación concurrente: un estudiante puede tener varias postulaciones activas.</li>
  *   <li>Doble vía: el líder pre-aprueba (filtra candidatos) y el estudiante decide.</li>
- *   <li>Cascada: al confirmar una aceptación, las demás postulaciones activas del estudiante
- *       pasan a Cancelada en cascada y el estudiante queda vinculado al semillero.</li>
+ *   <li>Varios semilleros: un estudiante puede integrar varios semilleros, así que aceptar una
+ *       oferta NO cancela sus postulaciones a otros semilleros. Solo pasan a "Cancelada en
+ *       cascada" sus otras postulaciones en proceso al MISMO semillero, que ya integra.</li>
  *   <li>Cupos dinámicos: se descuentan solo con la confirmación del estudiante; con 0 cupos
  *       la convocatoria se cierra.</li>
  *   <li>Límite de ofertas: las ofertas vigentes nunca superan los cupos disponibles, así toda
@@ -157,7 +158,8 @@ public class GestorConvocatoriasService {
                 convocatoria.getCuposDisponibles() + 1, convocatoria.getCuposDisponibles());
 
         miembrosSemilleroService.incorporarAdmitido(postulacion.getEstudiante(), convocatoria.getSemillero());
-        ejecutarCascadaRechazo(postulacion.getEstudiante().getId(), idPostulacion);
+        cancelarOtrasAlMismoSemillero(postulacion.getEstudiante().getId(), idPostulacion,
+                convocatoria.getSemillero().getId());
 
         if (!convocatoria.tieneCuposDisponibles()) {
             convocatoria.setEstado(buscadorEstados.deConvocatoria(EstadosConvocatoria.CERRADA));
@@ -201,19 +203,20 @@ public class GestorConvocatoriasService {
     }
 
     /**
-     * LÓGICA DE CASCADA: al confirmar una aceptación, libera todas las demás
-     * postulaciones activas del estudiante (tanto las que aún esperaban revisión
-     * del líder como las que ya tenía pre-aprobadas), marcándolas como "Cancelada en cascada".
-     * Se distingue de "Rechazada por Estudiante", que es una decisión explícita.
+     * Al confirmar una aceptación, las demás postulaciones en proceso del estudiante (en
+     * revisión o con oferta) a otras convocatorias del MISMO semillero pasan a "Cancelada en
+     * cascada": ya es integrante y no puede volver a postularse a él. Sus postulaciones a otros
+     * semilleros siguen su curso, porque puede integrar varios a la vez. Se distingue de
+     * "Rechazada por Estudiante", que es una decisión explícita.
      */
-    private void ejecutarCascadaRechazo(Integer idEstudiante, Integer idPostulacionAceptada) {
-        log.info("Iniciando cascada de rechazos para estudiante {}", idEstudiante);
-
+    private void cancelarOtrasAlMismoSemillero(Integer idEstudiante, Integer idPostulacionAceptada,
+                                               Integer idSemillero) {
         Estado canceladaEnCascada = buscadorEstados.dePostulacion(EstadosPostulacion.CANCELADA_EN_CASCADA);
         List<Postulacion> otrasActivas = postulacionRepository
                 .findPostulacionesActivasByEstudiante(idEstudiante, EstadosPostulacion.PENDIENTE, EstadosPostulacion.PRE_APROBADA)
                 .stream()
                 .filter(p -> !p.getId().equals(idPostulacionAceptada))
+                .filter(p -> p.getConvocatoria().getSemillero().getId().equals(idSemillero))
                 .toList();
 
         for (Postulacion otra : otrasActivas) {
@@ -223,7 +226,8 @@ public class GestorConvocatoriasService {
             postulacionRepository.save(otra);
         }
 
-        log.info("Cascada completada: {} postulaciones canceladas", otrasActivas.size());
+        log.info("Estudiante {}: {} postulaciones al semillero {} canceladas en cascada",
+                idEstudiante, otrasActivas.size(), idSemillero);
     }
 
     /** Bloquea la convocatoria de la postulación (SELECT ... FOR UPDATE) y exige que siga vigente. */

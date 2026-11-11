@@ -7,9 +7,10 @@ import { apiRequest } from "./client";
 import type { ResultadoMatch, SemillerosSimilares } from "@/types/api";
 
 export const matchingService = {
-  recomendaciones: async (idEstudiante: number) => {
+  // El estudiante sale del token: no se envía su ID
+  recomendaciones: async () => {
     const recomendaciones = await apiRequest<RecomendacionApi[]>(
-      `/api/recomendaciones/estudiante/${idEstudiante}`,
+      "/api/recomendaciones/mias",
     );
     return recomendaciones.map(
       (recomendacion) =>
@@ -19,6 +20,7 @@ export const matchingService = {
           porcentajeMatch: recomendacion.porcentajeMatch,
           factoresCoincidencia: [
             ["Habilidades", recomendacion.factor1Habilidades],
+            ["Equipo", recomendacion.factor5HabilidadesIntegrantes],
             ["Especialidad", recomendacion.factor2AreaEspecialidad],
             ["Cupos", recomendacion.factor3DisponibilidadConvocatorias],
             ["Temática", recomendacion.factor4ProximidadTematica],
@@ -27,6 +29,7 @@ export const matchingService = {
             .map(([label, value]) => `${label}: ${Math.round(Number(value))}%`),
           desglose: {
             habilidades: recomendacion.factor1Habilidades ?? 0,
+            habilidadesEquipo: recomendacion.factor5HabilidadesIntegrantes ?? 0,
             areasEspecialidad: recomendacion.factor2AreaEspecialidad ?? 0,
             convocatoriaAbierta:
               recomendacion.factor3DisponibilidadConvocatorias ?? 0,
@@ -42,10 +45,10 @@ export const matchingService = {
 
 export const semillerosSimilaresService = {
   // Vecinos más cercanos en el árbol KD del backend al historial del estudiante
-  buscar: async (idEstudiante: number, limite = 5) =>
+  buscar: async (limite = 5) =>
     mapearSemillerosSimilares(
       await apiRequest<SemillerosSimilaresApi>(
-        `/api/recomendaciones/estudiante/${idEstudiante}/similares?limite=${limite}`,
+        `/api/recomendaciones/mias/similares?limite=${limite}`,
       ),
     ),
 };
@@ -59,6 +62,7 @@ interface RecomendacionApi {
   factor2AreaEspecialidad: number;
   factor3DisponibilidadConvocatorias: number;
   factor4ProximidadTematica: number;
+  factor5HabilidadesIntegrantes: number;
 }
 
 interface SemillerosSimilaresApi {

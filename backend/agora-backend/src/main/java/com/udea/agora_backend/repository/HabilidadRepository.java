@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface HabilidadRepository extends JpaRepository<Habilidad, Integer> {
     Optional<Habilidad> findByNombre(String nombre);
     List<Habilidad> findByNombreContainingIgnoreCaseOrderByNombre(String nombre);
+
+    boolean existsByNombreIgnoreCase(String nombre);
 }

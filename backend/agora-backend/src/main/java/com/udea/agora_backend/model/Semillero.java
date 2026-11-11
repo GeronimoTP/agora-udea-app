@@ -43,7 +43,38 @@ public class Semillero {
     @Column(name = "created_at", nullable = false, updatable = false)
     private ZonedDateTime createdAt;
 
+    // Revisión del administrador (migración V4). Son nulas en los semilleros anteriores a la
+    // aprobación, que se consideran aprobados.
+    @Column(name = "fecha_solicitud")
+    private ZonedDateTime fechaSolicitud;
+
+    @Column(name = "fecha_revision")
+    private ZonedDateTime fechaRevision;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_usuario_revisor")
+    private Usuario usuarioRevisor;
+
+    @Column(name = "motivo_rechazo")
+    private String motivoRechazo;
+
     public boolean estaActivo() {
         return estado != null && estado.tieneNombre(EstadosSemillero.ACTIVO);
+    }
+
+    public boolean estaPendienteDeAprobacion() {
+        return estado != null && estado.tieneNombre(EstadosSemillero.PENDIENTE_APROBACION);
+    }
+
+    public boolean fueRechazado() {
+        return estado != null && estado.tieneNombre(EstadosSemillero.RECHAZADO);
+    }
+
+    /**
+     * Aprobado por el administrador (hoy activo o inactivo). Solo un semillero aprobado es
+     * público y puede tener integrantes, proyectos y reconocimientos.
+     */
+    public boolean estaAprobado() {
+        return !estaPendienteDeAprobacion() && !fueRechazado();
     }
 }

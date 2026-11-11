@@ -251,6 +251,18 @@ La refactorización buscó no cambiar el comportamiento. Estos son los únicos c
 5. **Fechas:** las fechas sin hora se muestran el día correcto.
 6. **Mensaje de error unificado:** al elegir un estado de otra categoría, ahora dice "El estado 'X' no pertenece a la categoría 'Y'".
 
+Después de la refactorización se implementaron las decisiones de la reunión con el profesor. Esos sí son cambios de reglas de negocio, documentados en `CONTEXTO.md`:
+
+- Aprobación de semilleros por el administrador.
+- Requisitos obligatorios u opcionales en las convocatorias.
+- Aceptar una oferta ya no cancela las postulaciones a otros semilleros.
+- Retiro voluntario con aprobación de un líder o tutor.
+- Solicitudes de catálogo al administrador.
+- Accesos a datos propios por token (`/me`, `/mias`) y listados sin correos.
+- Factor "habilidades del equipo" en el motor de recomendación.
+
+Requieren la migración V4. Se verificaron con 108 comprobaciones contra la API sobre una base con los datos de prueba.
+
 ### 2.5 Pendientes de refactorización
 
 Ya se hicieron: consultas agregadas en el listado de semilleros, mappers del resto de servicios, división de `GestorConvocatoriasService` y de `AutorizacionService`, pesos configurables, división del cliente HTTP del frontend y consultas por lote en el motor de recomendación, la priorización y los demás listados.

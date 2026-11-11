@@ -81,6 +81,10 @@ public class ProyectoService {
         // Obtener semillero
         Semillero semillero = semilleroRepository.findById(request.getIdSemillero())
                 .orElseThrow(() -> new RecursoNoEncontradoException("Semillero", request.getIdSemillero()));
+        if (!semillero.estaAprobado()) {
+            throw new ErrorLogicaNegocioException(
+                    "El semillero aún no ha sido aprobado por el administrador.");
+        }
         validarFechas(request);
 
         // Estado inicial del proyecto

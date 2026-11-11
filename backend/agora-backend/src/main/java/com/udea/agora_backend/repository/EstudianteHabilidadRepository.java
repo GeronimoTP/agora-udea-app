@@ -13,6 +13,30 @@ import java.util.List;
 public interface EstudianteHabilidadRepository extends JpaRepository<EstudianteHabilidad, Integer> {
     List<EstudianteHabilidad> findByEstudianteId(Integer estudianteId);
 
+    /** Par (semillero, habilidad de perfil de alguien de su equipo). */
+    interface HabilidadDeEquipo {
+        Integer getIdSemillero();
+        Integer getIdHabilidad();
+    }
+
+    // Habilidades de los integrantes activos de varios semilleros
+    @Query("""
+            SELECT es.semillero.id AS idSemillero, eh.habilidad.id AS idHabilidad
+            FROM EstudianteSemillero es
+            JOIN EstudianteHabilidad eh ON eh.estudiante = es.estudiante
+            WHERE es.semillero.id IN :idsSemillero AND es.fechaSalida IS NULL
+            """)
+    List<HabilidadDeEquipo> findHabilidadesDeIntegrantes(@Param("idsSemillero") Collection<Integer> idsSemillero);
+
+    // Habilidades del estudiante líder de varios semilleros
+    @Query("""
+            SELECT s.id AS idSemillero, eh.habilidad.id AS idHabilidad
+            FROM Semillero s
+            JOIN EstudianteHabilidad eh ON eh.estudiante = s.estudianteLider
+            WHERE s.id IN :idsSemillero
+            """)
+    List<HabilidadDeEquipo> findHabilidadesDeLideres(@Param("idsSemillero") Collection<Integer> idsSemillero);
+
     @Query("SELECT eh.habilidad.id FROM EstudianteHabilidad eh WHERE eh.estudiante.id = :estudianteId")
     List<Integer> findHabilidadIdsByEstudianteId(@Param("estudianteId") Integer estudianteId);
 

@@ -1,12 +1,14 @@
 import { Link } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import {
   gestionQueries,
   gestionService,
   type ConvocatoriaGestion,
+  type NuevaConvocatoria,
 } from "@/lib/api/gestion";
+import { habilidadesQuery } from "@/lib/api/queries";
 import {
   BadgeEstado,
   Campo,
@@ -143,6 +145,24 @@ export function ConvocatoriasGestion({ idSemillero }: { idSemillero: number }) {
                     </dd>
                   </div>
                 </dl>
+                {c.requisitos.length > 0 && (
+                  <div className="mt-4">
+                    <p className="label-caps mb-1.5">Requisitos</p>
+                    <ul className="flex flex-wrap gap-1.5">
+                      {c.requisitos.map((r) => (
+                        <li
+                          key={r.id}
+                          className="rounded-sm border border-border bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+                        >
+                          {r.nombreHabilidad ?? r.descripcion}
+                          <span className="ml-1 text-muted-foreground">
+                            ({r.obligatorio ? "obligatorio" : "opcional"})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {editable && (
                     <button
@@ -236,14 +256,7 @@ function FormularioConvocatoria({
   convocatoria: ConvocatoriaGestion | null;
   enCurso: boolean;
   onCancelar: () => void;
-  onGuardar: (datos: {
-    idSemillero: number;
-    titulo: string;
-    descripcion: string;
-    cuposTotales: number;
-    fechaInicio: string;
-    fechaCierre: string;
-  }) => void;
+  onGuardar: (datos: NuevaConvocatoria) => void;
 }) {
   const hoy = fechaHoy();
   const [titulo, setTitulo] = useState(convocatoria?.titulo ?? "");
@@ -256,6 +269,14 @@ function FormularioConvocatoria({
   );
   const [fechaCierre, setFechaCierre] = useState(
     convocatoria?.fechaCierre ?? "",
+  );
+  const [requisitos, setRequisitos] = useState<RequisitoFormulario[]>(
+    (convocatoria?.requisitos ?? []).map((r) => ({
+      idHabilidad: r.idHabilidad,
+      descripcion: r.descripcion,
+      texto: r.nombreHabilidad ?? r.descripcion ?? "",
+      obligatorio: r.obligatorio,
+    })),
   );
 
   const ocupados = convocatoria
@@ -291,6 +312,12 @@ function FormularioConvocatoria({
           cuposTotales: cuposNumero,
           fechaInicio,
           fechaCierre,
+          requisitos: requisitos.map(
+            ({ idHabilidad, descripcion, obligatorio }) =>
+              idHabilidad !== null
+                ? { idHabilidad, obligatorio }
+                : { descripcion: descripcion ?? "", obligatorio },
+          ),
         });
       }}
       className="panel mb-6 space-y-4 p-6"
@@ -313,7 +340,7 @@ function FormularioConvocatoria({
           required
         />
       </Campo>
-      <Campo etiqueta="Descripción y requisitos" htmlFor="conv-descripcion">
+      <Campo etiqueta="Descripción" htmlFor="conv-descripcion">
         <textarea
           id="conv-descripcion"
           value={descripcion}
@@ -362,6 +389,7 @@ function FormularioConvocatoria({
           />
         </Campo>
       </div>
+      <EditorRequisitos requisitos={requisitos} onCambiar={setRequisitos} />
       {errores.length > 0 && (
         <ul className="space-y-1 text-xs text-destructive">
           {errores.map((e) => (
@@ -386,5 +414,182 @@ function FormularioConvocatoria({
         </button>
       </div>
     </form>
+  );
+}
+
+interface RequisitoFormulario {
+  idHabilidad: number | null;
+  descripcion: string | null;
+  texto: string;
+  obligatorio: boolean;
+}
+
+/**
+ * Requisitos de la convocatoria: habilidades del catálogo o textos libres, cada uno
+ * obligatorio u opcional. Quien no cumple uno obligatorio puede postularse igual, pero el
+ * líder lo ve y la priorización lo ubica después de los que sí cumplen. No cambian después
+ * de la primera postulación.
+ */
+function EditorRequisitos({
+  requisitos,
+  onCambiar,
+}: {
+  requisitos: RequisitoFormulario[];
+  onCambiar: (requisitos: RequisitoFormulario[]) => void;
+}) {
+  const { data: habilidades = [] } = useQuery(habilidadesQuery());
+  const [idHabilidad, setIdHabilidad] = useState("");
+  const [texto, setTexto] = useState("");
+  const conRequisitos = requisitos.length > 0;
+  const disponibles = habilidades.filter(
+    (h) => !requisitos.some((r) => r.idHabilidad === h.id),
+  );
+
+  function agregarHabilidad() {
+    const habilidad = habilidades.find((h) => String(h.id) === idHabilidad);
+    if (!habilidad) return;
+    onCambiar([
+      ...requisitos,
+      {
+        idHabilidad: habilidad.id,
+        descripcion: null,
+        texto: habilidad.nombre,
+        obligatorio: true,
+      },
+    ]);
+    setIdHabilidad("");
+  }
+
+  function agregarTexto() {
+    const limpio = texto.trim();
+    if (
+      !limpio ||
+      requisitos.some(
+        (r) => r.descripcion?.toLowerCase() === limpio.toLowerCase(),
+      )
+    )
+      return;
+    onCambiar([
+      ...requisitos,
+      {
+        idHabilidad: null,
+        descripcion: limpio,
+        texto: limpio,
+        obligatorio: true,
+      },
+    ]);
+    setTexto("");
+  }
+
+  return (
+    <fieldset className="space-y-3 rounded-sm border border-border p-4">
+      <legend className="label-caps px-1">Requisitos</legend>
+      <p className="text-xs text-muted-foreground">
+        Define qué se espera de los aspirantes. Si alguien no cumple un
+        requisito obligatorio puede postularse igual, pero lo verás en su
+        postulación y quedará después de los que sí cumplen. No se pueden
+        cambiar después de la primera postulación.
+      </p>
+      {!conRequisitos && (
+        <p className="text-sm text-foreground">
+          Sin requisitos: cualquier estudiante puede postularse.
+        </p>
+      )}
+      {conRequisitos && (
+        <ul className="divide-y divide-border rounded-sm border border-border">
+          {requisitos.map((r, i) => (
+            <li
+              key={`${r.idHabilidad ?? ""}-${r.descripcion ?? ""}`}
+              className="flex flex-wrap items-center justify-between gap-2 p-2.5 text-sm"
+            >
+              <span>
+                {r.texto}
+                <span className="ml-1 text-xs text-muted-foreground">
+                  {r.idHabilidad !== null ? "(habilidad)" : "(texto)"}
+                </span>
+              </span>
+              <span className="flex items-center gap-2">
+                <select
+                  value={r.obligatorio ? "si" : "no"}
+                  onChange={(e) =>
+                    onCambiar(
+                      requisitos.map((actual, j) =>
+                        j === i
+                          ? { ...actual, obligatorio: e.target.value === "si" }
+                          : actual,
+                      ),
+                    )
+                  }
+                  aria-label={`Tipo del requisito ${r.texto}`}
+                  className={`${claseCampo} w-auto py-1`}
+                >
+                  <option value="si">Obligatorio</option>
+                  <option value="no">Opcional</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onCambiar(requisitos.filter((_, j) => j !== i))
+                  }
+                  aria-label={`Quitar el requisito ${r.texto}`}
+                  className="rounded-sm p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  <X className="size-4" strokeWidth={1.75} aria-hidden />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="flex gap-2">
+          <select
+            value={idHabilidad}
+            onChange={(e) => setIdHabilidad(e.target.value)}
+            aria-label="Habilidad requerida"
+            className={claseCampo}
+          >
+            <option value="">Agregar una habilidad…</option>
+            {disponibles.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.nombre}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={agregarHabilidad}
+            disabled={!idHabilidad}
+            className={claseBotonSecundario}
+          >
+            Agregar
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                agregarTexto();
+              }
+            }}
+            maxLength={300}
+            placeholder="Otro requisito (p. ej. haber visto Cálculo I)"
+            aria-label="Requisito en texto"
+            className={claseCampo}
+          />
+          <button
+            type="button"
+            onClick={agregarTexto}
+            disabled={!texto.trim()}
+            className={claseBotonSecundario}
+          >
+            Agregar
+          </button>
+        </div>
+      </div>
+    </fieldset>
   );
 }

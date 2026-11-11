@@ -1,5 +1,6 @@
 package com.udea.agora_backend.controller;
 
+import com.udea.agora_backend.dto.request.ElementoCatalogoRequestDTO;
 import com.udea.agora_backend.dto.response.CategoriaEstadoResponseDTO;
 import com.udea.agora_backend.dto.response.EntidadOtorganteResponseDTO;
 import com.udea.agora_backend.dto.response.FacultadResponseDTO;
@@ -13,7 +14,9 @@ import com.udea.agora_backend.service.CatalogoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -96,5 +99,21 @@ public class CatalogoController {
     public ResponseEntity<List<OauthProveedorResponseDTO>> obtenerProveedoresOAuth() {
         return ResponseEntity.ok(catalogoService.obtenerProveedoresOAuth());
     }
-}
 
+    // Alta directa por el administrador (regla en SecurityConfig). Estudiantes y profesores
+    // usan /api/solicitudes-catalogo.
+
+    @Operation(summary = "Agregar un tipo de reconocimiento (administrador)")
+    @PostMapping("/tipos-reconocimiento")
+    public ResponseEntity<TipoReconocimientoResponseDTO> crearTipoReconocimiento(
+            @Valid @RequestBody ElementoCatalogoRequestDTO request) {
+        return new ResponseEntity<>(catalogoService.crearTipoReconocimiento(request), HttpStatus.CREATED);
+    }
+
+    @Operation(summary = "Agregar una entidad otorgante (administrador)")
+    @PostMapping("/entidades-otorgantes")
+    public ResponseEntity<EntidadOtorganteResponseDTO> crearEntidadOtorgante(
+            @Valid @RequestBody ElementoCatalogoRequestDTO request) {
+        return new ResponseEntity<>(catalogoService.crearEntidadOtorgante(request), HttpStatus.CREATED);
+    }
+}

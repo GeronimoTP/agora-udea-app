@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.TipoElementoCatalogo;
 import com.udea.agora_backend.dto.request.LineaInvestigacionRequestDTO;
 import com.udea.agora_backend.dto.response.LineaInvestigacionResponseDTO;
 import com.udea.agora_backend.evento.SemillerosModificadosEvent;
@@ -27,6 +28,7 @@ public class LineaInvestigacionService {
     private final LineaInvestigacionRepository lineaRepository;
     private final AreaEspecialidadRepository areaRepository;
     private final ApplicationEventPublisher eventos;
+    private final NombresCatalogo nombresCatalogo;
 
     @Transactional(readOnly = true)
     public List<LineaInvestigacionResponseDTO> obtenerTodas() {
@@ -46,6 +48,7 @@ public class LineaInvestigacionService {
     }
 
     public LineaInvestigacionResponseDTO crear(LineaInvestigacionRequestDTO request) {
+        nombresCatalogo.validarLibre(TipoElementoCatalogo.LINEA_INVESTIGACION, request.getNombre());
         LineaInvestigacion linea = LineaInvestigacion.builder()
                 .nombre(request.getNombre())
                 .descripcion(request.getDescripcion())
@@ -56,6 +59,7 @@ public class LineaInvestigacionService {
 
     public LineaInvestigacionResponseDTO actualizar(Integer id, LineaInvestigacionRequestDTO request) {
         LineaInvestigacion linea = buscar(id);
+        nombresCatalogo.validarRenombre(TipoElementoCatalogo.LINEA_INVESTIGACION, linea.getNombre(), request.getNombre());
         linea.setNombre(request.getNombre());
         linea.setDescripcion(request.getDescripcion());
         linea.setAreaEspecialidad(buscarArea(request.getIdAreaEspecialidad()));

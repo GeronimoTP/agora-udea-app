@@ -69,7 +69,7 @@ public class AnaliticaService {
         DatosAnalitica datos = datosInstitucionales();
         return DashboardResumenDTO.builder()
                 .postulacionesActivas(calculadora.postulacionesActivas(datos))
-                .tasasDemanda(calculadora.demandaPorSemillero(semilleroRepository.findAll(), datos))
+                .tasasDemanda(calculadora.demandaPorSemillero(semillerosAprobados(), datos))
                 .tiempoRespuesta(calculadora.tiempoPromedioRespuesta(datos))
                 .tasaRetencion(calculadora.tasaRetencion(datos))
                 .conversionProyectos(calculadora.conversionProyectoPublicacion(datos))
@@ -81,7 +81,7 @@ public class AnaliticaService {
     }
 
     public List<TasaDemandaSemilleroDTO> calcularTasaDemandaPorSemillero() {
-        return calculadora.demandaPorSemillero(semilleroRepository.findAll(), datosInstitucionales());
+        return calculadora.demandaPorSemillero(semillerosAprobados(), datosInstitucionales());
     }
 
     public TiempoPromedioRespuestaDTO calcularTiempoPromedioRespuesta() {
@@ -149,7 +149,7 @@ public class AnaliticaService {
      */
     private ReferenciaInstitucionalDTO referenciaInstitucional() {
         DatosAnalitica datos = datosInstitucionales();
-        double demandaPromedio = calculadora.demandaPorSemillero(semilleroRepository.findAll(), datos).stream()
+        double demandaPromedio = calculadora.demandaPorSemillero(semillerosAprobados(), datos).stream()
                 .mapToDouble(TasaDemandaSemilleroDTO::getTasaDemanda)
                 .average()
                 .orElse(0.0);
@@ -169,6 +169,11 @@ public class AnaliticaService {
     // ==========================================
     // CARGA DE DATOS POR ALCANCE
     // ==========================================
+
+    // Los semilleros pendientes de aprobación o rechazados no operan: no entran en la demanda
+    private List<Semillero> semillerosAprobados() {
+        return semilleroRepository.findAll().stream().filter(Semillero::estaAprobado).toList();
+    }
 
     private DatosAnalitica datosInstitucionales() {
         return new DatosAnalitica(

@@ -7,6 +7,7 @@
 -- de prueba). Los catálogos se conservan.
 -- Si un semillero real quedó liderado por un estudiante de prueba, el script
 -- falla y no borra nada: transfiere antes el liderazgo.
+-- Requiere la migración V4 (también borra lo de datos_prueba_v4.sql).
 -- =====================================================================
 
 BEGIN;
@@ -38,6 +39,29 @@ WHERE id_proyecto IN (SELECT id FROM seed_proyectos)
    OR id_estudiante IN (SELECT id FROM seed_estudiantes);
 DELETE FROM tbl_proyectos WHERE id IN (SELECT id FROM seed_proyectos);
 DELETE FROM tbl_reconocimientos_semilleros WHERE id_semillero IN (SELECT id FROM seed_semilleros);
+
+-- Migración V4: requisitos, solicitudes de retiro y de catálogo
+DELETE FROM tbl_postulacion_x_requisito
+WHERE id_postulacion IN (SELECT id FROM seed_postulaciones)
+   OR id_requisito IN (SELECT r.id FROM tbl_requisitos_convocatoria r
+                       JOIN tbl_convocatorias c ON c.id = r.id_convocatoria
+                       WHERE c.id_semillero IN (SELECT id FROM seed_semilleros));
+DELETE FROM tbl_requisitos_convocatoria
+WHERE id_convocatoria IN (SELECT id FROM tbl_convocatorias WHERE id_semillero IN (SELECT id FROM seed_semilleros));
+DELETE FROM tbl_solicitudes_retiro
+WHERE id_estudiante_semillero IN (
+    SELECT id FROM tbl_estudiante_x_semillero
+    WHERE id_semillero IN (SELECT id FROM seed_semilleros)
+       OR id_estudiante IN (SELECT id FROM seed_estudiantes));
+UPDATE tbl_solicitudes_retiro SET id_usuario_responde = NULL
+WHERE id_usuario_responde IN (SELECT id FROM seed_usuarios);
+DELETE FROM tbl_solicitudes_catalogo WHERE id_usuario_solicitante IN (SELECT id FROM seed_usuarios);
+UPDATE tbl_solicitudes_catalogo SET id_usuario_responde = NULL
+WHERE id_usuario_responde IN (SELECT id FROM seed_usuarios);
+-- Semilleros reales revisados por el administrador de prueba
+UPDATE tbl_semilleros SET id_usuario_revisor = NULL
+WHERE id_usuario_revisor IN (SELECT id FROM seed_usuarios)
+  AND id NOT IN (SELECT id FROM seed_semilleros);
 
 DELETE FROM tbl_postulacion_x_habilidad WHERE id_postulacion IN (SELECT id FROM seed_postulaciones);
 DELETE FROM tbl_postulaciones WHERE id IN (SELECT id FROM seed_postulaciones);

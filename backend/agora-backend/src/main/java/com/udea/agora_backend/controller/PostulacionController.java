@@ -11,6 +11,7 @@ import com.udea.agora_backend.service.PriorizacionCandidatosService;
 import com.udea.agora_backend.service.autorizacion.AutorizacionPerfilService;
 import com.udea.agora_backend.service.autorizacion.AutorizacionPostulacionService;
 import com.udea.agora_backend.service.autorizacion.AutorizacionSemilleroService;
+import com.udea.agora_backend.service.autorizacion.UsuarioAutenticadoService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
@@ -36,6 +37,7 @@ public class PostulacionController {
     private final AutorizacionSemilleroService autorizacionSemillero;
     private final AutorizacionPostulacionService autorizacionPostulacion;
     private final PriorizacionCandidatosService priorizacionCandidatosService;
+    private final UsuarioAutenticadoService usuarioAutenticado;
 
     @Operation(summary = "Obtener todas las postulaciones")
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones obtenida exitosamente")
@@ -55,12 +57,12 @@ public class PostulacionController {
         return ResponseEntity.ok(postulacionService.obtenerPorId(id));
     }
 
-    @Operation(summary = "Obtener todas las postulaciones de un estudiante")
+    @Operation(summary = "Mis postulaciones (estudiante de la sesión)")
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones del estudiante obtenida exitosamente")
-    @GetMapping("/estudiante/{idEstudiante}")
-    public ResponseEntity<List<PostulacionResponseDTO>> obtenerPorEstudiante(@PathVariable Integer idEstudiante, Authentication authentication) {
-        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
-        return ResponseEntity.ok(postulacionService.obtenerPorEstudiante(idEstudiante));
+    @GetMapping("/mias")
+    public ResponseEntity<List<PostulacionResponseDTO>> mias(Authentication authentication) {
+        return ResponseEntity.ok(postulacionService.obtenerPorEstudiante(
+                usuarioAutenticado.idEstudianteActual(authentication.getName())));
     }
 
     @Operation(summary = "Obtener postulaciones de un semillero")
@@ -80,12 +82,12 @@ public class PostulacionController {
         return ResponseEntity.ok(priorizacionCandidatosService.priorizarPorSemillero(idSemillero));
     }
 
-    @Operation(summary = "Obtener postulaciones activas de un estudiante (Pendiente o Pre-aprobada)")
+    @Operation(summary = "Mis postulaciones activas: Pendiente o Pre-aprobada (estudiante de la sesión)")
     @ApiResponse(responseCode = "200", description = "Lista de postulaciones activas obtenida exitosamente")
-    @GetMapping("/estudiante/{idEstudiante}/activas")
-    public ResponseEntity<List<PostulacionResponseDTO>> obtenerActivasPorEstudiante(@PathVariable Integer idEstudiante, Authentication authentication) {
-        autorizacionPerfil.validarEstudianteActual(authentication.getName(), idEstudiante);
-        return ResponseEntity.ok(postulacionService.obtenerPostulacionesActivasByEstudiante(idEstudiante));
+    @GetMapping("/mias/activas")
+    public ResponseEntity<List<PostulacionResponseDTO>> miasActivas(Authentication authentication) {
+        return ResponseEntity.ok(postulacionService.obtenerPostulacionesActivasByEstudiante(
+                usuarioAutenticado.idEstudianteActual(authentication.getName())));
     }
 
     @Operation(summary = "Obtener postulaciones de una convocatoria")

@@ -1,5 +1,6 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.TipoElementoCatalogo;
 import com.udea.agora_backend.dto.request.AreaEspecialidadRequestDTO;
 import com.udea.agora_backend.dto.response.AreaEspecialidadResponseDTO;
 import com.udea.agora_backend.evento.SemillerosModificadosEvent;
@@ -24,6 +25,7 @@ public class AreaEspecialidadService {
 
     private final AreaEspecialidadRepository areaRepository;
     private final ApplicationEventPublisher eventos;
+    private final NombresCatalogo nombresCatalogo;
 
     @Transactional(readOnly = true)
     public List<AreaEspecialidadResponseDTO> obtenerTodas() {
@@ -43,6 +45,7 @@ public class AreaEspecialidadService {
     }
 
     public AreaEspecialidadResponseDTO crear(AreaEspecialidadRequestDTO request) {
+        nombresCatalogo.validarLibre(TipoElementoCatalogo.AREA_ESPECIALIDAD, request.getNombre());
         AreaEspecialidad area = AreaEspecialidad.builder()
                 .nombre(request.getNombre())
                 .descripcion(request.getDescripcion())
@@ -53,6 +56,7 @@ public class AreaEspecialidadService {
 
     public AreaEspecialidadResponseDTO actualizar(Integer id, AreaEspecialidadRequestDTO request) {
         AreaEspecialidad area = buscar(id);
+        nombresCatalogo.validarRenombre(TipoElementoCatalogo.AREA_ESPECIALIDAD, area.getNombre(), request.getNombre());
         area.setNombre(request.getNombre());
         area.setDescripcion(request.getDescripcion());
         publicarCambioSemilleros();

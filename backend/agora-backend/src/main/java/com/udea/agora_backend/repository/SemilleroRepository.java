@@ -17,7 +17,17 @@ public interface SemilleroRepository extends JpaRepository<Semillero, Integer>{
     List<Semillero> findByProgramaId(Integer programaId);
     List<Semillero> findByEstadoId(Integer estadoId);
 
+    @Query("SELECT DISTINCT s.estudianteLider.id FROM Semillero s")
+    List<Integer> findIdsEstudiantesLideres();
+
     @Query("SELECT s.id FROM Semillero s WHERE s.estudianteLider.id = :idEstudiante")
     List<Integer> findIdsByEstudianteLiderId(@Param("idEstudiante") Integer idEstudiante);
 
+    /** Semilleros en un estado de la categoría "Estado Semillero" (p. ej. los pendientes de aprobación). */
+    @Query("""
+            SELECT s FROM Semillero s
+            WHERE s.estado.categoriaEstado.nombre = 'Estado Semillero' AND s.estado.nombre = :estado
+            ORDER BY s.fechaSolicitud, s.id
+            """)
+    List<Semillero> findByNombreEstado(@Param("estado") String estado);
 }

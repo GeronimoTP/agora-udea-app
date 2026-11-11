@@ -9,6 +9,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { apiRequest } from "./client";
 import type { ItemCatalogo } from "./catalogos";
+import type { RequisitoApi } from "./convocatorias";
+import type { SolicitudRetiro } from "./solicitudes";
 
 // ============================================
 // TIPOS (DTOs del backend)
@@ -31,7 +33,16 @@ export interface SemilleroDetalle {
   totalPublicaciones: number;
   totalIntegrantes: number;
   convocatoriaAbierta: boolean;
+  // Aprobación del administrador (nulos en semilleros anteriores a ella)
+  fechaSolicitud: string | null;
+  fechaRevision: string | null;
+  motivoRechazo: string | null;
 }
+
+// Estados que el líder puede elegir en un semillero aprobado; la aprobación es del administrador
+export const ESTADOS_SEMILLERO_APROBADO = ["Activo", "Inactivo"];
+export const ESTADO_PENDIENTE_APROBACION = "Pendiente de aprobación";
+export const ESTADO_RECHAZADO = "Rechazado";
 
 export interface LineaSemillero {
   id: number;
@@ -44,7 +55,7 @@ export interface TutorSemillero {
   idProfesor: number;
   idUsuario: number;
   nombreProfesor: string;
-  email: string;
+  email: string | null;
   fechaAsignacion: string;
 }
 
@@ -71,6 +82,14 @@ export interface ConvocatoriaGestion {
   fechaInicio: string;
   fechaCierre: string;
   estadoActual: string;
+  requisitos: RequisitoApi[];
+}
+
+// RequisitoRequestDTO: una habilidad del catálogo o un texto, obligatorio u opcional
+export interface NuevoRequisito {
+  idHabilidad?: number;
+  descripcion?: string;
+  obligatorio: boolean;
 }
 
 export interface NuevaConvocatoria {
@@ -80,6 +99,7 @@ export interface NuevaConvocatoria {
   cuposTotales: number;
   fechaInicio: string;
   fechaCierre: string;
+  requisitos: NuevoRequisito[];
 }
 
 export interface ProyectoGestion {
@@ -268,6 +288,11 @@ export const gestionService = {
     ),
   eliminarSemillero: (id: number) =>
     apiRequest<void>(`/api/semilleros/${id}`, { method: "DELETE" }),
+  // Un semillero rechazado vuelve a "Pendiente de aprobación"
+  reenviarSemillero: (id: number) =>
+    apiRequest<SemilleroDetalle>(`/api/semilleros/${id}/reenviar`, {
+      method: "POST",
+    }),
 
   lineas: (id: number) =>
     apiRequest<LineaSemillero[]>(`/api/semilleros/${id}/lineas-investigacion`),
@@ -293,6 +318,25 @@ export const gestionService = {
     apiRequest<IntegranteSemillero>(
       `/api/semilleros/${idSemillero}/estudiantes/${idEstudiante}/retirar`,
       { method: "POST" },
+    ),
+
+  // Retiro voluntario: el integrante lo pide y un líder o tutor responde
+  solicitudesRetiro: (idSemillero: number) =>
+    apiRequest<SolicitudRetiro[]>(
+      `/api/solicitudes-retiro/semillero/${idSemillero}`,
+    ),
+  aprobarRetiro: (idSolicitud: number, comentario: string) =>
+    apiRequest<SolicitudRetiro>(
+      `/api/solicitudes-retiro/${idSolicitud}/aprobar`,
+      {
+        method: "POST",
+        body: { comentario },
+      },
+    ),
+  rechazarRetiro: (idSolicitud: number, motivo: string) =>
+    apiRequest<SolicitudRetiro>(
+      `/api/solicitudes-retiro/${idSolicitud}/rechazar`,
+      { method: "POST", body: { motivo } },
     ),
 
   convocatorias: (id: number) =>
@@ -431,6 +475,11 @@ export const gestionQueries = {
     queryOptions({
       queryKey: [...claveGestion(id), "integrantes"],
       queryFn: () => gestionService.integrantes(id),
+    }),
+  solicitudesRetiro: (id: number) =>
+    queryOptions({
+      queryKey: [...claveGestion(id), "solicitudes-retiro"],
+      queryFn: () => gestionService.solicitudesRetiro(id),
     }),
   convocatorias: (id: number) =>
     queryOptions({

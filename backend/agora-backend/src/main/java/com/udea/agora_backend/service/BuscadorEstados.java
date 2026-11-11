@@ -51,4 +51,8 @@ public class BuscadorEstados {
     public Estado deVinculacion(String nombre) {
         return porNombre(CategoriasEstado.VINCULACION, nombre);
     }
+
+    public Estado deSolicitud(String nombre) {
+        return porNombre(CategoriasEstado.SOLICITUD, nombre);
+    }
 }

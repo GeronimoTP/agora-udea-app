@@ -9,6 +9,7 @@ const etiquetas: Record<string, string> = {
   ACTIVO: "Activo",
   EN_PAUSA: "En pausa",
   PENDIENTE_APROBACION: "Pendiente de aprobación",
+  RECHAZADO: "Rechazado",
   INACTIVO: "Inactivo",
   ABIERTA: "Convocatoria abierta",
   CERRADA: "Cerrada",
@@ -19,7 +20,7 @@ const etiquetas: Record<string, string> = {
   RECHAZADA: "Rechazada por el líder",
   RECHAZADA_POR_ESTUDIANTE: "Declinada por el estudiante",
   EXPIRADA: "Expirada",
-  CANCELADA: "Cancelada (aceptó otra oferta)",
+  CANCELADA: "Cancelada (ya integra el semillero)",
 };
 
 const tonos: Record<string, string> = {
@@ -30,6 +31,7 @@ const tonos: Record<string, string> = {
   PENDIENTE: "border-warning/40 bg-warning/10 text-warning-foreground",
   PENDIENTE_APROBACION:
     "border-warning/40 bg-warning/10 text-warning-foreground",
+  RECHAZADO: "border-destructive/30 bg-destructive/10 text-destructive",
   EN_PAUSA: "border-border-strong bg-secondary text-muted-foreground",
   BORRADOR: "border-border-strong bg-secondary text-muted-foreground",
   CERRADA: "border-border-strong bg-secondary text-muted-foreground",

@@ -3,11 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   FileText,
+  Inbox,
   LayoutDashboard,
   Library,
   LogOut,
   Menu,
   Settings2,
+  ShieldCheck,
   Target,
   UserRound,
   X,
@@ -20,12 +22,15 @@ import {
   usuarioSesionQuery,
   type TipoPerfil,
 } from "@/lib/api/queries";
+import { solicitudesQueries, type Pendientes } from "@/lib/api/solicitudes";
 
 interface NavItem {
   to: string;
   label: string;
   icon: LucideIcon;
   perfiles: TipoPerfil[];
+  // Cuántas solicitudes esperan respuesta del usuario en esa página
+  avisos?: (pendientes: Pendientes) => number;
 }
 
 const navItems: NavItem[] = [
@@ -54,10 +59,24 @@ const navItems: NavItem[] = [
     perfiles: ["ESTUDIANTE"],
   },
   {
+    to: "/solicitudes",
+    label: "Solicitudes",
+    icon: Inbox,
+    perfiles: ["ESTUDIANTE", "PROFESOR"],
+    avisos: (p) => p.solicitudesRetiro,
+  },
+  {
     to: "/analitica",
     label: "Analítica",
     icon: BarChart3,
     perfiles: ["ADMINISTRADOR"],
+  },
+  {
+    to: "/administracion",
+    label: "Administración",
+    icon: ShieldCheck,
+    perfiles: ["ADMINISTRADOR"],
+    avisos: (p) => p.semillerosPorAprobar + p.solicitudesCatalogo,
   },
 ];
 
@@ -68,6 +87,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Menú lateral desplegable en pantallas pequeñas; fijo desde lg
   const [menuAbierto, setMenuAbierto] = useState(false);
   const perfil = tipoPerfil(sesion);
+  const { data: pendientes } = useQuery({
+    ...solicitudesQueries.pendientes(),
+    enabled: perfil !== null,
+  });
   const items = perfil
     ? navItems.filter(({ perfiles }) => perfiles.includes(perfil))
     : [];
@@ -146,20 +169,31 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="flex-1 overflow-y-auto px-3 py-4"
         >
           <ul className="space-y-1">
-            {items.map(({ to, label, icon: Icon }) => (
-              <li key={to}>
-                <Link
-                  to={to}
-                  onClick={cerrarMenu}
-                  activeOptions={{ exact: to === "/" }}
-                  className={claseItem}
-                  activeProps={{ className: claseItemActivo }}
-                >
-                  <Icon className="size-4" strokeWidth={1.75} aria-hidden />
-                  {label}
-                </Link>
-              </li>
-            ))}
+            {items.map(({ to, label, icon: Icon, avisos }) => {
+              const cantidad = avisos && pendientes ? avisos(pendientes) : 0;
+              return (
+                <li key={to}>
+                  <Link
+                    to={to}
+                    onClick={cerrarMenu}
+                    activeOptions={{ exact: to === "/" }}
+                    className={claseItem}
+                    activeProps={{ className: claseItemActivo }}
+                  >
+                    <Icon className="size-4" strokeWidth={1.75} aria-hidden />
+                    {label}
+                    {cantidad > 0 && (
+                      <span
+                        className="ml-auto rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-foreground"
+                        aria-label={`${cantidad} pendientes`}
+                      >
+                        {cantidad}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
             {gestion !== null && (
               <li>
                 <Link

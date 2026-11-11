@@ -8,15 +8,15 @@ import type {
   EstadoPostulacion,
   Postulacion,
   PriorizacionCandidato,
+  RequisitoEvaluado,
 } from "@/types/api";
 
 export const postulacionesService = {
-  misPostulaciones: async (idEstudiante: number) =>
-    (
-      await apiRequest<PostulacionApi[]>(
-        `/api/postulaciones/estudiante/${idEstudiante}`,
-      )
-    ).map(mapearPostulacion),
+  // El estudiante sale del token: no se envía su ID
+  misPostulaciones: async () =>
+    (await apiRequest<PostulacionApi[]>("/api/postulaciones/mias")).map(
+      mapearPostulacion,
+    ),
 
   recibidas: async (idSemillero: number) =>
     (
@@ -74,6 +74,8 @@ export interface NuevaPostulacion {
   disponibilidadHorasSemana: number;
   experienciaPrevia: string;
   idHabilidades: number[];
+  // Requisitos de texto de la convocatoria que el estudiante declara cumplir
+  idRequisitosCumplidos: number[];
 }
 
 interface PostulacionApi {
@@ -92,6 +94,8 @@ interface PostulacionApi {
   disponibilidadHorasSemana: number;
   estadoPostulacion: string;
   habilidades: string[];
+  requisitos: RequisitoEvaluado[] | null;
+  cumpleObligatorios: boolean;
 }
 
 // CandidatoPriorizadoDTO del backend
@@ -107,6 +111,8 @@ interface CandidatoPriorizadoApi {
   disponibilidad: number;
   compromiso: number;
   observaciones: string[];
+  cumpleObligatorios: boolean;
+  requisitosObligatoriosIncumplidos: string[] | null;
 }
 
 function mapearPostulacion(postulacion: PostulacionApi): Postulacion {
@@ -126,6 +132,8 @@ function mapearPostulacion(postulacion: PostulacionApi): Postulacion {
     disponibilidadHorasSemana: postulacion.disponibilidadHorasSemana,
     habilidades: postulacion.habilidades ?? [],
     cartaMotivacion: postulacion.respuestaMotivacion,
+    requisitos: postulacion.requisitos ?? [],
+    cumpleObligatorios: postulacion.cumpleObligatorios ?? true,
   };
 }
 
@@ -145,6 +153,9 @@ function mapearPriorizacion(
       compromiso: candidato.compromiso,
     },
     observaciones: candidato.observaciones ?? [],
+    cumpleObligatorios: candidato.cumpleObligatorios ?? true,
+    requisitosObligatoriosIncumplidos:
+      candidato.requisitosObligatoriosIncumplidos ?? [],
   };
 }
 

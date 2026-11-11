@@ -1,5 +1,7 @@
 package com.udea.agora_backend.service;
 
+import com.udea.agora_backend.dominio.TipoElementoCatalogo;
+import com.udea.agora_backend.dto.request.ElementoCatalogoRequestDTO;
 import com.udea.agora_backend.dto.response.CategoriaEstadoResponseDTO;
 import com.udea.agora_backend.dto.response.EntidadOtorganteResponseDTO;
 import com.udea.agora_backend.dto.response.FacultadResponseDTO;
@@ -9,6 +11,8 @@ import com.udea.agora_backend.dto.response.RolAutorResponseDTO;
 import com.udea.agora_backend.dto.response.RolEstudianteProyectoResponseDTO;
 import com.udea.agora_backend.dto.response.RolResponseDTO;
 import com.udea.agora_backend.dto.response.TipoReconocimientoResponseDTO;
+import com.udea.agora_backend.model.EntidadOtorgante;
+import com.udea.agora_backend.model.TipoReconocimiento;
 import com.udea.agora_backend.repository.CategoriaEstadoRepository;
 import com.udea.agora_backend.repository.EntidadOtorganteRepository;
 import com.udea.agora_backend.repository.FacultadRepository;
@@ -40,6 +44,7 @@ public class CatalogoService {
     private final RolEstudianteProyectoRepository rolEstudianteProyectoRepository;
     private final TipoReconocimientoRepository tipoReconocimientoRepository;
     private final EntidadOtorganteRepository entidadOtorganteRepository;
+    private final NombresCatalogo nombresCatalogo;
     private final CategoriaEstadoRepository categoriaEstadoRepository;
     private final OauthProveedorRepository oauthProveedorRepository;
 
@@ -118,6 +123,29 @@ public class CatalogoService {
                         .descripcion(tr.getDescripcion())
                         .build())
                 .collect(Collectors.toList());
+    }
+
+    // Alta directa del administrador o al aprobar una solicitud de catálogo
+    @Transactional
+    public TipoReconocimientoResponseDTO crearTipoReconocimiento(ElementoCatalogoRequestDTO request) {
+        nombresCatalogo.validarLibre(TipoElementoCatalogo.TIPO_RECONOCIMIENTO, request.getNombre());
+        TipoReconocimiento tipo = tipoReconocimientoRepository.save(TipoReconocimiento.builder()
+                .nombre(request.getNombre().trim())
+                .descripcion(request.getDescripcion().trim())
+                .build());
+        return TipoReconocimientoResponseDTO.builder()
+                .id(tipo.getId()).nombre(tipo.getNombre()).descripcion(tipo.getDescripcion()).build();
+    }
+
+    @Transactional
+    public EntidadOtorganteResponseDTO crearEntidadOtorgante(ElementoCatalogoRequestDTO request) {
+        nombresCatalogo.validarLibre(TipoElementoCatalogo.ENTIDAD_OTORGANTE, request.getNombre());
+        EntidadOtorgante entidad = entidadOtorganteRepository.save(EntidadOtorgante.builder()
+                .nombre(request.getNombre().trim())
+                .descripcion(request.getDescripcion().trim())
+                .build());
+        return EntidadOtorganteResponseDTO.builder()
+                .id(entidad.getId()).nombre(entidad.getNombre()).descripcion(entidad.getDescripcion()).build();
     }
 
     public List<EntidadOtorganteResponseDTO> obtenerEntidadesOtorgantes() {

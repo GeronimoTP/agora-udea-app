@@ -54,12 +54,22 @@ export const Route = createFileRoute("/compatibilidad")({
   component: CompatibilidadPage,
 });
 
+// Pesos por defecto del backend (app.recomendacion.pesos.*)
 const factores = [
-  { clave: "habilidades", etiqueta: "Habilidades clave", peso: 40 },
+  {
+    clave: "habilidades",
+    etiqueta: "Habilidades que el semillero ha seleccionado",
+    peso: 30,
+  },
+  {
+    clave: "habilidadesEquipo",
+    etiqueta: "Habilidades en común con el equipo",
+    peso: 15,
+  },
   {
     clave: "areasEspecialidad",
-    etiqueta: "Áreas de especialidad del tutor",
-    peso: 25,
+    etiqueta: "Áreas de especialidad de los tutores",
+    peso: 20,
   },
   {
     clave: "convocatoriaAbierta",
@@ -88,7 +98,7 @@ function CompatibilidadPage() {
       <PageHeader
         eyebrow="Motor de afinidad"
         title="Compatibilidad con semilleros"
-        description="El puntaje combina cuatro factores ponderados sobre el perfil del estudiante y la información oficial de cada semillero, priorizando aquellos con convocatorias vigentes."
+        description="El ranking compara tu perfil con cada semillero activo: combina cinco factores ponderados, incluidas las habilidades de su equipo, y prioriza los que tienen convocatorias vigentes. Los semilleros similares, en cambio, se buscan por parecido con los semilleros en los que ya participas."
       />
 
       {sesion.idEstudiante === null ? (
@@ -107,7 +117,7 @@ function CompatibilidadPage() {
             >
               Ponderación aplicada
             </h2>
-            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
               {factores.map((factor) => (
                 <div key={factor.clave} className="panel p-4">
                   <dt className="text-sm font-medium text-foreground">

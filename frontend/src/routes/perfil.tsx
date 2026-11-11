@@ -122,7 +122,7 @@ function PerfilEstudiante({
     if (!valido) return;
     setGuardando(true);
     try {
-      await perfilService.actualizarEstudiante(idEstudiante, {
+      await perfilService.actualizarEstudiante({
         idUsuario,
         idPrograma: Number(idPrograma),
         semestre,
@@ -238,7 +238,7 @@ function PerfilProfesor({
     if (!valido) return;
     setGuardando(true);
     try {
-      await perfilService.actualizarProfesor(idProfesor, {
+      await perfilService.actualizarProfesor({
         idUsuario,
         idPrograma: Number(idPrograma),
         idAreasEspecialidad: areas,

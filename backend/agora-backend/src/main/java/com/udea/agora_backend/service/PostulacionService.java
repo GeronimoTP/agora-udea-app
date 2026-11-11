@@ -48,6 +48,7 @@ public class PostulacionService {
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final EstudianteSemilleroRepository estudianteSemilleroRepository;
     private final PostulacionMapper postulacionMapper;
+    private final RequisitosConvocatoriaService requisitosService;
 
     /**
      * Obtiene todas las postulaciones
@@ -141,6 +142,7 @@ public class PostulacionService {
                 postulacionHabilidadRepository.save(ph);
             }
         }
+        requisitosService.registrarDeclaraciones(postulacionGuardada, request.getIdRequisitosCumplidos());
 
         return postulacionMapper.aResponse(postulacionGuardada);
     }
@@ -178,6 +180,9 @@ public class PostulacionService {
                 postulacionHabilidadRepository.save(ph);
             }
         }
+        if (request.getIdRequisitosCumplidos() != null) {
+            requisitosService.registrarDeclaraciones(postulacionActualizada, request.getIdRequisitosCumplidos());
+        }
 
         return postulacionMapper.aResponse(postulacionActualizada);
     }
@@ -192,6 +197,7 @@ public class PostulacionService {
         // así que eliminarla no altera los cupos de la convocatoria
         validarEditable(postulacion);
         postulacionHabilidadRepository.deleteAll(postulacionHabilidadRepository.findByPostulacionId(id));
+        requisitosService.eliminarDeclaraciones(id);
         postulacionRepository.delete(postulacion);
     }
 

@@ -57,8 +57,8 @@ El proyecto se organiza en tres servicios de procesamiento: cada uno toma datos 
 
 | Servicio | Clases | Toma | Produce |
 | --- | --- | --- | --- |
-| 1. Motor de recomendación | `MotorRecomendacionService`, `SemillerosSimilaresService`, `IndiceSemillerosKdService`, `estructuras/KdTree`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores, convocatorias vigentes e historial de semilleros del estudiante | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante; **semilleros similares a los suyos** (vecinos más cercanos en un árbol KD) |
-| 2. Gestor de convocatorias | `GestorConvocatoriasService`, `ExpiracionPostulacionesService`, `ExpiracionConvocatoriasJob`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cascada, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria |
+| 1. Motor de recomendación | `MotorRecomendacionService`, `SemillerosSimilaresService`, `IndiceSemillerosKdService`, `estructuras/KdTree`, `RecomendacionController` | Perfil del estudiante, habilidades de sus postulaciones, líneas y áreas, tutores, habilidades del equipo de cada semillero, convocatorias vigentes e historial de semilleros del estudiante | Puntaje de afinidad 0–100 y ranking de semilleros para cada estudiante; **semilleros similares a los suyos** (vecinos más cercanos en un árbol KD) |
+| 2. Gestor de convocatorias | `GestorConvocatoriasService`, `ExpiracionPostulacionesService`, `ExpiracionConvocatoriasJob`, `PriorizacionCandidatosService`, `PlazoOfertasService` | Postulaciones, cupos, fechas, requisitos de la convocatoria, historial de ofertas de cada estudiante | Flujo de doble vía (ofertas, cierre, expiración) y **priorización de candidatos** 0–100 por convocatoria, con el cumplimiento de requisitos |
 | 3. Analítica | `AnaliticaService`, `CalculadoraIndicadores`, `AnaliticaController` | Postulaciones, convocatorias, proyectos, publicaciones, reconocimientos y vinculaciones (de toda la universidad o de un semillero) | 8 indicadores: demanda, tiempo de respuesta, retención de ofertas, conversión proyecto-publicación, participación estudiantil, reconocimientos, habilidades emergentes e interdisciplinariedad. Vista institucional para el administrador y **vista por semillero** para sus líderes y tutores, con embudo de postulaciones, demanda por convocatoria y comparación con la universidad |
 
 Las reglas de cada servicio están en "Recomendaciones", "Semilleros similares a los tuyos (árbol KD)", "Postulaciones y cupos" (incluida "Priorización de candidatos") y "Analítica".
@@ -107,22 +107,24 @@ Las reglas de cada servicio están en "Recomendaciones", "Semilleros similares a
 - Los datos de prueba crean ofertas `Pre-aprobada` con fecha relativa al día de carga: con el plazo de respuesta (3 días por defecto) expiran poco después. Para probar ofertas, pre-aprueba desde la app como líder.
 
 ### Experiencia por rol (frontend)
-`AppShell` es un menú lateral fijo a la izquierda (desde `lg`; en pantallas pequeñas se abre con un botón en la barra superior) con la navegación, "Mi semillero", el nombre y rol del usuario, "Mi perfil" y "Cerrar sesión". El contenido ocupa el resto del ancho hasta 1600 px (`max-w-[1600px]`), y las cuadrículas agregan columnas en `xl`/`2xl`. El login (`/auth/login`) divide la pantalla: panel institucional verde a la izquierda (oculto en pantallas pequeñas) y formulario a la derecha.
+`AppShell` es un menú lateral fijo a la izquierda (desde `lg`; en pantallas pequeñas se abre con un botón en la barra superior) con la navegación, "Mi semillero", el nombre y rol del usuario, "Mi perfil" y "Cerrar sesión". "Solicitudes" (estudiante y profesor) y "Administración" (administrador) muestran un contador con lo que espera respuesta del usuario (`GET /api/pendientes`, se refresca cada minuto). El contenido ocupa el resto del ancho hasta 1600 px (`max-w-[1600px]`), y las cuadrículas agregan columnas en `xl`/`2xl`. El login (`/auth/login`) divide la pantalla: panel institucional verde a la izquierda (oculto en pantallas pequeñas) y formulario a la derecha.
 
 La navegación (`AppShell`) y las rutas se filtran con `tipoPerfil(sesion)` de `frontend/src/lib/api/queries.ts` (`ADMINISTRADOR`, `ESTUDIANTE`, `PROFESOR`):
 
 | Ruta | Estudiante | Profesor | Administrador |
 | --- | --- | --- | --- |
 | `/` Tablero | Convocatorias, sus postulaciones, ofertas pendientes con su fecha límite, recomendaciones y los 3 primeros "Semilleros similares a los tuyos". "Semilleros en los que participas" si integra uno o varios. Sin semillero liderado: opción "Registrar semillero". Líder: sección "Semilleros que lideras" | Convocatorias y "Semilleros que lideras" (con "Registrar otro semillero"). Sin semilleros: mensaje que explica cómo vincularse, con "Registrar semillero" y "Explorar semilleros" | Redirige a `/analitica` |
-| `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno) | Registrar semillero eligiendo al estudiante líder; queda como tutor (puede registrar varios) | Redirige a `/` |
+| `/semilleros/nuevo` | Registrar semillero (solo si aún no lidera uno); queda pendiente de aprobación | Registrar semillero eligiendo al estudiante líder; queda como tutor (puede registrar varios) y pendiente de aprobación | Redirige a `/` |
 | `/gestion/$idSemillero` | Gestión completa si es el estudiante líder | Gestión completa si es tutor | Redirige a `/` |
-| `/semilleros` y detalle | Ver y postularse. En un semillero que integra ve "Eres integrante" y la sección "Equipo del semillero" (tutores e integrantes activos con nombre, programa, semestre y correo); en uno que lidera no puede postularse (el detalle explica el motivo) | Solo ver | Solo ver |
+| `/semilleros` y detalle | Ver y postularse (el formulario muestra los requisitos de la convocatoria, deja declarar los de texto y avisa si falta uno obligatorio). En un semillero que integra ve "Eres integrante", la sección "Equipo del semillero" (tutores e integrantes activos con nombre, programa, semestre y correo) y "Retirarme del semillero"; en uno que lidera no puede postularse (el detalle explica el motivo) | Solo ver | Solo ver (también los pendientes y rechazados) |
 | `/postulaciones` | "Mis postulaciones": aceptar/declinar ofertas pre-aprobadas antes de su fecha límite. Si es líder de un semillero, también "Postulaciones recibidas" (pestañas) | "Postulaciones recibidas" ordenadas por la priorización del Servicio 2 (posición, puntaje, desglose y observaciones); pre-aprobar se desactiva cuando las ofertas vigentes igualan los cupos | Redirige a `/` |
 | `/perfil` | Editar programa, semestre y líneas | Editar programa y áreas | Redirige a `/` |
 | `/compatibilidad` | "Semilleros similares a los tuyos" (árbol KD: similitud, áreas y líneas en común, "Parecido a…", datos de la búsqueda) y ranking del motor de recomendación | Redirige a `/` | Redirige a `/` |
+| `/solicitudes` | Proponer elementos del catálogo y ver sus solicitudes de catálogo y de retiro. Si lidera: retiros pendientes de sus semilleros | Proponer elementos del catálogo, ver sus solicitudes y los retiros pendientes de sus semilleros | Redirige a `/administracion` |
 | `/analitica` | Redirige a `/` | Redirige a `/` | KPIs institucionales |
+| `/administracion` | Redirige a `/` | Redirige a `/` | Pestañas: semilleros por aprobar (aprobar o rechazar con motivo), solicitudes de catálogo (aprobar ajustando nombre, descripción o área, o rechazar con motivo) y catálogo (alta directa de habilidades, líneas, áreas, entidades y tipos de reconocimiento) |
 
-La gestión (`/gestion/$idSemillero?seccion=...`) tiene pestañas: Información (datos, líneas, estado, transferir liderazgo, eliminar), Convocatorias (crear, editar, cerrar, cancelar, eliminar), Integrantes y tutores (retirar integrantes, agregar/quitar tutores), Proyectos (CRUD, estado, integrantes con rol), Publicaciones (CRUD y autores), Reconocimientos (CRUD) e Indicadores (Servicio 3 del semillero; se consulta solo al abrir la pestaña). Se entra desde "Semilleros que lideras" en el tablero, el ítem "Mi semillero" del menú (si lidera exactamente uno) o el botón "Gestionar" del detalle público. Usa los DTOs del backend sin mapear (`frontend/src/lib/api/gestion.ts`) y todas sus consultas cuelgan de la clave `["gestion", id]`.
+La gestión (`/gestion/$idSemillero?seccion=...`) tiene pestañas: Información (datos, líneas, estado Activo/Inactivo, transferir liderazgo, eliminar; si el semillero no está aprobado, en lugar de estado y liderazgo muestra la revisión del administrador, con el motivo y "Reenviar" si fue rechazado), Convocatorias (crear, editar, cerrar, cancelar, eliminar; con editor de requisitos), Integrantes y tutores (solicitudes de retiro, retirar integrantes, agregar/quitar tutores), Proyectos (CRUD, estado, integrantes con rol), Publicaciones (CRUD y autores), Reconocimientos (CRUD) e Indicadores (Servicio 3 del semillero; se consulta solo al abrir la pestaña). Se entra desde "Semilleros que lideras" en el tablero, el ítem "Mi semillero" del menú (si lidera exactamente uno) o el botón "Gestionar" del detalle público. Usa los DTOs del backend sin mapear (`frontend/src/lib/api/gestion.ts`) y todas sus consultas cuelgan de la clave `["gestion", id]`.
 
 Ocultar en el frontend no es seguridad: cada restricción tiene su regla equivalente en el backend.
 
@@ -132,6 +134,8 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
   - `GET /api/analitica/semillero/*` → autenticado, y además líder, tutor o administrador (`AutorizacionSemilleroService.validarLiderOAdministrador`). Va antes de la regla general de analítica.
   - Resto de `/api/analitica/**` → `Administrador`.
   - Catálogos (`/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades`, `/api/estados`): lectura para cualquier usuario autenticado; `POST`, `PUT`, `PATCH` y `DELETE` solo `Administrador` (`CATALOGOS_ADMINISTRABLES`). Antes cualquier usuario podía renombrar un estado y romper convocatorias, recomendaciones y analítica.
+  - Aprobación de semilleros (`GET /api/semilleros/pendientes-aprobacion`, `POST /api/semilleros/*/aprobar|rechazar`), solicitudes de catálogo salvo crear y `/mias`, alta de entidades y tipos (`POST /api/catalogos/**`) y perfiles por ID de usuario (`GET /api/estudiantes/usuario/*`, `/api/profesores/usuario/*`) → `Administrador`.
+  - `POST /api/solicitudes-catalogo` → `Estudiante` o `Profesor`; `POST /api/solicitudes-retiro` y `GET /api/postulaciones/mias/**` → `Estudiante`.
   - `POST /api/postulaciones`, `POST /api/postulaciones/*/confirmar-aceptacion`, `POST /api/postulaciones/*/rechazar-estudiante`, `/api/recomendaciones/**` → `Estudiante`.
   - `POST /api/postulaciones/*/pre-aprobar`, `POST /api/postulaciones/*/rechazar-lider` → `Estudiante` o `Profesor`, y además el usuario debe ser líder del semillero de la postulación (ver abajo).
   - `POST /api/semilleros`, `POST /api/convocatorias` → `Estudiante` o `Profesor`.
@@ -156,13 +160,24 @@ Ocultar en el frontend no es seguridad: cada restricción tiene su regla equival
 | Ver los integrantes del semillero (`GET /api/semilleros/{id}/estudiantes`, incluye correos) | Líder, tutor o administrador (activos y retirados); un integrante activo solo ve a los activos; cualquier otro recibe 403 |
 | Ver postulaciones de un semillero o convocatoria, y su priorización de candidatos; pre-aprobar o rechazar | Líder del semillero |
 | Ver los indicadores del semillero (`GET /api/analitica/semillero/{id}`) | Líder, tutor o administrador |
-| Crear, editar o eliminar áreas, líneas, habilidades y estados del catálogo | Administrador |
+| Crear, editar o eliminar áreas, líneas, habilidades y estados del catálogo; crear entidades otorgantes y tipos de reconocimiento | Administrador |
+| Aprobar o rechazar semilleros; ver y responder solicitudes de catálogo | Administrador |
+| Reenviar un semillero rechazado | Líder del semillero |
+| Solicitar un elemento del catálogo | Estudiante o profesor |
+| Solicitar el retiro de un semillero | Integrante activo (no el estudiante líder) |
+| Ver y responder las solicitudes de retiro de un semillero | Líder o tutor (y el administrador ve) |
+| Ver el perfil completo de un estudiante (`GET /api/estudiantes/{id}`, con correo) | Él mismo, el administrador o un líder de un semillero al que pertenece, perteneció o se postuló |
+| Listado de estudiantes (`GET /api/estudiantes`, sin correo) | Profesores, líderes de semillero y administrador |
+| Perfil completo de un profesor (`GET /api/profesores/{id}`) | Él mismo o el administrador; el listado (`GET /api/profesores`) no trae correo |
+| Ver los integrantes de un proyecto (`GET /api/proyectos/{id}/estudiantes`) | Líderes, tutores e integrantes activos de su semillero, y el administrador |
+| Correo de los tutores (`GET /api/semilleros/{id}/profesores`) | Líderes, tutores, integrantes activos y administrador; los demás ven los nombres sin correo |
 | Crear, editar, retirar una postulación y sus habilidades; aceptar o declinar una oferta | El estudiante postulado |
 | Ver una postulación concreta | El estudiante postulado, un líder del semillero o el administrador |
-| Ver postulaciones o recomendaciones de un estudiante | Ese estudiante |
-| Editar o eliminar un perfil y sus líneas/áreas | El dueño del perfil |
+| Ver postulaciones o recomendaciones de un estudiante | Ese estudiante, por `/mias` (el ID sale del token) |
+| Ver y editar el perfil propio (`/api/estudiantes/me`, `/api/profesores/me`) | El dueño del perfil |
 | Crear semillero | Un estudiante solo como líder de sí mismo; un profesor con cualquier líder, y queda vinculado como tutor |
 
+- **Lo propio va por el token, no por un ID en la URL**: el perfil (`GET/PUT /api/estudiantes/me`, `/api/profesores/me`), las postulaciones (`/api/postulaciones/mias`, `/mias/activas`), las recomendaciones (`/api/recomendaciones/mias`, `/mias/similares`) y las solicitudes (`/api/solicitudes-*/mias`). Las rutas antiguas con el ID del estudiante se eliminaron. Así nadie con un token válido consulta los datos de otro cambiando un número, y no depende de que cada endpoint recuerde validarlo. `UsuarioAutenticadoService.idEstudianteActual` / `idProfesorActual` responden 403 si la sesión no tiene ese perfil.
 - Liderar un semillero es una relación, no un rol: el estudiante líder conserva el rol `Estudiante` y su vista de líder sale de `idSemillerosLiderados` (`esEstudianteLider` en `queries.ts`).
 - Si la base de datos cambia el nombre de un rol, las reglas `hasRole(...)` dejan de coincidir: mantener la capitalización exacta.
 
@@ -192,16 +207,22 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
 - Crear un semillero (`POST /api/semilleros`, `SemilleroRequestDTO`):
   - Requiere código identificador único (mayúsculas, números y guiones), nombre (5–150), descripción, programa, al menos una línea de investigación y `idProfesores` con al menos un profesor ya registrado (si lo crea un profesor, él se añade solo).
   - Un estudiante lidera como máximo un semillero (también al cambiar de líder en la edición).
-  - Nace en estado `Activo` (categoría "Estado Semillero"), sin aprobación del administrador por ahora.
-  - El formulario `/semilleros/nuevo` lista los profesores de `GET /api/profesores` y los filtra en el cliente por nombre/correo, facultad, programa y área de especialidad.
-  - Si lo usa un profesor, además elige al estudiante líder entre `GET /api/estudiantes` (sin los que ya lideran un semillero, según `idEstudianteLider` de `/api/semilleros`); los demás tutores son opcionales porque él queda vinculado. Un profesor puede tutorar varios semilleros sin límite.
+  - Nace `Pendiente de aprobación` (categoría "Estado Semillero", con `fecha_solicitud`): ver "Aprobación de semilleros".
+  - Un estudiante con un semillero pendiente o rechazado ya cuenta como líder: no puede registrar otro (puede eliminarlo si desiste).
+  - El formulario `/semilleros/nuevo` lista los profesores de `GET /api/profesores` (sin correo) y los filtra en el cliente por nombre, facultad, programa y área de especialidad.
+  - Si lo usa un profesor, además elige al estudiante líder entre `GET /api/estudiantes` (sin correo; excluye a quien tiene `lideraSemillero=true`); los demás tutores son opcionales porque él queda vinculado. Un profesor puede tutorar varios semilleros sin límite.
   - La vinculación de un profesor como tutor no requiere su aceptación: lo incluye quien registra el semillero o un líder desde la gestión.
 - Un semillero debe conservar al menos un profesor tutor y al menos una línea de investigación.
+- **Aprobación de semilleros** (`AprobacionSemillerosService`, migración V4): `Pendiente de aprobación` → el administrador aprueba (`POST /api/semilleros/{id}/aprobar` → `Activo`) o rechaza con motivo obligatorio (`/{id}/rechazar` → `Rechazado`, guarda `motivo_rechazo`, `fecha_revision` e `id_usuario_revisor`). Un líder corrige los datos y reenvía uno rechazado (`/{id}/reenviar` → pendiente otra vez, con nueva `fecha_solicitud`; el motivo anterior se conserva como referencia hasta la próxima revisión). `GET /api/semilleros/pendientes-aprobacion` lista los pendientes, los más antiguos primero.
+  - Mientras no está aprobado (`Semillero.estaAprobado()` es falso): no es público (para quien no es su líder ni administrador, los listados lo omiten y el detalle responde 404, ver `VisibilidadSemilleros`), no abre convocatorias, no registra integrantes, proyectos ni reconocimientos, no transfiere liderazgo, no entra al motor de recomendación ni al árbol KD, y no cuenta en la demanda de la analítica institucional. Sus líderes pueden editar datos, líneas y tutores, reenviarlo o eliminarlo.
+  - El líder solo cambia un semillero aprobado entre `Activo` e `Inactivo` (`PATCH .../estado/{idEstado}`); los estados de aprobación los pone el administrador.
+  - Los semilleros que existían antes de V4 se consideran aprobados (sus columnas de revisión son nulas).
 - El líder estudiantil solo cambia con `POST /api/semilleros/{id}/transferir-liderazgo/{idEstudiante}`: el nuevo líder debe ser integrante activo y no liderar otro semillero; el saliente queda como integrante activo. El `PUT` del semillero rechaza un cambio de líder.
 - No se puede pausar ni inactivar un semillero con convocatorias `Abierta`.
 - Eliminar un semillero solo es posible sin convocatorias, proyectos, integrantes ni reconocimientos; si tiene historial se inactiva.
 - "Equipo del semillero" en el detalle: solo la ven integrantes activos, el estudiante líder y los tutores. Muestra el líder estudiantil, los tutores (nombre y correo) y los integrantes activos (nombre, programa, semestre y correo, con enlace `mailto:`), para que puedan comunicarse; no muestra fechas de ingreso ni retirados. Los retirados solo los ven los líderes en la gestión.
-- Un estudiante puede ser integrante activo de **varios semilleros a la vez**. `GET /api/usuarios/me` devuelve sus membresías activas en `idSemillerosIntegrante`; el tablero las lista y el detalle del semillero muestra "Eres integrante". Solo no puede postularse a un semillero que ya integra o que lidera. Aceptar una oferta sigue cancelando en cascada sus demás postulaciones en proceso.
+- Un estudiante puede ser integrante activo de **varios semilleros a la vez**. `GET /api/usuarios/me` devuelve sus membresías activas en `idSemillerosIntegrante`; el tablero las lista y el detalle del semillero muestra "Eres integrante". Solo no puede postularse a un semillero que ya integra o que lidera. Puede postularse a todos los que quiera y entrar a los que lo acepten: aceptar una oferta **no** cancela sus postulaciones a otros semilleros.
+- **Retiro voluntario** (`SolicitudRetiroService`, `tbl_solicitudes_retiro`, migración V4): el integrante no sale de inmediato. Desde el detalle del semillero envía una solicitud con su motivo (`POST /api/solicitudes-retiro`); el líder y los tutores la ven en la gestión (Integrantes y tutores) y en `/solicitudes`, y cualquiera de ellos responde: aprobar (`/{id}/aprobar`, comentario opcional) lo retira como el retiro por el líder; rechazar (`/{id}/rechazar`) exige un comentario (por ejemplo, para acordar una reunión) y el estudiante sigue como integrante y puede volver a pedirlo. Una sola solicitud pendiente por integrante y semillero; el estudiante líder primero debe transferir el liderazgo. Si un líder retira directamente a alguien con una solicitud pendiente, esta queda aprobada. Estados en la categoría "Estado Solicitud": `Pendiente`, `Aprobada`, `Rechazada`.
 - Integrantes (`tbl_estudiante_x_semillero`): activo = `fecha_salida` nula. `POST /api/semilleros/{id}/estudiantes/{idEstudiante}/retirar` pone fecha de salida hoy y estado `Inactivo` (categoría "Estado Usuario"). Un retirado puede volver a postularse y, si acepta una oferta, su vinculación se reactiva. `totalIntegrantes`, el chequeo "ya perteneces" y las recomendaciones solo cuentan integrantes activos.
 - Proyectos: `fechaFin` >= `fechaInicio`; no cambian de semillero; solo el estudiante líder o integrantes activos se vinculan a ellos; no se eliminan si tienen publicaciones (al eliminar se borran sus vínculos con estudiantes).
 - Publicaciones: solo se mueven a otro proyecto del mismo semillero; los autores deben ser el líder, un integrante activo o un tutor del semillero; al eliminar se borran sus autorías.
@@ -210,6 +231,9 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
 - Cambiar el estado de un semillero o de un proyecto exige un estado de su categoría.
 - Las convocatorias abiertas usan el estado `Abierta`; al crear una convocatoria, el cupo disponible inicia igual al total.
 - Crear una convocatoria exige semillero `Activo`, `fechaInicio` >= hoy y `fechaCierre` >= `fechaInicio` y >= hoy.
+- **Requisitos de la convocatoria** (`RequisitosConvocatoriaService`, `tbl_requisitos_convocatoria`, migración V4): al abrirla (o editarla) el líder define si tiene requisitos y cuáles: habilidades del catálogo o textos libres, cada uno obligatorio u opcional (`ConvocatoriaRequestDTO.requisitos`; sin la lista al editar se conservan). Cada requisito es habilidad **o** texto, sin repetir. No cambian después de la primera postulación (422), para evaluar a todos con las mismas reglas; reenviar la misma lista sí se acepta.
+  - Uno de habilidad se cumple si la habilidad está entre las declaradas en la postulación; uno de texto, si el estudiante declara cumplirlo (`PostulacionRequestDTO.idRequisitosCumplidos`, guardado en `tbl_postulacion_x_requisito`).
+  - Incumplir uno obligatorio **no** impide postularse: el formulario lo advierte, `PostulacionResponseDTO` trae `requisitos` (cada uno con `cumple`) y `cumpleObligatorios`, y la priorización ubica al aspirante después de los que cumplen.
 - Editar una convocatoria:
   - No puede cambiar de semillero.
   - `cuposTotales` no puede ser menor que los cupos ya asignados; `cuposDisponibles` se recalcula como total − asignados.
@@ -238,7 +262,7 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
   1. Bloquea la fila de la convocatoria (`findByIdParaActualizarCupos`, `PESSIMISTIC_WRITE`) para que dos aceptaciones simultáneas no consuman el mismo cupo.
   2. Exige que la convocatoria siga vigente y con cupos, y descuenta uno.
   3. Vincula al estudiante al semillero (`tbl_estudiante_x_semillero`, estado `Activo` de "Estado Usuario", porque la vinculación no tiene categoría propia; ver `CategoriasEstado.VINCULACION`) si no lo estaba.
-  4. Marca las demás postulaciones activas del estudiante como `Cancelada en cascada`. `Rechazada por Estudiante` queda solo para la decisión explícita del estudiante.
+  4. Marca como `Cancelada en cascada` solo sus otras postulaciones en proceso al **mismo semillero** (ya es integrante y no puede postularse a él). Las de otros semilleros siguen su curso: puede aceptar varias ofertas e integrar varios semilleros. `Rechazada por Estudiante` queda solo para la decisión explícita del estudiante.
   5. Si los cupos llegan a cero, la convocatoria pasa a `Cerrada` y lo que quedaba `Pendiente` o `Pre-aprobada` en ella pasa a `Expirada`.
 - `fechaDecisionEstudiante` solo se registra cuando el estudiante acepta o declina; los rechazos del líder, la cascada y las expiraciones no la tocan.
 - Un cron diario, configurable con `app.scheduler.convocatorias-expiradas.cron` (por defecto 01:00), cierra convocatorias expiradas y marca como `Expirada` lo que quedó sin resolver, también en convocatorias que ya estaban `Cerradas`.
@@ -249,21 +273,30 @@ El fragmento (`#`) no se envía a ningún servidor ni aparece en el header `Refe
 - Afinidad temática, 35%: líneas del estudiante que coinciden con las del semillero, sobre el total de líneas del semillero.
 - Habilidades, 25%: habilidades declaradas en la postulación que el semillero ya usa (las de sus postulaciones `Aceptada`). Sin ese historial, valor neutral 50.
 - Disponibilidad, 20%: horas semanales declaradas; 12 h o más dan el 100.
-- Compromiso, 20%: promedio de cómo respondió el estudiante a ofertas anteriores (aceptó 100, aceptó otra y esta se canceló en cascada 75, declinó 50, la dejó expirar 0). Sin historial, valor neutral 50.
+- Compromiso, 20%: promedio de cómo respondió el estudiante a ofertas anteriores (aceptó 100, aceptó otra del mismo semillero y esta se canceló en cascada 75, declinó 50, la dejó expirar 0). Sin historial, valor neutral 50.
 
-La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para el líder ("Tiene otra oferta vigente en …", "Ya integra N semillero(s)", "Sin historial de ofertas anteriores"). El frontend la combina con las postulaciones recibidas: muestra posición, puntaje, desglose y observaciones, y ordena primero las que siguen en proceso. El puntaje orienta la decisión; el líder sigue decidiendo.
+Requisitos: quien no cumple todos los requisitos obligatorios de la convocatoria va después de los que sí los cumplen, sin importar el puntaje (`cumpleObligatorios`, `requisitosObligatoriosIncumplidos`).
+
+La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para el líder ("No cumple requisitos obligatorios: …", "Tiene otra oferta vigente en …", "Ya integra N semillero(s)", "Sin historial de ofertas anteriores"). El frontend la combina con las postulaciones recibidas: muestra posición, puntaje, desglose y observaciones, y ordena primero las que siguen en proceso. El puntaje orienta la decisión; el líder sigue decidiendo.
 
 - La tabla `tbl_estudiante_x_habilidad` se crea con `backend/agora-backend/db/migrations/V3__habilidades_estudiante.sql` (idempotente), que además copia al perfil las habilidades que cada estudiante ya declaró en sus postulaciones. Debe ejecutarse antes de desplegar el backend que la usa (con `validate`, Hibernate no arranca sin la tabla) y antes de `datos_prueba.sql`.
+- La migración `backend/agora-backend/db/migrations/V4__solicitudes_y_requisitos.sql` (idempotente) agrega: la categoría "Estado Solicitud" y sus estados, los estados de semillero `Pendiente de aprobación` y `Rechazado`, las columnas de revisión de `tbl_semilleros` y las tablas `tbl_requisitos_convocatoria`, `tbl_postulacion_x_requisito`, `tbl_solicitudes_retiro` y `tbl_solicitudes_catalogo`. Debe ejecutarse antes de desplegar el backend. `db/seed/datos_prueba_v4.sql` (después de `datos_prueba.sql`) carga ejemplos: SEED-06 pendiente, SEED-07 rechazado, una convocatoria de SEED-02 con requisitos y dos aspirantes, un retiro pendiente en SEED-01 y solicitudes de catálogo. `limpiar_datos_prueba.sql` también los borra.
 - La columna `tbl_postulaciones.fecha_pre_aprobacion` se crea con `backend/agora-backend/db/migrations/V2__oferta_y_cancelacion_postulaciones.sql`, que debe ejecutarse antes de desplegar.
+
+### Solicitudes de catálogo
+`SolicitudCatalogoService` (`tbl_solicitudes_catalogo`, migración V4). Estudiantes y profesores proponen habilidades, líneas de investigación (con su área), áreas de especialidad, entidades otorgantes o tipos de reconocimiento (`POST /api/solicitudes-catalogo`, con justificación; descripción obligatoria salvo para habilidades). No se acepta algo que ya existe en el catálogo ni una solicitud pendiente igual (409, sin distinguir mayúsculas). El administrador las ve en `/administracion` (`GET /api/solicitudes-catalogo?soloPendientes=true`): al aprobar puede ajustar nombre, descripción o área y el elemento se crea con el servicio de su catálogo (`id_elemento_creado`); al rechazar escribe el motivo, que el solicitante ve en `/solicitudes` (`GET /api/solicitudes-catalogo/mias`). El administrador también agrega elementos directamente (los catálogos existentes, más `POST /api/catalogos/entidades-otorgantes` y `/tipos-reconocimiento`). `NombresCatalogo` impide nombres repetidos en todas esas altas.
 
 ### Recomendaciones
 `MotorRecomendacionService` solo considera semilleros `Activo` que el estudiante no lidera y a los que no pertenece. Los ordena por puntaje ponderado. Pesos por defecto, configurables con `app.recomendacion.pesos.*` (`PesosRecomendacion`):
-- Habilidades: 40%.
-- Coincidencia con áreas de especialidad de tutores: 25%.
+- Habilidades que el semillero ha seleccionado: 30%.
+- Habilidades del equipo: 15% (`habilidadesIntegrantes`, `factor5HabilidadesIntegrantes`). Qué parte de las habilidades del estudiante ya tienen en su perfil los integrantes activos o el estudiante líder: premia la afinidad con el grupo. Sin habilidades en uno de los dos lados, valor neutral 50.
+- Coincidencia con áreas de especialidad de tutores: 20%.
 - Disponibilidad: 20%. Tiene una convocatoria `Abierta`, ya iniciada, no vencida y con cupos.
 - Proximidad temática y de programa: 15%. Internamente es 75% coincidencia de líneas de investigación y 25% mismo programa académico.
 
-El número de consultas no depende de cuántos semilleros haya: el perfil del estudiante se lee una vez y los datos de todos los candidatos (historial de habilidades, áreas de los tutores, líneas y convocatorias abiertas) se cargan en cuatro consultas antes de puntuar.
+El número de consultas no depende de cuántos semilleros haya: el perfil del estudiante se lee una vez y los datos de todos los candidatos (historial de habilidades, habilidades del equipo, áreas de los tutores, líneas y convocatorias abiertas) se cargan en seis consultas antes de puntuar.
+
+El motor y los semilleros similares (árbol KD) son distintos: el motor compara al **estudiante** con cada semillero (su perfil contra lo que tiene el semillero, incluido su equipo) y los recorre todos; el árbol KD compara **semilleros entre sí**, buscando los vecinos más cercanos a aquellos en los que el estudiante ya participa.
 
 El puntaje se limita a 0–100. Las habilidades del estudiante son las de su perfil (declaradas desde el registro) unidas a las que declaró en sus postulaciones, así que la compatibilidad funciona desde que se crea el perfil. El factor compara contra las habilidades de las postulaciones aceptadas del semillero (o, si no hay, de todas las recibidas). Usa un valor neutral de 50 solo si el semillero no tiene historial de postulaciones o si el estudiante no tiene ninguna habilidad (perfiles anteriores a la migración V3 sin postulaciones).
 
@@ -327,18 +360,20 @@ Reglas de cálculo:
 - OAuth/onboarding: `/oauth2/authorization/google`, `/api/auth/onboarding/estudiante`, `/api/auth/onboarding/profesor`.
 - Sesión: `GET /api/usuarios/me` (incluye `rol`, `idEstudiante`, `idProfesor`, `idSemillerosLiderados` e `idSemillerosIntegrante`).
 - Catálogos: `/api/catalogos/*`, `/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades`, `/api/estados`.
-- Perfiles: `/api/estudiantes`, `/api/profesores`.
-- Semilleros: `/api/semilleros`. El DTO incluye `nombreFacultad`, `totalProyectos`, `totalPublicaciones`, `totalIntegrantes` y `convocatoriaAbierta`.
+- Perfiles: `GET/PUT /api/estudiantes/me` y `/api/profesores/me` (el propio); `GET /api/estudiantes` y `/api/profesores` (listados sin correo); `GET /api/estudiantes/{id}` (con las reglas de lectura de Autorización).
+- Semilleros: `/api/semilleros`. El DTO incluye `nombreFacultad`, `totalProyectos`, `totalPublicaciones`, `totalIntegrantes`, `convocatoriaAbierta`, `fechaSolicitud`, `fechaRevision` y `motivoRechazo`. Aprobación: `GET /api/semilleros/pendientes-aprobacion`, `POST /{id}/aprobar`, `/{id}/rechazar`, `/{id}/reenviar`.
+- Solicitudes: `/api/solicitudes-retiro` (`POST`, `/mias`, `/semillero/{id}`, `/{id}/aprobar`, `/{id}/rechazar`), `/api/solicitudes-catalogo` (`POST`, `/mias`, `GET` del administrador, `/{id}/aprobar`, `/{id}/rechazar`) y `GET /api/pendientes` (avisos del menú).
 - Proyectos y publicaciones de un semillero: `/api/proyectos/semillero/{id}`, `/api/publicaciones/semillero/{id}`.
 - Convocatorias: `/api/convocatorias`, `/api/convocatorias/activas`, `/api/convocatorias/semillero/{id}`.
-- Postulaciones: `/api/postulaciones`, `/api/postulaciones/estudiante/{id}`, `/api/postulaciones/semillero/{id}`, `/api/postulaciones/semillero/{id}/priorizacion` y las acciones del flujo de doble vía. El DTO incluye `fechaLimiteRespuesta`.
-- Recomendaciones (solo estudiante, solo los propios datos): `/api/recomendaciones/estudiante/{id}` (ranking ponderado) y `/api/recomendaciones/estudiante/{id}/similares?limite=5` (semilleros similares, árbol KD).
+- Postulaciones: `/api/postulaciones`, `/api/postulaciones/mias` (y `/mias/activas`), `/api/postulaciones/semillero/{id}`, `/api/postulaciones/semillero/{id}/priorizacion` y las acciones del flujo de doble vía. El DTO incluye `fechaLimiteRespuesta`, `requisitos` y `cumpleObligatorios`.
+- Convocatorias: el DTO incluye `requisitos` (`idHabilidad`/`nombreHabilidad` o `descripcion`, y `obligatorio`).
+- Recomendaciones (solo estudiante, solo los propios datos): `/api/recomendaciones/mias` (ranking ponderado) y `/api/recomendaciones/mias/similares?limite=5` (semilleros similares, árbol KD).
 - Analítica: `/api/analitica/dashboard` y KPIs bajo `/api/analitica/*` (administrador); `/api/analitica/semillero/{id}` (líderes, tutores y administrador).
 - Catálogos administrables: `/api/areas-especialidad`, `/api/lineas-investigacion`, `/api/habilidades` y `/api/estados` reciben y devuelven DTOs (`*RequestDTO` con validación, `*ResponseDTO`), nunca entidades JPA. Las líneas incluyen `idAreaEspecialidad` y `nombreAreaEspecialidad`; los estados, `nombreCategoria`. `GET .../buscar?nombre=` filtra en la base de datos y ordena por nombre.
 
-El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dominio: `semilleros`, `convocatorias`, `postulaciones`, `recomendaciones`, `analitica`, `perfiles`, `catalogos` y `gestion`. Las query options de React Query están en `queries.ts` (y `gestionQueries` en `gestion.ts`). Cada módulo usa una de dos formas y lo dice en su cabecera:
+El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dominio: `semilleros`, `convocatorias`, `postulaciones`, `recomendaciones`, `analitica`, `perfiles`, `catalogos`, `gestion` y `solicitudes` (aprobación de semilleros, catálogo, retiro y avisos; sus consultas cuelgan de `["solicitudes"]`). Las query options de React Query están en `queries.ts` (y `gestionQueries` en `gestion.ts`). Cada módulo usa una de dos formas y lo dice en su cabecera:
 - **Vistas públicas** (`semilleros`, `convocatorias`, `postulaciones`, `recomendaciones`, `analitica`): adaptan el DTO del backend (tipo `*Api`, privado del módulo) a un tipo de vista de `@/types/api` con funciones `mapear*`, que además normalizan los estados. No tipar la respuesta cruda del backend con un tipo de vista.
-- **Edición** (`gestion`, `perfiles`, `catalogos`): exportan el DTO del backend tal cual, porque los formularios necesitan los IDs y los nombres exactos de estado.
+- **Edición** (`gestion`, `perfiles`, `catalogos`, `solicitudes`): exportan el DTO del backend tal cual, porque los formularios necesitan los IDs y los nombres exactos de estado.
 
  Al cambiar un endpoint, verifica ambos lados (ruta, método HTTP y cuerpo). El registro heredado por email (`AuthController`, `/api/auth/register/**`, `/api/auth/check-email`) se eliminó: el único alta de cuentas es el onboarding OAuth con identidad firmada.
 
@@ -379,7 +414,7 @@ El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dom
 - Mantener nombres de dominio en español y respetar nombres/capitalización de catálogos, estados y roles.
 - No añadir acceso a datos demo ni IDs fijos. El usuario actual se obtiene con `/api/usuarios/me`.
 - Frontend: rutas file-based en `frontend/src/routes`; `index.tsx` es `/`; `__root.tsx` es el único root layout. No editar `routeTree.gen.ts`.
-- Toda ruta cuyo `loader` consulte la API usa `ssr: false`: el token vive en `localStorage` y en el servidor no existe, así que una carga directa (recargar o abrir un enlace) fallaría. Aplica a `/`, `/semilleros`, `/semilleros/$idSemillero`, `/postulaciones`, `/compatibilidad`, `/gestion/$idSemillero`, `/semilleros/nuevo`, `/perfil`, `/analitica` y `/oauth2/redirect`.
+- Toda ruta cuyo `loader` consulte la API usa `ssr: false`: el token vive en `localStorage` y en el servidor no existe, así que una carga directa (recargar o abrir un enlace) fallaría. Aplica a `/`, `/semilleros`, `/semilleros/$idSemillero`, `/postulaciones`, `/compatibilidad`, `/gestion/$idSemillero`, `/semilleros/nuevo`, `/perfil`, `/solicitudes`, `/analitica`, `/administracion` y `/oauth2/redirect`.
 - Mantener `apiRequest` para llamadas HTTP: añade Bearer token, no envía cookies y usa timeout configurable.
 - Para mostrar u ocultar funcionalidades por rol, usar `tipoPerfil`, `esAdministrador`, `esEstudiante` y `esProfesor` de `queries.ts`, y añadir la regla equivalente en `SecurityConfig`.
 - No relajar restricciones de DB para ocultar datos obligatorios ausentes. Mantener relaciones y completar entidades correctamente.
@@ -387,6 +422,8 @@ El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dom
 - El esquema productivo es externo. No cambiar `ddl-auto` a `update`/`create` en producción.
 - CORS se configura solo en `SecurityConfig`; no uses `@CrossOrigin` en controladores.
 - Un endpoint nuevo bajo `/api/**` necesita su regla en `SecurityConfig` o en `service/autorizacion`; por defecto exige autenticación.
+- Datos del usuario de la sesión: rutas `/me` o `/mias` que toman la identidad del token (`UsuarioAutenticadoService.idEstudianteActual`), nunca un ID del usuario en la URL o en el body. Los listados que ven otros usuarios no exponen correos (DTOs `*ResumenDTO`).
+- Solicitudes que alguien aprueba o rechaza: estados de la categoría "Estado Solicitud" (`EstadosSolicitud`), motivo obligatorio al rechazar (`RechazoRequestDTO`) y su contador en `GET /api/pendientes`.
 - Toda operación nueva que cambie semilleros (estado, líneas) o el catálogo de líneas y áreas debe publicar `SemillerosModificadosEvent`; si no, el árbol KD de semilleros similares queda desactualizado hasta que venza su vigencia.
 - `KdTree` (`backend/.../estructuras`) es una estructura genérica e inmutable, sin dependencias de Spring: para reflejar cambios se construye un árbol nuevo.
 

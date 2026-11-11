@@ -93,10 +93,11 @@ export const convocatoriasSemilleroQuery = (idSemillero: number) =>
     queryFn: () => convocatoriasService.porSemillero(idSemillero),
   });
 
+// Lo propio va por /me y /mias: la clave conserva el ID para no mezclar sesiones en caché
 export const misPostulacionesQuery = (idEstudiante: number) =>
   queryOptions({
     queryKey: ["postulaciones", "estudiante", idEstudiante],
-    queryFn: () => postulacionesService.misPostulaciones(idEstudiante),
+    queryFn: () => postulacionesService.misPostulaciones(),
   });
 
 // Postulaciones recibidas con la priorización del Servicio 2 en las que siguen en proceso
@@ -135,14 +136,14 @@ export const postulacionesRecibidasQuery = (idSemilleros: number[]) =>
 export const recomendacionesQuery = (idEstudiante: number) =>
   queryOptions({
     queryKey: ["matching", idEstudiante],
-    queryFn: () => matchingService.recomendaciones(idEstudiante),
+    queryFn: () => matchingService.recomendaciones(),
   });
 
 // Comparte el prefijo "matching": al editar el perfil se invalida junto con el ranking
 export const semillerosSimilaresQuery = (idEstudiante: number, limite = 5) =>
   queryOptions({
     queryKey: ["matching", idEstudiante, "similares", limite],
-    queryFn: () => semillerosSimilaresService.buscar(idEstudiante, limite),
+    queryFn: () => semillerosSimilaresService.buscar(limite),
   });
 
 export const habilidadesQuery = () =>
@@ -166,13 +167,13 @@ export const profesoresQuery = () =>
 export const perfilEstudianteQuery = (idEstudiante: number) =>
   queryOptions({
     queryKey: ["perfil", "estudiante", idEstudiante],
-    queryFn: () => perfilService.estudiante(idEstudiante),
+    queryFn: () => perfilService.miPerfilEstudiante(),
   });
 
 export const perfilProfesorQuery = (idProfesor: number) =>
   queryOptions({
     queryKey: ["perfil", "profesor", idProfesor],
-    queryFn: () => perfilService.profesor(idProfesor),
+    queryFn: () => perfilService.miPerfilProfesor(),
   });
 
 export const estudiantesQuery = () =>

@@ -27,7 +27,7 @@ export const Route = createFileRoute("/postulaciones")({
       {
         name: "description",
         content:
-          "Seguimiento de postulaciones a semilleros: pre-aprobación del líder, decisión final del estudiante y resolución en cascada de ofertas.",
+          "Seguimiento de postulaciones a semilleros: pre-aprobación del líder y decisión final del estudiante. Un estudiante puede integrar varios semilleros.",
       },
       {
         property: "og:title",
@@ -169,7 +169,7 @@ function PostulacionesPage() {
               onClick={() =>
                 ejecutar(
                   () => postulacionesService.aceptarOferta(row.idPostulacion),
-                  "Oferta aceptada. Las demás postulaciones activas se cancelan en cascada.",
+                  "Oferta aceptada. Ya eres integrante del semillero; tus postulaciones a otros semilleros siguen activas.",
                 )
               }
               className="rounded-sm bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
@@ -251,6 +251,25 @@ function PostulacionesPage() {
               Ofertas vigentes: {row.priorizacion.ofertasVigentes} de{" "}
               {row.priorizacion.cuposDisponibles} cupos
             </p>
+          )}
+          {row.requisitos.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-xs">
+              {row.requisitos.map((requisito) => (
+                <li
+                  key={requisito.idRequisito}
+                  className={
+                    requisito.cumple
+                      ? "text-muted-foreground"
+                      : requisito.obligatorio
+                        ? "text-destructive"
+                        : "text-warning"
+                  }
+                >
+                  {requisito.cumple ? "✓" : "✗"} {requisito.texto}
+                  {requisito.obligatorio ? " (obligatorio)" : ""}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       ),
@@ -335,7 +354,7 @@ function PostulacionesPage() {
         title={etiquetasVista[vista]}
         description={
           vistaEstudiante
-            ? "Cuando el líder pre-apruebe una postulación, confirma o declina la oferta antes de su fecha límite; si no respondes, la oferta expira. Al aceptar, el sistema descuenta el cupo y cancela automáticamente tus demás postulaciones activas."
+            ? "Cuando el líder pre-apruebe una postulación, confirma o declina la oferta antes de su fecha límite; si no respondes, la oferta expira. Puedes integrar varios semilleros: aceptar una oferta no cancela tus postulaciones a otros semilleros."
             : "Los aspirantes en proceso aparecen ordenados por prioridad dentro de cada convocatoria (afinidad temática, habilidades, horas disponibles y compromiso con ofertas anteriores). Puedes emitir tantas ofertas vigentes como cupos disponibles: el cupo se asigna cuando el estudiante confirma."
         }
       />

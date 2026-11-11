@@ -29,4 +29,8 @@ public class PostulacionRequestDTO {
 
     @NotEmpty(message = "Debe seleccionar al menos una habilidad")
     private List<Integer> idHabilidades;
+
+    // Requisitos de texto de la convocatoria que el estudiante declara cumplir. Los de
+    // habilidad se evalúan con idHabilidades.
+    private List<Integer> idRequisitosCumplidos;
 }
