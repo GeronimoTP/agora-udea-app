@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,4 +40,33 @@ public interface PostulacionHabilidadRepository extends JpaRepository<Postulacio
     List<PostulacionHabilidad> findByPostulacionId(Integer postulacionId);
 
     Optional<PostulacionHabilidad> findByPostulacionIdAndHabilidadId(Integer postulacionId, Integer habilidadId);
+
+
+    /** Habilidades de varias postulaciones (con su nombre), en el orden en que se declararon. */
+    @Query("""
+            SELECT ph FROM PostulacionHabilidad ph
+            JOIN FETCH ph.habilidad
+            WHERE ph.postulacion.id IN :idsPostulacion
+            ORDER BY ph.id
+            """)
+    List<PostulacionHabilidad> findByPostulacionIdIn(@Param("idsPostulacion") Collection<Integer> idsPostulacion);
+
+    /** Habilidad declarada en una postulación recibida por un semillero, con el estado de esa postulación. */
+    interface HabilidadDeSemillero {
+        Integer getIdSemillero();
+        Integer getIdHabilidad();
+        String getEstadoPostulacion();
+    }
+
+    // Historial de habilidades de varios semilleros en una sola consulta: alimenta el factor de
+    // habilidades del motor de recomendación
+    @Query("""
+            SELECT c.semillero.id AS idSemillero, ph.habilidad.id AS idHabilidad, e.nombre AS estadoPostulacion
+            FROM PostulacionHabilidad ph
+            JOIN ph.postulacion p
+            JOIN p.convocatoria c
+            LEFT JOIN p.estado e
+            WHERE c.semillero.id IN :idsSemillero
+            """)
+    List<HabilidadDeSemillero> findHabilidadesDeSemilleros(@Param("idsSemillero") Collection<Integer> idsSemillero);
 }

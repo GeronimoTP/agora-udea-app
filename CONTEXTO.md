@@ -263,6 +263,8 @@ La respuesta incluye `cuposDisponibles`, `ofertasVigentes` y observaciones para 
 - Disponibilidad: 20%. Tiene una convocatoria `Abierta`, ya iniciada, no vencida y con cupos.
 - Proximidad temática y de programa: 15%. Internamente es 75% coincidencia de líneas de investigación y 25% mismo programa académico.
 
+El número de consultas no depende de cuántos semilleros haya: el perfil del estudiante se lee una vez y los datos de todos los candidatos (historial de habilidades, áreas de los tutores, líneas y convocatorias abiertas) se cargan en cuatro consultas antes de puntuar.
+
 El puntaje se limita a 0–100. Las habilidades del estudiante son las de su perfil (declaradas desde el registro) unidas a las que declaró en sus postulaciones, así que la compatibilidad funciona desde que se crea el perfil. El factor compara contra las habilidades de las postulaciones aceptadas del semillero (o, si no hay, de todas las recibidas). Usa un valor neutral de 50 solo si el semillero no tiene historial de postulaciones o si el estudiante no tiene ninguna habilidad (perfiles anteriores a la migración V3 sin postulaciones).
 
 ### Semilleros similares a los tuyos (árbol KD)
@@ -356,10 +358,14 @@ El cliente HTTP del frontend está en `frontend/src/lib/api`, un módulo por dom
 - Backend: seguir controller → service → repository → entity; validar requests con Jakarta Validation y usar DTOs para la API. Un controlador nunca recibe ni devuelve entidades JPA, y no filtra ni transforma datos: eso es del servicio.
 - Nombres de estado y de rol: usar las constantes de `dominio` (`EstadosPostulacion.ACEPTADA`, `NombresRol.ADMINISTRADOR`…). No declarar constantes `ESTADO_*` locales ni escribir el nombre como texto.
 - Obtener un estado: `BuscadorEstados` (`dePostulacion`, `deConvocatoria`, `deSemillero`, `deVinculacion`, `porNombre`, `porIdEnCategoria`). No repetir la consulta `findByCategoriaEstadoNombre...` en cada servicio.
-- Preguntas sobre el estado de una entidad: métodos de dominio en el modelo (`Estado.tieneNombre`, `Postulacion.tieneEstado`, `Convocatoria.estaAbierta / estaVigente / tieneCuposDisponibles / recibePostulaciones`, `Semillero.estaActivo`, `EstudianteSemillero.estaActiva`) y `ConvocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones`. No repetir la condición a mano.
+- Preguntas sobre el estado de una entidad: métodos de dominio en el modelo (`Estado.tieneNombre`, `Postulacion.tieneEstado`, `Convocatoria.estaAbierta / estaVigente / tieneCuposDisponibles / recibePostulaciones`, `Semillero.estaActivo`, `EstudianteSemillero.estaActiva`) y `ConvocatoriaRepository.idsSemillerosRecibiendoPostulaciones` (varios semilleros en una consulta). No repetir la condición a mano.
 - Una clase, una responsabilidad: `SemilleroService` (datos del semillero, estado, líneas), `MiembrosSemilleroService` (tutores, integrantes, liderazgo, incorporación de admitidos), `SemilleroMapper` (DTOs). Si un servicio pasa de ~300 líneas o mezcla temas, dividirlo igual.
 - Conversión entidad → DTO: en el mapper del dominio (`service/mapper`), nunca como método privado del servicio ni repitiendo el `builder()` en varios métodos.
-- Listados: no hacer consultas por elemento. Para totales por semillero, una consulta agregada con `GROUP BY` que devuelva `ConteoPorSemillero` (ver `SemilleroMapper.aResponses`). `hibernate.default_batch_fetch_size=50` carga las relaciones `LAZY` por lotes.
+- Listados y algoritmos: no hacer consultas por elemento.
+  - Los mappers con asociaciones (`Semillero`, `Postulacion`, `Publicacion`, `Proyecto`, `Estudiante`, `Profesor`) tienen `aResponses(List)`, que carga las asociaciones de todos con una consulta por relación (`findBy…IdIn` con `JOIN FETCH`). Los servicios llaman `aResponses` en los listados; `aResponse` de un solo elemento delega en él.
+  - Para totales, una consulta agregada con `GROUP BY` que devuelva una proyección (`ConteoPorSemillero`, `EstudianteProyectoRepository.IntegrantesDeProyecto`).
+  - Los algoritmos cargan los datos antes de puntuar: el motor arma `PerfilEstudiante` una vez y `DatosSemilleros` con cuatro consultas para todos los candidatos; la priorización arma `Historial` con cuatro consultas para todos los aspirantes.
+  - `hibernate.default_batch_fetch_size=50` carga por lotes las relaciones `LAZY` que quedan (líder, programa, estado…).
 - Tareas programadas (`@Scheduled`): en el paquete `job`, delegando la lógica en servicios.
 - Pesos de algoritmos: en los records `config/Pesos*` (`@ConfigurationProperties`), no como constantes. Cada grupo valida al arrancar que sus pesos sumen 1.
 - Los DTOs viven en `dto/request` y `dto/response` (los de analítica en `dto/response/analitica`), no como clases anidadas en servicios.

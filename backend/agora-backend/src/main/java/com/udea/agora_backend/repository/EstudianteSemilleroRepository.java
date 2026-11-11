@@ -28,4 +28,8 @@ public interface EstudianteSemilleroRepository extends JpaRepository<EstudianteS
             GROUP BY es.semillero.id
             """)
     List<ConteoPorSemillero> contarIntegrantesActivosPorSemillero(@Param("idsSemillero") Collection<Integer> idsSemillero);
+
+
+    /** Vinculaciones activas (sin fecha de salida) de varios estudiantes. */
+    List<EstudianteSemillero> findByEstudianteIdInAndFechaSalidaIsNull(Collection<Integer> idsEstudiante);
 }

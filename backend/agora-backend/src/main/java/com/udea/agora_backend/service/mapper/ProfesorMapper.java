@@ -11,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /** Convierte profesores y sus áreas de especialidad en DTOs de respuesta. */
 @Component
@@ -22,9 +24,24 @@ public class ProfesorMapper {
 
     /** Incluye las áreas de especialidad, el programa y la facultad. */
     public ProfesorResponseDTO aResponse(Profesor profesor) {
-        List<String> areas = profesorAreaRepository.findByProfesorId(profesor.getId()).stream()
-                .map(pae -> pae.getAreaEspecialidad().getNombre())
+        return aResponses(List.of(profesor)).getFirst();
+    }
+
+    /** Convierte varios profesores con una sola consulta para las áreas de todos. */
+    public List<ProfesorResponseDTO> aResponses(List<Profesor> profesores) {
+        if (profesores.isEmpty()) {
+            return List.of();
+        }
+        Map<Integer, List<String>> areas = profesorAreaRepository
+                .findByProfesorIdIn(profesores.stream().map(Profesor::getId).toList()).stream()
+                .collect(Collectors.groupingBy(pae -> pae.getProfesor().getId(),
+                        Collectors.mapping(pae -> pae.getAreaEspecialidad().getNombre(), Collectors.toList())));
+        return profesores.stream()
+                .map(p -> aResponse(p, areas.getOrDefault(p.getId(), List.of())))
                 .toList();
+    }
+
+    private ProfesorResponseDTO aResponse(Profesor profesor, List<String> areas) {
         Optional<Usuario> usuario = Optional.ofNullable(profesor.getUsuario());
         Optional<ProgramaAcademico> programa = Optional.ofNullable(profesor.getPrograma());
 

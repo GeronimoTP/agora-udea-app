@@ -144,6 +144,8 @@ public class SemillerosSimilaresService {
         Map<Integer, Semillero> encontrados = semilleroRepository.findAllById(idsVecinos)
                 .stream().collect(Collectors.toMap(Semillero::getId, Function.identity()));
         Map<Integer, Map<Integer, String>> lineasPorVecino = lineasPorSemillero(idsVecinos);
+        Set<Integer> conConvocatoriaAbierta =
+                convocatoriaRepository.idsSemillerosRecibiendoPostulaciones(idsVecinos, LocalDate.now());
         Set<Integer> lineasReferencia = base == Base.HISTORIAL
                 ? lineasPorSemillero(pesoPorSemillero.keySet()).values().stream()
                         .flatMap(lineas -> lineas.keySet().stream()).collect(Collectors.toSet())
@@ -180,8 +182,7 @@ public class SemillerosSimilaresService {
                     .parecidoA(base == Base.HISTORIAL
                             ? masParecidoDelHistorial(vecino.punto(), vectorPorSemillero, semillerosHistorial)
                             : null)
-                    .convocatoriaAbierta(convocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones(
-                            semillero.getId(), LocalDate.now()))
+                    .convocatoriaAbierta(conConvocatoriaAbierta.contains(semillero.getId()))
                     .build());
         }
 

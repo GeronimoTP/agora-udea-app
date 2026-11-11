@@ -53,10 +53,7 @@ public class PostulacionService {
      * Obtiene todas las postulaciones
      */
     public List<PostulacionResponseDTO> obtenerTodas() {
-        return postulacionRepository.findAll()
-                .stream()
-                .map(postulacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return postulacionMapper.aResponses(postulacionRepository.findAll());
     }
 
     /**
@@ -72,27 +69,18 @@ public class PostulacionService {
      * Obtiene postulaciones de un estudiante
      */
     public List<PostulacionResponseDTO> obtenerPorEstudiante(Integer idEstudiante) {
-        return postulacionRepository.findByEstudianteId(idEstudiante)
-                .stream()
-                .map(postulacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return postulacionMapper.aResponses(postulacionRepository.findByEstudianteId(idEstudiante));
     }
 
-        public List<PostulacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
-                return postulacionRepository.findByConvocatoriaSemilleroId(idSemillero)
-                                .stream()
-                                .map(postulacionMapper::aResponse)
-                                .collect(Collectors.toList());
-        }
+    public List<PostulacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
+        return postulacionMapper.aResponses(postulacionRepository.findByConvocatoriaSemilleroId(idSemillero));
+    }
 
     /**
      * Obtiene postulaciones de una convocatoria
      */
     public List<PostulacionResponseDTO> obtenerPorConvocatoria(Integer idConvocatoria) {
-        return postulacionRepository.findByConvocatoriaId(idConvocatoria)
-                .stream()
-                .map(postulacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return postulacionMapper.aResponses(postulacionRepository.findByConvocatoriaId(idConvocatoria));
     }
 
     /**
@@ -100,10 +88,8 @@ public class PostulacionService {
      * revisión del líder o esperando confirmación del estudiante)
      */
     public List<PostulacionResponseDTO> obtenerPostulacionesActivasByEstudiante(Integer idEstudiante) {
-        return postulacionRepository.findPostulacionesActivasByEstudiante(idEstudiante, EstadosPostulacion.PENDIENTE, "Pre-aprobada")
-                .stream()
-                .map(postulacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return postulacionMapper.aResponses(postulacionRepository.findPostulacionesActivasByEstudiante(
+                idEstudiante, EstadosPostulacion.PENDIENTE, EstadosPostulacion.PRE_APROBADA));
     }
 
     /**

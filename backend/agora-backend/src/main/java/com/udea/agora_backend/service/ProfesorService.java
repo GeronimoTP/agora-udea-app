@@ -45,10 +45,7 @@ public class ProfesorService {
      * Obtiene todos los profesores
      */
     public List<ProfesorResponseDTO> obtenerTodos() {
-        return profesorRepository.findAll()
-                .stream()
-                .map(profesorMapper::aResponse)
-                .collect(Collectors.toList());
+        return profesorMapper.aResponses(profesorRepository.findAll());
     }
 
     /**

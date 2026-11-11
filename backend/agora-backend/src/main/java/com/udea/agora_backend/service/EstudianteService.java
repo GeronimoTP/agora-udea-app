@@ -54,10 +54,7 @@ public class EstudianteService {
     * Obtiene todos los estudiantes
     */
     public List<EstudianteResponseDTO> obtenerTodos() {
-        return estudianteRepository.findAll()
-                .stream()
-                .map(estudianteMapper::aResponse)
-                .collect(Collectors.toList());
+        return estudianteMapper.aResponses(estudianteRepository.findAll());
     }
 
     /**

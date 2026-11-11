@@ -55,10 +55,7 @@ public class ProyectoService {
      * Obtiene todos los proyectos
      */
     public List<ProyectoResponseDTO> obtenerTodos() {
-        return proyectoRepository.findAll()
-                .stream()
-                .map(proyectoMapper::aResponse)
-                .collect(Collectors.toList());
+        return proyectoMapper.aResponses(proyectoRepository.findAll());
     }
 
     /**
@@ -74,10 +71,7 @@ public class ProyectoService {
      * Obtiene proyectos de un semillero
      */
     public List<ProyectoResponseDTO> obtenerPorSemillero(Integer idSemillero) {
-        return proyectoRepository.findBySemilleroId(idSemillero)
-                .stream()
-                .map(proyectoMapper::aResponse)
-                .collect(Collectors.toList());
+        return proyectoMapper.aResponses(proyectoRepository.findBySemilleroId(idSemillero));
     }
 
     /**

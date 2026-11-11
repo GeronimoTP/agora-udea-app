@@ -11,6 +11,8 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Repository
 public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Integer> {
@@ -31,8 +33,17 @@ public interface ConvocatoriaRepository extends JpaRepository<Convocatoria, Inte
     @Query("SELECT c FROM Convocatoria c WHERE c.id = ?1")
     Optional<Convocatoria> findByIdParaActualizarCupos(Integer id);
 
-    /** El semillero tiene hoy al menos una convocatoria abierta, iniciada, vigente y con cupos. */
-    default boolean existeConvocatoriaRecibiendoPostulaciones(Integer idSemillero, LocalDate hoy) {
-        return findBySemilleroId(idSemillero).stream().anyMatch(c -> c.recibePostulaciones(hoy));
+    /**
+     * De los semilleros dados, los que tienen hoy al menos una convocatoria abierta, iniciada,
+     * vigente y con cupos. Una sola consulta para todos.
+     */
+    default Set<Integer> idsSemillerosRecibiendoPostulaciones(Collection<Integer> idsSemillero, LocalDate hoy) {
+        if (idsSemillero.isEmpty()) {
+            return Set.of();
+        }
+        return findBySemilleroIdIn(idsSemillero).stream()
+                .filter(c -> c.recibePostulaciones(hoy))
+                .map(c -> c.getSemillero().getId())
+                .collect(Collectors.toSet());
     }
 }

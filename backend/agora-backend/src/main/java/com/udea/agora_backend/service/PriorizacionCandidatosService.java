@@ -4,6 +4,7 @@ import com.udea.agora_backend.config.PesosPriorizacion;
 import com.udea.agora_backend.dominio.EstadosPostulacion;
 import com.udea.agora_backend.dto.response.CandidatoPriorizadoDTO;
 import com.udea.agora_backend.model.Convocatoria;
+import com.udea.agora_backend.model.EstudianteSemillero;
 import com.udea.agora_backend.model.Postulacion;
 import com.udea.agora_backend.repository.EstudianteLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
@@ -38,6 +39,10 @@ import java.util.stream.Collectors;
  *   - Compromiso (20%): cómo respondió el estudiante a ofertas anteriores
  *     (aceptó 100, aceptó otra 75, declinó 50, la dejó vencer 0). Sin historial, valor neutral.
  * Los empates se resuelven por orden de llegada.
+ *
+ * <p>El historial de todos los aspirantes (líneas, habilidades declaradas, otras postulaciones
+ * y semilleros que integran) se carga en cuatro consultas agrupadas ({@link Historial}), sin
+ * importar cuántos sean.
  */
 @Service
 @RequiredArgsConstructor
@@ -55,6 +60,13 @@ public class PriorizacionCandidatosService {
     private final PlazoOfertasService plazoOfertasService;
     private final PesosPriorizacion pesos;
 
+    /** Datos de los aspirantes en proceso, agrupados por estudiante o por postulación. */
+    private record Historial(Map<Integer, Set<Integer>> lineasPorEstudiante,
+                             Map<Integer, Set<Integer>> habilidadesPorPostulacion,
+                             Map<Integer, List<Postulacion>> postulacionesPorEstudiante,
+                             Map<Integer, List<EstudianteSemillero>> vinculacionesActivasPorEstudiante) {
+    }
+
     public List<CandidatoPriorizadoDTO> priorizarPorSemillero(Integer idSemillero) {
         Set<Integer> lineasSemillero = semilleroLineaRepository.findBySemilleroId(idSemillero).stream()
                 .map(sl -> sl.getLineaInvestigacion().getId())
@@ -69,6 +81,9 @@ public class PriorizacionCandidatosService {
                 .filter(p -> p.tieneEstado(EstadosPostulacion.PENDIENTE) || p.tieneEstado(EstadosPostulacion.PRE_APROBADA))
                 .collect(Collectors.groupingBy(p -> p.getConvocatoria().getId(), LinkedHashMap::new, Collectors.toList()));
 
+        Historial historial = cargarHistorial(enProcesoPorConvocatoria.values().stream()
+                .flatMap(List::stream)
+                .toList());
         ZonedDateTime ahora = ZonedDateTime.now();
         List<CandidatoPriorizadoDTO> resultado = new ArrayList<>();
         enProcesoPorConvocatoria.values().forEach(postulaciones -> {
@@ -77,7 +92,8 @@ public class PriorizacionCandidatosService {
                     convocatoria.getId(), EstadosPostulacion.PRE_APROBADA, plazoOfertasService.inicioOfertasVigentes(ahora));
 
             List<CandidatoPriorizadoDTO> candidatos = postulaciones.stream()
-                    .map(p -> evaluar(p, lineasSemillero, habilidadesSemillero, idSemillero, convocatoria, ofertasVigentes))
+                    .map(p -> evaluar(p, lineasSemillero, habilidadesSemillero, idSemillero, convocatoria, ofertasVigentes,
+                            historial))
                     .sorted(Comparator.comparingDouble(CandidatoPriorizadoDTO::getPuntaje).reversed()
                             .thenComparing(CandidatoPriorizadoDTO::getFechaPostulacion))
                     .toList();
@@ -89,18 +105,41 @@ public class PriorizacionCandidatosService {
         return resultado;
     }
 
+    private Historial cargarHistorial(List<Postulacion> enProceso) {
+        if (enProceso.isEmpty()) {
+            return new Historial(Map.of(), Map.of(), Map.of(), Map.of());
+        }
+        Set<Integer> idsEstudiante = enProceso.stream()
+                .map(p -> p.getEstudiante().getId())
+                .collect(Collectors.toSet());
+        return new Historial(
+                estudianteLineaRepository.findByEstudianteIdIn(idsEstudiante).stream()
+                        .collect(Collectors.groupingBy(el -> el.getEstudiante().getId(),
+                                Collectors.mapping(el -> el.getLineaInvestigacion().getId(), Collectors.toSet()))),
+                postulacionHabilidadRepository
+                        .findByPostulacionIdIn(enProceso.stream().map(Postulacion::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(ph -> ph.getPostulacion().getId(),
+                                Collectors.mapping(ph -> ph.getHabilidad().getId(), Collectors.toSet()))),
+                postulacionRepository.findByEstudianteIdIn(idsEstudiante).stream()
+                        .collect(Collectors.groupingBy(p -> p.getEstudiante().getId())),
+                estudianteSemilleroRepository.findByEstudianteIdInAndFechaSalidaIsNull(idsEstudiante).stream()
+                        .collect(Collectors.groupingBy(es -> es.getEstudiante().getId())));
+    }
+
     private CandidatoPriorizadoDTO evaluar(Postulacion postulacion, Set<Integer> lineasSemillero,
                                            Set<Integer> habilidadesSemillero, Integer idSemillero,
-                                           Convocatoria convocatoria, long ofertasVigentes) {
+                                           Convocatoria convocatoria, long ofertasVigentes, Historial historial) {
         Integer idEstudiante = postulacion.getEstudiante().getId();
         List<String> observaciones = new ArrayList<>();
 
-        double tematica = calcularAfinidadTematica(idEstudiante, lineasSemillero);
-        double habilidades = calcularHabilidades(postulacion, habilidadesSemillero);
+        double tematica = calcularAfinidadTematica(
+                historial.lineasPorEstudiante().getOrDefault(idEstudiante, Set.of()), lineasSemillero);
+        double habilidades = calcularHabilidades(
+                historial.habilidadesPorPostulacion().getOrDefault(postulacion.getId(), Set.of()), habilidadesSemillero);
         double disponibilidad = Math.min(1.0,
                 (double) postulacion.getDisponibilidadHorasSemana() / HORAS_MAXIMO_PUNTAJE) * 100.0;
 
-        List<Postulacion> otras = postulacionRepository.findByEstudianteId(idEstudiante).stream()
+        List<Postulacion> otras = historial.postulacionesPorEstudiante().getOrDefault(idEstudiante, List.of()).stream()
                 .filter(p -> !p.getId().equals(postulacion.getId()))
                 .toList();
         double compromiso = calcularCompromiso(otras);
@@ -111,7 +150,7 @@ public class PriorizacionCandidatosService {
                 .filter(p -> p.tieneEstado(EstadosPostulacion.PRE_APROBADA))
                 .forEach(p -> observaciones.add("Tiene otra oferta vigente en "
                         + p.getConvocatoria().getSemillero().getNombre()));
-        long otrosSemilleros = estudianteSemilleroRepository.findByEstudianteIdAndFechaSalidaIsNull(idEstudiante).stream()
+        long otrosSemilleros = historial.vinculacionesActivasPorEstudiante().getOrDefault(idEstudiante, List.of()).stream()
                 .filter(es -> !es.getSemillero().getId().equals(idSemillero))
                 .count();
         if (otrosSemilleros > 0) {
@@ -137,28 +176,23 @@ public class PriorizacionCandidatosService {
                 .build();
     }
 
-    private double calcularAfinidadTematica(Integer idEstudiante, Set<Integer> lineasSemillero) {
+    private double calcularAfinidadTematica(Set<Integer> lineasEstudiante, Set<Integer> lineasSemillero) {
         if (lineasSemillero.isEmpty()) {
             return VALOR_NEUTRAL;
         }
-        Set<Integer> lineasEstudiante = estudianteLineaRepository.findByEstudianteId(idEstudiante).stream()
-                .map(el -> el.getLineaInvestigacion().getId())
-                .collect(Collectors.toCollection(HashSet::new));
-        lineasEstudiante.retainAll(lineasSemillero);
-        return (double) lineasEstudiante.size() / lineasSemillero.size() * 100.0;
+        Set<Integer> comunes = new HashSet<>(lineasEstudiante);
+        comunes.retainAll(lineasSemillero);
+        return (double) comunes.size() / lineasSemillero.size() * 100.0;
     }
 
     // Qué parte de lo que el aspirante declara ya lo usa el semillero
-    private double calcularHabilidades(Postulacion postulacion, Set<Integer> habilidadesSemillero) {
-        Set<Integer> declaradas = postulacionHabilidadRepository.findByPostulacionId(postulacion.getId()).stream()
-                .map(ph -> ph.getHabilidad().getId())
-                .collect(Collectors.toCollection(HashSet::new));
+    private double calcularHabilidades(Set<Integer> declaradas, Set<Integer> habilidadesSemillero) {
         if (habilidadesSemillero.isEmpty() || declaradas.isEmpty()) {
             return VALOR_NEUTRAL;
         }
-        int total = declaradas.size();
-        declaradas.retainAll(habilidadesSemillero);
-        return (double) declaradas.size() / total * 100.0;
+        Set<Integer> usadas = new HashSet<>(declaradas);
+        usadas.retainAll(habilidadesSemillero);
+        return (double) usadas.size() / declaradas.size() * 100.0;
     }
 
     private double calcularCompromiso(List<Postulacion> otras) {

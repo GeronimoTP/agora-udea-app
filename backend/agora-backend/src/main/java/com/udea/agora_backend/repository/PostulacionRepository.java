@@ -3,8 +3,10 @@ package com.udea.agora_backend.repository;
 import com.udea.agora_backend.model.Postulacion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -42,4 +44,8 @@ public interface PostulacionRepository extends JpaRepository<Postulacion, Intege
     // Búsqueda única: Estudiante en Convocatoria
     Optional<Postulacion> findByConvocatoriaIdAndEstudianteId(Integer convocatoriaId, Integer estudianteId);
 
+
+    /** Todas las postulaciones de varios estudiantes, en el orden en que se crearon. */
+    @Query("SELECT p FROM Postulacion p WHERE p.estudiante.id IN :idsEstudiante ORDER BY p.id")
+    List<Postulacion> findByEstudianteIdIn(@Param("idsEstudiante") Collection<Integer> idsEstudiante);
 }

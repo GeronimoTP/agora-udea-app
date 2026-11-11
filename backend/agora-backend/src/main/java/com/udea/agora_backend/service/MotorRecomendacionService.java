@@ -5,6 +5,7 @@ import com.udea.agora_backend.dominio.EstadosPostulacion;
 import com.udea.agora_backend.dto.response.SemilleroRecomendadoDTO;
 import com.udea.agora_backend.exception.RecursoNoEncontradoException;
 import com.udea.agora_backend.model.Estudiante;
+import com.udea.agora_backend.model.EstudianteLineaInvestigacion;
 import com.udea.agora_backend.model.Semillero;
 import com.udea.agora_backend.repository.ConvocatoriaRepository;
 import com.udea.agora_backend.repository.EstudianteHabilidadRepository;
@@ -12,9 +13,11 @@ import com.udea.agora_backend.repository.EstudianteLineaInvestigacionRepository;
 import com.udea.agora_backend.repository.EstudianteRepository;
 import com.udea.agora_backend.repository.EstudianteSemilleroRepository;
 import com.udea.agora_backend.repository.PostulacionHabilidadRepository;
-import com.udea.agora_backend.repository.ProfesorAreaEspecialidadRepository;
+import com.udea.agora_backend.repository.PostulacionHabilidadRepository.HabilidadDeSemillero;
 import com.udea.agora_backend.repository.ProfesorSemilleroRepository;
+import com.udea.agora_backend.repository.ProfesorSemilleroRepository.AreaDeTutor;
 import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository;
+import com.udea.agora_backend.repository.SemilleroLineaInvestigacionRepository.LineaDeSemillero;
 import com.udea.agora_backend.repository.SemilleroRepository;
 import com.udea.agora_backend.util.Redondeo;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +26,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -39,6 +48,10 @@ import java.util.stream.Collectors;
  * Solo se recomiendan semilleros activos a los que el estudiante podría postularse:
  * se excluyen los que lidera y aquellos a los que ya pertenece.
  * Retorna ranking ordenado por porcentaje de afinidad (0-100%)
+ *
+ * <p>Los datos se cargan antes de puntuar: el perfil del estudiante una sola vez y los de todos
+ * los semilleros candidatos en cuatro consultas agrupadas ({@link DatosSemilleros}). El número
+ * de consultas no crece con la cantidad de semilleros.
  */
 @Service
 @RequiredArgsConstructor
@@ -50,7 +63,6 @@ public class MotorRecomendacionService {
     private final SemilleroRepository semilleroRepository;
     private final ConvocatoriaRepository convocatoriaRepository;
     private final EstudianteLineaInvestigacionRepository estudianteLineaRepository;
-    private final ProfesorAreaEspecialidadRepository profesorAreaRepository;
     private final PostulacionHabilidadRepository postulacionHabilidadRepository;
     private final EstudianteHabilidadRepository estudianteHabilidadRepository;
     private final SemilleroLineaInvestigacionRepository semilleroLineaRepository;
@@ -61,6 +73,18 @@ public class MotorRecomendacionService {
     // Valor neutral (ni penaliza ni favorece) para el Factor 1 cuando un semillero no
     // tiene ningún historial de postulaciones con el que evaluar el fit técnico.
     private static final double FACTOR_NEUTRAL_SIN_HISTORIAL = 50.0;
+
+    /** Lo que se compara del estudiante, igual para todos los semilleros. */
+    private record PerfilEstudiante(Set<Integer> habilidades, Set<Integer> lineas, Set<Integer> areas) {
+    }
+
+    /** Datos de los semilleros candidatos, agrupados por ID de semillero. */
+    private record DatosSemilleros(Map<Integer, Set<Integer>> habilidadesAceptadas,
+                                   Map<Integer, Set<Integer>> habilidadesRecibidas,
+                                   Map<Integer, Set<Integer>> areasTutores,
+                                   Map<Integer, Set<Integer>> lineas,
+                                   Set<Integer> conConvocatoriaAbierta) {
+    }
 
     /**
      * Calcula recomendaciones de semilleros para un estudiante específico
@@ -90,9 +114,12 @@ public class MotorRecomendacionService {
             return new ArrayList<>();
         }
 
+        PerfilEstudiante perfil = cargarPerfil(idEstudiante);
+        DatosSemilleros datos = cargarDatosSemilleros(semillerosDisponibles.stream().map(Semillero::getId).toList());
+
         // Calcular afinidad para cada semillero
         List<SemilleroRecomendadoDTO> recomendaciones = semillerosDisponibles.stream()
-                .map(semillero -> calcularAfinidadConSemillero(estudiante, semillero))
+                .map(semillero -> calcularAfinidadConSemillero(estudiante, perfil, semillero, datos))
                 .sorted(Comparator.comparingDouble(SemilleroRecomendadoDTO::getPorcentajeMatch).reversed())
                 .collect(Collectors.toList());
 
@@ -100,17 +127,65 @@ public class MotorRecomendacionService {
         return recomendaciones;
     }
 
+    // ==========================================
+    // CARGA DE DATOS
+    // ==========================================
+
+    /**
+     * Habilidades del perfil (tbl_estudiante_x_habilidad, desde el registro) más las declaradas
+     * en sus postulaciones; líneas de interés y el área de especialidad de cada una.
+     */
+    private PerfilEstudiante cargarPerfil(Integer idEstudiante) {
+        Set<Integer> habilidades = new HashSet<>(estudianteHabilidadRepository.findHabilidadIdsByEstudianteId(idEstudiante));
+        habilidades.addAll(postulacionHabilidadRepository.findHabilidadIdsByEstudianteId(idEstudiante));
+
+        List<EstudianteLineaInvestigacion> lineasInteres = estudianteLineaRepository.findByEstudianteIdIn(List.of(idEstudiante));
+        Set<Integer> lineas = lineasInteres.stream()
+                .map(el -> el.getLineaInvestigacion().getId())
+                .collect(Collectors.toSet());
+        Set<Integer> areas = lineasInteres.stream()
+                .map(el -> el.getLineaInvestigacion().getAreaEspecialidad().getId())
+                .collect(Collectors.toSet());
+        return new PerfilEstudiante(habilidades, lineas, areas);
+    }
+
+    private DatosSemilleros cargarDatosSemilleros(List<Integer> ids) {
+        List<HabilidadDeSemillero> historial = postulacionHabilidadRepository.findHabilidadesDeSemilleros(ids);
+        return new DatosSemilleros(
+                agrupar(historial.stream().filter(h -> EstadosPostulacion.ACEPTADA.equals(h.getEstadoPostulacion())).toList(),
+                        HabilidadDeSemillero::getIdSemillero, HabilidadDeSemillero::getIdHabilidad),
+                agrupar(historial, HabilidadDeSemillero::getIdSemillero, HabilidadDeSemillero::getIdHabilidad),
+                agrupar(profesorSemilleroRepository.findAreasDeTutores(ids), AreaDeTutor::getIdSemillero, AreaDeTutor::getIdArea),
+                agrupar(semilleroLineaRepository.findLineasDeSemilleros(ids),
+                        LineaDeSemillero::getIdSemillero, LineaDeSemillero::getIdLinea),
+                convocatoriaRepository.idsSemillerosRecibiendoPostulaciones(ids, LocalDate.now()));
+    }
+
+    private static <T> Map<Integer, Set<Integer>> agrupar(List<T> filas, Function<T, Integer> semillero,
+                                                          Function<T, Integer> valor) {
+        return filas.stream().collect(Collectors.groupingBy(semillero, Collectors.mapping(valor, Collectors.toSet())));
+    }
+
+    // ==========================================
+    // PUNTUACIÓN
+    // ==========================================
+
     /**
      * Calcula la afinidad entre un estudiante y un semillero específico
      */
-    private SemilleroRecomendadoDTO calcularAfinidadConSemillero(Estudiante estudiante, Semillero semillero) {
+    private SemilleroRecomendadoDTO calcularAfinidadConSemillero(Estudiante estudiante, PerfilEstudiante perfil,
+                                                                 Semillero semillero, DatosSemilleros datos) {
         log.debug("Calculando afinidad: Estudiante {} - Semillero {}", estudiante.getId(), semillero.getId());
+        Integer id = semillero.getId();
 
         // Calcular los 4 factores
-        double factor1 = calcularFactorHabilidades(estudiante, semillero);
-        double factor2 = calcularFactorAreaEspecialidad(estudiante, semillero);
-        double factor3 = calcularFactorDisponibilidadConvocatorias(semillero);
-        double factor4 = calcularFactorProximidadTematica(estudiante, semillero);
+        double factor1 = calcularFactorHabilidades(perfil.habilidades(),
+                datos.habilidadesAceptadas().getOrDefault(id, Set.of()),
+                datos.habilidadesRecibidas().getOrDefault(id, Set.of()));
+        double factor2 = calcularFactorAreaEspecialidad(perfil.areas(), datos.areasTutores().getOrDefault(id, Set.of()));
+        double factor3 = datos.conConvocatoriaAbierta().contains(id) ? 100.0 : 0.0;
+        double factor4 = calcularFactorProximidadTematica(estudiante, perfil.lineas(), semillero,
+                datos.lineas().getOrDefault(id, Set.of()));
 
         // Aplicar pesos
         double porcentajeMatch = factor1 * pesos.habilidades() + factor2 * pesos.areasTutores()
@@ -150,30 +225,13 @@ public class MotorRecomendacionService {
      *      evaluar el fit técnico, así que se devuelve un valor neutral (no 0, que penalizaría
      *      injustamente a semilleros nuevos sin culpa del estudiante).
      */
-    private double calcularFactorHabilidades(Estudiante estudiante, Semillero semillero) {
-        Set<Integer> idsRequeridos = postulacionHabilidadRepository
-                .findBySemilleroIdAndEstadoNombre(semillero.getId(), EstadosPostulacion.ACEPTADA)
-                .stream()
-                .map(ph -> ph.getHabilidad().getId())
-                .collect(Collectors.toSet());
-
-        if (idsRequeridos.isEmpty()) {
-            idsRequeridos = postulacionHabilidadRepository.findBySemilleroId(semillero.getId())
-                    .stream()
-                    .map(ph -> ph.getHabilidad().getId())
-                    .collect(Collectors.toSet());
-        }
+    private double calcularFactorHabilidades(Set<Integer> idsEstudiante, Set<Integer> aceptadas,
+                                             Set<Integer> recibidas) {
+        Set<Integer> idsRequeridos = aceptadas.isEmpty() ? recibidas : aceptadas;
 
         if (idsRequeridos.isEmpty()) {
             return FACTOR_NEUTRAL_SIN_HISTORIAL; // Semillero sin ninguna postulación aún: sin señal
         }
-
-        // Habilidades declaradas en el perfil (desde el registro) más las que ha declarado
-        // en sus postulaciones
-        Set<Integer> idsEstudiante = new HashSet<>(
-                estudianteHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId())
-        );
-        idsEstudiante.addAll(postulacionHabilidadRepository.findHabilidadIdsByEstudianteId(estudiante.getId()));
 
         if (idsEstudiante.isEmpty()) {
             // Perfil anterior a la migración V3 sin habilidades ni postulaciones: no hay con
@@ -195,21 +253,10 @@ public class MotorRecomendacionService {
      * contra las áreas de especialidad declaradas por TODOS los profesores tutores del
      * semillero (co-tutoría N:M vía tbl_profesor_x_semillero + tbl_profesor_x_area_especialidad).
      */
-    private double calcularFactorAreaEspecialidad(Estudiante estudiante, Semillero semillero) {
-        Set<Integer> areasEstudiante = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
-                .stream()
-                .map(eli -> eli.getLineaInvestigacion().getAreaEspecialidad().getId())
-                .collect(Collectors.toSet());
-
+    private double calcularFactorAreaEspecialidad(Set<Integer> areasEstudiante, Set<Integer> areasProfesores) {
         if (areasEstudiante.isEmpty()) {
             return 0.0; // Estudiante sin líneas de interés registradas
         }
-
-        Set<Integer> areasProfesores = profesorSemilleroRepository.findBySemilleroId(semillero.getId())
-                .stream()
-                .flatMap(ps -> profesorAreaRepository.findByProfesorId(ps.getProfesor().getId()).stream())
-                .map(pae -> pae.getAreaEspecialidad().getId())
-                .collect(Collectors.toSet());
 
         if (areasProfesores.isEmpty()) {
             return 0.0; // El semillero aún no tiene profesores tutores con áreas registradas
@@ -222,40 +269,22 @@ public class MotorRecomendacionService {
         return Math.min(100.0, coincidencia * 100.0);
     }
 
-    /**
-     * FACTOR 3 (20%): Calcula disponibilidad de convocatorias
-     * Verifica si el semillero tiene convocatorias abiertas, vigentes hoy y con cupos
-     */
-    private double calcularFactorDisponibilidadConvocatorias(Semillero semillero) {
-        // Con una convocatoria que hoy recibe postulaciones: 100 %; si no: 0 %
-        return convocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones(semillero.getId(), LocalDate.now())
-                ? 100.0 : 0.0;
-    }
+    // FACTOR 3 (20%): 100 % si el semillero tiene hoy una convocatoria abierta, iniciada,
+    // vigente y con cupos; si no, 0 %. Se resuelve en cargarDatosSemilleros.
 
     /**
      * FACTOR 4 (15%): Calcula proximidad temática y de programa
      * 75%: coincidencia en líneas de investigación entre estudiante y semillero.
      * 25%: el estudiante pertenece al mismo programa académico del semillero.
      */
-    private double calcularFactorProximidadTematica(Estudiante estudiante, Semillero semillero) {
-        // Obtener líneas de interés del estudiante
-        Set<Integer> lineasEstudiante = estudianteLineaRepository.findByEstudianteId(estudiante.getId())
-                .stream()
-                .map(eli -> eli.getLineaInvestigacion().getId())
-                .collect(Collectors.toSet());
-
+    private double calcularFactorProximidadTematica(Estudiante estudiante, Set<Integer> lineasEstudiante,
+                                                    Semillero semillero, Set<Integer> lineasSemillero) {
         double programa = estudiante.getPrograma() != null && semillero.getPrograma() != null
                 && estudiante.getPrograma().getId().equals(semillero.getPrograma().getId()) ? 100.0 : 0.0;
 
         if (lineasEstudiante.isEmpty()) {
             return programa * pesos.programaEnProximidad(); // Estudiante sin líneas de interés
         }
-
-        // Obtener líneas del semillero
-        Set<Integer> lineasSemillero = semilleroLineaRepository.findBySemilleroId(semillero.getId())
-                .stream()
-                .map(sli -> sli.getLineaInvestigacion().getId())
-                .collect(Collectors.toSet());
 
         if (lineasSemillero.isEmpty()) {
             return programa * pesos.programaEnProximidad(); // Semillero sin líneas definidas

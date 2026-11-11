@@ -52,10 +52,7 @@ public class PublicacionService {
      * Obtiene todas las publicaciones
      */
     public List<PublicacionResponseDTO> obtenerTodas() {
-        return publicacionRepository.findAll()
-                .stream()
-                .map(publicacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return publicacionMapper.aResponses(publicacionRepository.findAll());
     }
 
     /**
@@ -71,17 +68,11 @@ public class PublicacionService {
      * Obtiene publicaciones por proyecto
      */
     public List<PublicacionResponseDTO> obtenerPorSemillero(Integer idSemillero) {
-        return publicacionRepository.findByProyectoSemilleroId(idSemillero)
-                .stream()
-                .map(publicacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return publicacionMapper.aResponses(publicacionRepository.findByProyectoSemilleroId(idSemillero));
     }
 
     public List<PublicacionResponseDTO> obtenerPorProyecto(Integer idProyecto) {
-        return publicacionRepository.findByProyectoId(idProyecto)
-                .stream()
-                .map(publicacionMapper::aResponse)
-                .collect(Collectors.toList());
+        return publicacionMapper.aResponses(publicacionRepository.findByProyectoId(idProyecto));
     }
 
     /**

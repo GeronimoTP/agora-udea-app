@@ -7,10 +7,14 @@ import com.udea.agora_backend.model.EstudianteProyecto;
 import com.udea.agora_backend.model.Proyecto;
 import com.udea.agora_backend.model.Semillero;
 import com.udea.agora_backend.repository.EstudianteProyectoRepository;
+import com.udea.agora_backend.repository.EstudianteProyectoRepository.IntegrantesDeProyecto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /** Convierte proyectos y las vinculaciones de sus estudiantes en DTOs de respuesta. */
 @Component
@@ -20,11 +24,28 @@ public class ProyectoMapper {
     private final EstudianteProyectoRepository estudianteProyectoRepository;
 
     public ProyectoResponseDTO aResponse(Proyecto proyecto) {
+        return aResponses(List.of(proyecto)).getFirst();
+    }
+
+    /** Convierte varios proyectos con una sola consulta agregada para contar sus integrantes. */
+    public List<ProyectoResponseDTO> aResponses(List<Proyecto> proyectos) {
+        if (proyectos.isEmpty()) {
+            return List.of();
+        }
+        Map<Integer, Long> integrantes = estudianteProyectoRepository
+                .contarPorProyecto(proyectos.stream().map(Proyecto::getId).toList()).stream()
+                .collect(Collectors.toMap(IntegrantesDeProyecto::getIdProyecto, IntegrantesDeProyecto::getTotal));
+        return proyectos.stream()
+                .map(p -> aResponse(p, integrantes.getOrDefault(p.getId(), 0L).intValue()))
+                .toList();
+    }
+
+    private ProyectoResponseDTO aResponse(Proyecto proyecto, int totalIntegrantes) {
         Optional<Semillero> semillero = Optional.ofNullable(proyecto.getSemillero());
         return ProyectoResponseDTO.builder()
                 .id(proyecto.getId())
                 .idSemillero(semillero.map(Semillero::getId).orElse(null))
-                .totalIntegrantes(estudianteProyectoRepository.findByProyectoId(proyecto.getId()).size())
+                .totalIntegrantes(totalIntegrantes)
                 .titulo(proyecto.getTitulo())
                 .descripcion(proyecto.getDescripcion())
                 .nombreSemillero(semillero.map(Semillero::getNombre).orElse(null))

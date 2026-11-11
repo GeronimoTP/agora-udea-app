@@ -116,7 +116,7 @@ Es una SPA con rutas basadas en archivos (TanStack Router). Las rutas que piden 
 - **Organización por capa técnica.** Una funcionalidad (por ejemplo, postulaciones) está repartida en ocho paquetes (controlador, servicio, mapper, autorización, repositorio, modelo y DTOs de entrada y salida), y `service` tiene 27 clases (42 con sus subpaquetes) sin límites entre dominios.
 - **Dominio mayormente anémico.** Las entidades son casi solo datos; las reglas viven en los servicios. Esta refactorización empezó a mover reglas al modelo.
 - **Servicios acoplados a Spring Data JPA.** Probar una regla de negocio exige base de datos: solo `KdTree` tiene pruebas unitarias.
-- **Consultas por elemento en algunos cálculos.** El listado de semilleros ya usa consultas agregadas, pero el motor de recomendación todavía consulta la base varias veces por cada semillero que puntúa (ver 2.5).
+- **La analítica calcula en memoria.** `AnaliticaService` carga las tablas completas (`findAll`) y calcula los indicadores en Java. Son pocas consultas y con el volumen actual es lo más simple, pero con años de datos convendría agregar en SQL (ver 2.5).
 - **Estado en memoria y tareas programadas en cada instancia.** Con más de una instancia del backend, las tareas se ejecutarían varias veces y el índice KD podría diferir entre instancias.
 - **Migraciones manuales.** No hay Flyway ni Liquibase; el orden de los scripts depende de que alguien los ejecute.
 - **El JWT vive en `localStorage`.** Es vulnerable si hubiera XSS.
@@ -149,13 +149,30 @@ Después de cada paso de la refactorización se compararon las respuestas contra
 
 En una segunda ronda (mappers, consultas agregadas, división del gestor y de la autorización, pesos configurables y división del cliente HTTP del frontend) se generó una línea base nueva desde el commit anterior y se repitió la comparación: **0 diferencias en 988 casos**. Esa ronda no cambió el comportamiento.
 
+Una tercera ronda (consultas por lote en el motor de recomendación, la priorización, los semilleros similares y los listados de postulaciones, publicaciones, proyectos, estudiantes y profesores) también dio **0 diferencias en 988 casos**.
+
 Además:
 
 - **Pruebas unitarias:** las 5 de `KdTreeTest` siguen pasando.
 - **Frontend:** `tsc`, `eslint` (0 errores) y `vite build` pasan.
 - **Interfaz:** se revisaron capturas de las pantallas afectadas en escritorio y móvil.
 - **Indicadores por semillero:** se validaron contra consultas SQL directas.
-- **Consultas SQL:** se contaron con `log_statement=all` en PostgreSQL. `GET /api/semilleros` bajó de 52 a 15 sentencias con 5 semilleros, y ahora no crece con el número de semilleros.
+- **Consultas SQL:** se contaron con `log_statement=all` en PostgreSQL, con los datos de prueba (5 semilleros, 30 estudiantes, 79 postulaciones, 14 publicaciones). Las cifras incluyen unas 8 sentencias fijas de autenticación y transacción. Después del cambio, ninguna crece con el número de elementos:
+
+  | Endpoint | Antes | Después |
+  | --- | --- | --- |
+  | `GET /api/semilleros` | 52 | 15 |
+  | `GET /api/recomendaciones/estudiante/{id}` | 54 | 22 |
+  | `GET /api/recomendaciones/estudiante/{id}/similares` | 23 | 19 |
+  | `GET /api/postulaciones/semillero/{id}/priorizacion` (2 aspirantes) | 24 | 20 |
+  | `GET /api/postulaciones` | 97 | 12 |
+  | `GET /api/postulaciones/semillero/{id}` | 40 | 18 |
+  | `GET /api/publicaciones` | 73 | 9 |
+  | `GET /api/proyectos` | 18 | 8 |
+  | `GET /api/estudiantes` | 73 | 9 |
+  | `GET /api/profesores` | 15 | 9 |
+
+  La priorización mejora poco con 2 aspirantes porque antes hacía 4 consultas por aspirante: con 30 aspirantes habrían sido unas 136.
 
 ### 2.2 Hallazgos por principio
 
@@ -202,11 +219,11 @@ No hay jerarquías propias que la violen. Las excepciones de negocio extienden `
 | --- | --- | --- |
 | Constantes de estado duplicadas (`ESTADO_*`) | 35 en 10 servicios | 0: clases de `dominio` |
 | Copias del método `buscarEstado` | 6 | 1 (`BuscadorEstados`) |
-| Copias de "¿tiene convocatoria abierta?" | 3 | 1 (`Convocatoria.recibePostulaciones` + `ConvocatoriaRepository.existeConvocatoriaRecibiendoPostulaciones`) |
+| Copias de "¿tiene convocatoria abierta?" | 3 | 1 (`Convocatoria.recibePostulaciones` + `ConvocatoriaRepository.idsSemillerosRecibiendoPostulaciones`) |
 | Redondeos `Math.round(x * 100.0) / 100.0` repetidos | 16 | `util.Redondeo` |
 | `catch (Exception)` que devolvía 0 y ocultaba errores | 4 (motor de recomendación) | 0 |
 | Números mágicos en los puntajes | `0.40`, `0.25`, `0.20`, `0.15`… en tres servicios | Configuración tipada y validada (`config/Pesos*`) |
-| Consultas para listar semilleros | 5 por semillero, más las relaciones `LAZY` de cada uno | Fijas: consultas agregadas (`ConteoPorSemillero`) y `default_batch_fetch_size` |
+| Consultas por elemento | 5 por semillero al listarlos; 1 o 2 por postulación, publicación (más 1 por autor), proyecto, estudiante y profesor; unas 8 por semillero en el motor; 4 por aspirante en la priorización | Número fijo: consultas por lote (`IN :ids`) y agregadas (`GROUP BY`), `aResponses` en los mappers y `default_batch_fetch_size` |
 | Métodos privados de conversión a DTO | 8 servicios, con 5 `builder()` duplicados | 9 mappers en `service/mapper` |
 | Métodos de servicio sin uso | 6 | 0 |
 | Consultas de repositorio sin uso | 5 | 0 |
@@ -236,16 +253,15 @@ La refactorización buscó no cambiar el comportamiento. Estos son los únicos c
 
 ### 2.5 Pendientes de refactorización
 
-Ya se hicieron: consultas agregadas en el listado de semilleros, mappers del resto de servicios, división de `GestorConvocatoriasService` y de `AutorizacionService`, pesos configurables y división del cliente HTTP del frontend.
+Ya se hicieron: consultas agregadas en el listado de semilleros, mappers del resto de servicios, división de `GestorConvocatoriasService` y de `AutorizacionService`, pesos configurables, división del cliente HTTP del frontend y consultas por lote en el motor de recomendación, la priorización y los demás listados.
 
 Quedan, en orden de prioridad:
 
-1. **Motor de recomendación por elemento:** para cada semillero activo consulta sus tutores, las áreas de cada tutor, sus líneas, sus convocatorias y las habilidades de sus postulaciones, y vuelve a leer las habilidades y líneas del estudiante. Conviene cargar todo con consultas por lote (`IN :ids`), como `SemilleroMapper.aResponses`, y calcular los factores en memoria.
-2. **Otros listados con consultas por elemento:** las habilidades de cada postulación (`PostulacionMapper`), los autores de cada publicación (`PublicacionMapper`) y los integrantes de cada proyecto (`ProyectoMapper`). Con los volúmenes actuales no es un problema; se resuelve igual que el punto anterior.
-3. **Pruebas automatizadas:**
+1. **Pruebas automatizadas:**
    - Llevar la prueba de caracterización al repositorio como prueba de integración con Testcontainers.
    - Agregar pruebas unitarias de `CalculadoraIndicadores` (es pura, no necesita base de datos).
-4. **Estilo de tipos en el frontend:** hay dos formas, documentadas en la cabecera de cada módulo de `lib/api`. Las vistas públicas mapean el DTO a un tipo de vista; la edición (`gestion`, `perfiles`, `catalogos`) usa el DTO tal cual porque necesita los IDs y los nombres exactos de estado. Unificarlas en una sola implicaría reescribir los componentes de gestión, y hoy no lo justifica.
+2. **Analítica en SQL:** `AnaliticaService` carga tablas completas y calcula en memoria; la vista por semillero, además, vuelve a cargar toda la universidad para la referencia. Con el volumen actual responde rápido. Si crece, conviene calcular los totales con consultas agregadas o guardar en caché la referencia institucional por unos minutos.
+3. **Estilo de tipos en el frontend:** hay dos formas, documentadas en la cabecera de cada módulo de `lib/api`. Las vistas públicas mapean el DTO a un tipo de vista; la edición (`gestion`, `perfiles`, `catalogos`) usa el DTO tal cual porque necesita los IDs y los nombres exactos de estado. Unificarlas en una sola implicaría reescribir los componentes de gestión, y hoy no lo justifica.
 
 ---
 
